@@ -115,8 +115,12 @@ def patch_fs_loads(image, ph, base):
     return patched
 
 
-def link(game, out, module_names=DEFAULT_MODULES):
-    main = module(game / 'eboot.bin')
+def link(game, out, module_names=DEFAULT_MODULES, executable='eboot.bin'):
+    from prepare import executable_path
+    main = module(executable_path(game, executable))
+    analysis = json.loads((out / 'analysis.json').read_text(encoding='utf-8'))
+    if analysis['source_sha256'] != main['sha256']:
+        raise ValueError('prepared image does not match selected executable')
     raw = (out / 'boot.bin').read_bytes()
     magic, size, entry, ns, nr, ni, flags = unpack('<8s6Q', raw, 0)
     if magic != b'G3PROBE2':
@@ -273,7 +277,8 @@ if __name__ == '__main__':
     import argparse
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('game', type=Path)
+    p.add_argument('--executable', default='eboot.bin')
     p.add_argument('--out', type=Path, default=Path(__file__).resolve().parent.parent / 'out')
     p.add_argument('--modules', nargs='*', default=list(DEFAULT_MODULES))
     a = p.parse_args()
-    link(a.game, a.out, a.modules)
+    link(a.game, a.out, a.modules, a.executable)

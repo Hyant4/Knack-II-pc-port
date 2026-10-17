@@ -33,3 +33,6 @@ port/pgo/
 port/user/
 /game/
 port/dist/
+/out/
+/.venv/
+*.elf

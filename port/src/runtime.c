@@ -201,6 +201,10 @@ uintptr_t runtime_resolve(const char *name, int is_data) {
     if (!(capabilities & 1)) return 0;
     char canonical[128];
     name=canonical_name(name,canonical);
+    if (!is_data) {
+        uintptr_t knack = runtime_knack_resolve(name);
+        if (knack) return knack;
+    }
     if (is_data) {
         static int32_t need_libc_internal = 1; /* SDK marker variable referenced by Fios2 */
         if (!strcmp(name, "f7uOxY9mM1U#libkernel")) return (uintptr_t)&stack_canary;
@@ -279,6 +283,7 @@ uintptr_t runtime_resolve(const char *name, int is_data) {
 }
 static const struct { const char *nid, *symbol; } import_names[]={
 #include "import_names.inc"
+#include "knack_import_names.inc"
 };
 /* Symbol name for a scoped NID, or NULL when this eboot/libc never imports it. */
 const char *runtime_symbol(const char *nid) {

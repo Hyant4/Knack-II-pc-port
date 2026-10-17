@@ -184,8 +184,17 @@ def inspect_libc(path):
     return evidence
 
 
-def prepare(game, out):
-    source = read_self(game / 'eboot.bin')
+def executable_path(game, executable):
+    """Resolve an app0 executable without allowing paths outside the dump."""
+    game = Path(game).resolve()
+    path = (game / executable).resolve()
+    if not path.is_relative_to(game) or path == game:
+        raise ValueError('executable must be inside the game directory')
+    return path
+
+
+def prepare(game, out, executable='eboot.bin'):
+    source = read_self(executable_path(game, executable))
     elf, header, ph, segments, missing = parse_self(source)
     loads = [p for p in ph if p['type'] in (1, 0x61000010)]
     def mapped(addr, size=8):
@@ -293,7 +302,7 @@ def prepare(game, out):
             key = path.suffix if path.suffix == '.psarc' else path.relative_to(game / 'dvdroot_ps4').parts[0]
             resources[key] += 1
             total_bytes += path.stat().st_size
-    report = dict(source_sha256=hashlib.sha256(source).hexdigest(), source_bytes=len(source),
+    report = dict(executable=executable, source_sha256=hashlib.sha256(source).hexdigest(), source_bytes=len(source),
                   sfo=sfo((game / 'sce_sys/param.sfo').read_bytes()), entry=hex(header[4]),
                   image_bytes=size, program_headers=ph, self_segments=segments,
                   unavailable_metadata_headers=missing, needed=[string(v) for t, v in dyn if t == 1],
@@ -314,11 +323,12 @@ def prepare(game, out):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('game', type=Path)
+    parser.add_argument('--executable', default='eboot.bin')
     parser.add_argument('--out', type=Path, default=Path(__file__).resolve().parent.parent / 'out')
     args = parser.parse_args()
     # The title is printed; a console or pipe in a legacy code page cannot encode every language.
     sys.stdout.reconfigure(errors='replace')
     try:
-        prepare(args.game, args.out)
+        prepare(args.game, args.out, args.executable)
     except (ValueError, OSError, StopIteration, KeyError, IndexError) as error:
         parser.exit(1, f'prepare failed: {error}\n')

@@ -948,6 +948,8 @@ int main(int argc, char **argv) {
     unsigned timeout_seconds = 10;
     const char *content_profile=NULL, *app0=NULL, *user_dir=NULL, *patch_file=NULL, *isa_file=NULL;
     const char *mounts[8]; int mount_count=0;
+    const char *guest_executable = "/app0/eboot.bin";
+    const char *guest_args[65] = {0}; unsigned guest_argc = 0;
     for (int i = 2; i < argc; ++i) {
         if (!strcmp(argv[i], "--cpu-only")) cpu_only = 1;
         else if (!strcmp(argv[i], "--strict-imports")) strict_imports = 1;
@@ -957,6 +959,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--user") && i+1<argc) user_dir=argv[++i];
         else if (!strcmp(argv[i], "--patches") && i+1<argc) patch_file=argv[++i];
         else if (!strcmp(argv[i], "--isa-rewrite") && i+1<argc) isa_file=argv[++i];
+        else if (!strcmp(argv[i], "--guest-executable") && i+1<argc) guest_executable=argv[++i];
+        else if (!strcmp(argv[i], "--guest-arg") && i+1<argc && guest_argc<64) guest_args[guest_argc++]=argv[++i];
         else if (!strcmp(argv[i], "--mount") && i+1<argc) {
             /* guest=host; the guest part never has '=', so the first one splits */
             const char *spec=argv[++i], *eq=strchr(spec,'=');
@@ -1279,11 +1283,13 @@ int main(int argc, char **argv) {
         _exit(missing ? 1 : 0); /* no destructors: GPU threads are running */
     }
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
-    if (gpu_enabled) install_orb_multiplier(app0, segments, ns, size);
-    if (gpu_enabled) install_cheats(app0, segments, ns, size);
-    if (gpu_enabled) install_actor_watch(app0, segments, ns, size);
-    if (gpu_enabled) install_stat_multipliers(app0, segments, ns, size);
-    if (gpu_enabled) install_view_tuning(segments, ns, size);
+    if (gpu_enabled && !getenv("KNACK2_PROFILE")) {
+        install_orb_multiplier(app0, segments, ns, size);
+        install_cheats(app0, segments, ns, size);
+        install_actor_watch(app0, segments, ns, size);
+        install_stat_multipliers(app0, segments, ns, size);
+        install_view_tuning(segments, ns, size);
+    }
 #ifdef _WIN32
     printf("Guest TCB loads redirected to the TEB TLS slot: %" PRIu64 "\n", patch_tcb_loads(segments, ns));
 #endif
@@ -1360,7 +1366,11 @@ int main(int argc, char **argv) {
     { const uint16_t cw = 0x037F; __asm__ volatile("fldcw %0" : : "m"(cw)); }
 #endif
     entered_game=1;
-    struct { uint64_t argc; const char *argv[2]; } params = {1, {"/app0/eboot.bin", NULL}};
+    struct { uint64_t argc; const char *argv[65]; } params = {0, {NULL}};
+    if (!guest_argc) guest_args[guest_argc++]=guest_executable;
+    params.argc=guest_argc;
+    for (unsigned i=0; i<guest_argc; ++i) params.argv[i]=guest_args[i];
+    printf("Guest executable: %s; argc=%u\n", guest_executable, guest_argc);
 #ifdef _WIN32
     typedef void (ABI *Entry)(void *, void (ABI *)(void));
     ((Entry)(image + entry))(&params, guest_exit);

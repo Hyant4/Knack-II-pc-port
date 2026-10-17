@@ -48,6 +48,11 @@ static void note(const char *what) { printf("Runtime: %s\n",what); }
 /* ---- UserService ---- */
 static int login_event_pending=1;
 static ABI int32_t user_initialize(const void *params) { (void)params; note("UserService initialized (user 1 logged in)"); return 0; }
+static ABI int32_t user_initialize2(int32_t priority) {
+    /* The host provider has no service thread; scheduling stays with Windows. */
+    (void)priority;
+    return user_initialize(NULL);
+}
 static ABI int32_t user_terminate(void) { return 0; }
 static ABI int32_t user_initial(int32_t *id) { if (!id) return USER_INVALID_ARGUMENT; *id=USER_ID; return 0; }
 static ABI int32_t user_list(int32_t *ids) {
@@ -626,6 +631,22 @@ static ABI int32_t playgo_close(int32_t handle) {
     if (handle!=playgo_handle || !handle) return PLAYGO_BAD_HANDLE;
     playgo_handle=0; return 0;
 }
+/* Language bit ordering follows shadPS4 e6c79a5 playgo.cpp (GPL-2.0-or-later). */
+static ABI int32_t playgo_language(int32_t handle,uint64_t *mask) {
+    if (handle!=playgo_handle || !handle) return PLAYGO_BAD_HANDLE;
+    if (!mask) return PLAYGO_BAD_POINTER;
+    int lang=language();
+    *mask=lang>=0 && lang<48 ? UINT64_C(1) << (63-lang) : 0;
+    return 0;
+}
+static ABI int32_t playgo_prefetch(int32_t handle,const uint16_t *ids,uint32_t count,int8_t locus) {
+    if (handle!=playgo_handle || !handle) return PLAYGO_BAD_HANDLE;
+    if (!ids) return PLAYGO_BAD_POINTER;
+    if (!count) return PLAYGO_BAD_SIZE;
+    if (locus!=0 && locus!=2 && locus!=3) return (int32_t)0x80B20010;
+    for (uint32_t i=0;i<count;++i) if (ids[i]>=playgo_chunks) return PLAYGO_BAD_CHUNK;
+    return 0; /* Local dump: no network installation work remains to schedule. */
+}
 static ABI int32_t playgo_terminate(void) { playgo_handle=0; return 0; }
 
 /* ---- DiscMap: the game is fully installed, no disc bitmap exists ---- */
@@ -651,6 +672,7 @@ static ABI int32_t audio_in_open(void) { return AUDIO_IN_NOT_OPENED; }
 
 static const RuntimeExport exports[]={
     {"sceUserServiceInitialize",user_initialize}, {"sceUserServiceTerminate",user_terminate},
+    {"sceUserServiceInitialize2",user_initialize2},
     {"sceUserServiceGetInitialUser",user_initial}, {"sceUserServiceGetLoginUserIdList",user_list},
     {"sceUserServiceGetUserName",user_name}, {"sceUserServiceGetEvent",user_event},
     {"sceSystemServiceParamGetInt",system_param}, {"sceSystemServiceGetStatus",system_status},
@@ -768,6 +790,7 @@ static const RuntimeExport exports[]={
     {"scePlayGoInitialize",playgo_init}, {"scePlayGoOpen",playgo_open}, {"scePlayGoGetChunkId",playgo_chunk_ids},
     {"scePlayGoGetLocus",playgo_locus}, {"scePlayGoSetInstallSpeed",playgo_speed},
     {"scePlayGoGetInstallSpeed",playgo_get_speed}, {"scePlayGoGetProgress",playgo_progress},
+    {"scePlayGoGetLanguageMask",playgo_language}, {"scePlayGoPrefetch",playgo_prefetch},
     {"scePlayGoSetToDoList",playgo_todo}, {"scePlayGoClose",playgo_close}, {"scePlayGoTerminate",playgo_terminate},
     {"sceMouseInit",ok_void}, {"sceMouseOpen",mouse_open}, {"sceMouseRead",mouse_read}, {"sceMouseClose",mouse_close},
     {"sceAudioInOpen",audio_in_open},

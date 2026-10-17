@@ -85,13 +85,14 @@ _Static_assert(sizeof(RenderOutput)==64,"SceFontRenderOutput");
 _Static_assert(sizeof(OpenParams)==32,"SceFontOpenDetail");
 
 /* ---- Host objects behind the guest handles ---- */
-typedef struct { uint16_t magic; const FontMemory *memory; uint64_t edition; int fonts; } Library;
+typedef struct { uint16_t magic; const FontMemory *memory; uint64_t edition; int fonts; uint32_t open_mode; int system_fonts; uint32_t cache_size; } Library;
 typedef struct { uint16_t magic; const FontMemory *memory; uint64_t edition; } Renderer;
 typedef struct {
     uint16_t magic;
     Library *library;
     Renderer *renderer;
     FT_Face face;
+    void *owned_data;               /* host font replacement; NULL for guest-owned memory */
     float scale_w, scale_h;          /* sceFontSetScalePixel: metrics and layout */
     float render_w, render_h;        /* sceFontSetupRenderScalePixel: rendering */
     FT_F26Dot6 size_w, size_h;       /* char size currently set on the face */
@@ -292,6 +293,7 @@ static ABI int32_t font_close(Font *handle) {
     Font *font=font_of(handle);
     if (!font) { pthread_mutex_unlock(&lock); return ERR_INVALID_FONT_HANDLE; }
     FT_Done_Face(font->face);
+    free(font->owned_data);
     font->face=NULL; font->magic=0;
     Library *library=font->library;
     int release=0;
@@ -510,7 +512,113 @@ static ABI int32_t font_render_char_glyph_image_horizontal(Font *handle, uint32_
     return result;
 }
 
+/* ABI and validation: shadPS4 e6c79a5 font.cpp (GPL-2.0-or-later).
+ * The memory-backed FreeType provider retains a face until close in every mode.
+ */
+static ABI int32_t font_set_open_mode(Library *library,uint32_t mode) {
+    if (!library || library->magic!=LIBRARY_MAGIC) return ERR_INVALID_LIBRARY;
+    if (mode>2) return ERR_INVALID_PARAMETER;
+    pthread_mutex_lock(&lock);
+    library->open_mode=mode;
+    pthread_mutex_unlock(&lock);
+    return FONT_OK;
+}
+static ABI int32_t font_support_system(Library *library) {
+    if (!library || library->magic!=LIBRARY_MAGIC) return ERR_INVALID_LIBRARY;
+    if (!getenv("KNACK2_SYSTEM_FONT")) return ERR_FONT_OPEN_FAILED;
+    pthread_mutex_lock(&lock);
+    int32_t result=library->system_fonts ? (int32_t)0x80460021 : 0;
+    library->system_fonts=1;
+    pthread_mutex_unlock(&lock);
+    return result;
+}
+static ABI int32_t font_attach_cache(Library *library,void *buffer,uint32_t size) {
+    (void)buffer; /* FreeType keeps its own CPU cache; guest cache memory stays guest-owned. */
+    if (!library || library->magic!=LIBRARY_MAGIC) return ERR_INVALID_LIBRARY;
+    if (size<0x2000) return ERR_INVALID_PARAMETER;
+    pthread_mutex_lock(&lock);
+    int32_t result=library->cache_size ? (int32_t)0x80460022 : 0;
+    if (!result) library->cache_size=size;
+    pthread_mutex_unlock(&lock);
+    once("device-cache request uses FreeType host cache");
+    return result;
+}
+static ABI int32_t font_open_set(Library *library,uint32_t type,uint32_t mode,const OpenParams *params,Font **out) {
+    if (!out) return ERR_INVALID_PARAMETER;
+    *out=NULL;
+    if (!library || library->magic!=LIBRARY_MAGIC) return ERR_INVALID_LIBRARY;
+    if (mode>2) return ERR_INVALID_PARAMETER;
+    const char *path=getenv("KNACK2_SYSTEM_FONT");
+    if (!library->system_fonts || !path) return ERR_FONT_OPEN_FAILED;
+    FILE *file=fopen(path,"rb");
+    if (!file) return ERR_FONT_OPEN_FAILED;
+    if (fseek(file,0,SEEK_END)) { fclose(file); return ERR_FONT_OPEN_FAILED; }
+    long size=ftell(file);
+    if (size<=0 || size>64*1024*1024 || fseek(file,0,SEEK_SET)) { fclose(file); return ERR_FONT_OPEN_FAILED; }
+    void *data=malloc((size_t)size);
+    if (!data) { fclose(file); return ERR_ALLOCATION_FAILED; }
+    size_t count=fread(data,1,(size_t)size,file);
+    fclose(file);
+    if (count!=(size_t)size) { free(data); return ERR_FONT_OPEN_FAILED; }
+    /* The configured host file is a standalone substitute, not a PS4 collection. */
+    OpenParams selected={0};
+    if (params) selected=*params;
+    selected.subfont_index=0;
+    int32_t result=font_open_memory(library,data,(uint32_t)size,&selected,out);
+    if (result) free(data);
+    else {
+        (*out)->owned_data=data;
+        printf("Font: system set %#x uses explicit local substitute %s\n",type,path);
+    }
+    return result;
+}
+
+/* Text source layout and initialization adapted from shadPS4 e6c79a5 font.h/font.cpp.
+ * Copyright 2024 shadPS4 Emulator Project; GPL-2.0-or-later.
+ */
+typedef struct {
+    uint64_t system;
+    const void *start,*end,*current;
+    void *parser,*object,*font,*saved[5];
+} FontTextSource;
+_Static_assert(sizeof(FontTextSource)==0x60,"Font text source ABI");
+static ABI int32_t font_text_init(FontTextSource *source,const void *text,uint32_t size,void *parser,void *object) {
+    if (!source) return ERR_INVALID_PARAMETER;
+    memset(source,0,sizeof(*source));
+    if (!parser || (size && (uintptr_t)text>UINTPTR_MAX-size)) return ERR_INVALID_PARAMETER;
+    source->system=(UINT64_C(0x10)<<32)|0x0f04;
+    source->start=source->current=text;
+    source->end=size ? (const void *)((uintptr_t)text+size) : NULL;
+    source->parser=parser; source->object=object;
+    source->saved[0]=(void *)text; source->saved[1]=(void *)source->end;
+    source->saved[2]=parser; source->saved[3]=object;
+    return FONT_OK;
+}
+static ABI int32_t font_text_default(FontTextSource *source,Font *font) {
+    if (!source || (source->system&0xffff)!=0x0f04) return ERR_INVALID_PARAMETER;
+    source->font=source->saved[4]=font;
+    return FONT_OK;
+}
+static ABI int32_t font_text_form(FontTextSource *source,int32_t form) {
+    if (!source || (source->system&0xffff)!=0x0f04 || form<0x10 || form>0x12) return ERR_INVALID_PARAMETER;
+    source->system=(source->system&UINT32_MAX)|((uint64_t)(uint32_t)form<<32);
+    return FONT_OK;
+}
+
+#include "knack_font_text.inc"
+
 static const RuntimeExport exports[]={
+    {"sceFontCreateString",font_string_create},
+    {"sceFontDestroyString",font_string_destroy},
+    {"sceFontStringRefersTextCharacters",font_string_characters},
+    {"sceFontCharacterRefersTextNext",font_character_next},
+    {"sceFontTextSourceInit",font_text_init},
+    {"sceFontTextSourceSetDefaultFont",font_text_default},
+    {"sceFontTextSourceSetWritingForm",font_text_form},
+    {"sceFontSetFontsOpenMode",font_set_open_mode},
+    {"sceFontAttachDeviceCacheBuffer",font_attach_cache},
+    {"sceFontSupportSystemFonts",font_support_system},
+    {"sceFontOpenFontSet",font_open_set},
     {"sceFontMemoryInit",font_memory_init},
     {"sceFontMemoryTerm",font_memory_term},
     {"sceFontSelectLibraryFt",font_select_library_ft},
