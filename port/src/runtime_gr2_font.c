@@ -411,6 +411,26 @@ static ABI int32_t font_get_render_scaled_kerning(Font *handle, uint32_t previou
     return result;
 }
 
+static ABI int32_t font_get_kerning(Font *handle, uint32_t previous, uint32_t code, Kerning *kerning) {
+    once("sceFontGetKerning");
+    if (!kerning) return ERR_INVALID_PARAMETER;
+    memset(kerning,0,sizeof(*kerning));
+    pthread_mutex_lock(&lock);
+    Font *font=font_of(handle);
+    int32_t result=FONT_OK;
+    if (!font) result=ERR_INVALID_FONT_HANDLE;
+    else if (previous && code && FT_HAS_KERNING(font->face) && !set_size(font,font->scale_w,font->scale_h)) {
+        FT_UInt left=FT_Get_Char_Index(font->face,previous), right=FT_Get_Char_Index(font->face,code);
+        FT_Vector delta={0,0};
+        if (left && right && !FT_Get_Kerning(font->face,left,right,FT_KERNING_UNFITTED,&delta)) {
+            kerning->offset_x=delta.x/64.0f;
+            kerning->offset_y=delta.y/64.0f;
+        }
+    }
+    pthread_mutex_unlock(&lock);
+    return result;
+}
+
 static ABI void font_render_surface_init(RenderSurface *surface, void *buffer, int32_t width_byte,
                                          int32_t pixel_size_byte, int32_t width, int32_t height) {
     once("sceFontRenderSurfaceInit");
@@ -611,6 +631,7 @@ static const RuntimeExport exports[]={
     {"sceFontCreateString",font_string_create},
     {"sceFontDestroyString",font_string_destroy},
     {"sceFontStringRefersTextCharacters",font_string_characters},
+    {"sceFontStringRefersRenderCharacters",font_string_render_characters},
     {"sceFontCharacterRefersTextNext",font_character_next},
     {"sceFontTextSourceInit",font_text_init},
     {"sceFontTextSourceSetDefaultFont",font_text_default},
@@ -638,6 +659,13 @@ static const RuntimeExport exports[]={
     {"sceFontGetHorizontalLayout",font_get_horizontal_layout},
     {"sceFontGetCharGlyphMetrics",font_get_char_glyph_metrics},
     {"sceFontGetRenderScaledKerning",font_get_render_scaled_kerning},
+    {"sceFontGetKerning",font_get_kerning},
+    {"sceFontWritingInit",font_writing_init},
+    {"sceFontWritingRefersRenderStep",font_writing_render_step},
+    {"sceFontWritingGetRenderMetrics",font_writing_get_render_metrics},
+    {"sceFontGenerateCharGlyph",font_generate_char_glyph},
+    {"sceFontDeleteGlyph",font_delete_glyph},
+    {"sceFontGlyphRefersMetricsHorizontalAdvance",font_glyph_metrics_horizontal_advance},
     {"sceFontRenderSurfaceInit",font_render_surface_init},
     {"sceFontRenderCharGlyphImageHorizontal",font_render_char_glyph_image_horizontal},
 };

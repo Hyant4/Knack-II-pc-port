@@ -91,3 +91,168 @@ static ABI FontCharacter *font_string_characters(FontString *string,uint32_t *co
 static ABI FontCharacter *font_character_next(FontCharacter *character) {
     return character ? character->next : NULL;
 }
+static ABI FontCharacter *font_string_render_characters(FontString *string,
+                                                       FontCharacter *start,
+                                                       FontCharacter *last,
+                                                       uint32_t *count) {
+    once("sceFontStringRefersRenderCharacters");
+    uint32_t render_count = 0;
+    FontCharacter *first_render = NULL;
+    if (string && string->magic == 0xf05 && string->count) {
+        FontCharacter *c = start ? start : string->characters;
+        while (c) {
+            if (!(c->flags & 0xe00) && c->code > 32) {
+                if (!first_render) first_render = c;
+                ++render_count;
+            }
+            if (c == last) break;
+            c = c->next;
+        }
+    }
+    if (count) *count = render_count;
+    return first_render;
+}
+
+/* Writing and glyph layout structures */
+typedef struct {
+    float top, bottom, left, right;
+} FontWritingExtent;
+
+typedef struct {
+    float advance_x, advance_y;
+    FontWritingExtent extent;
+} FontWritingMetrics;
+
+typedef struct {
+    float x, y;
+    float advance_x, advance_y;
+    Font *font;
+    uint32_t profile;
+    uint32_t glyph_code;
+    float positioning_x, positioning_y;
+    GlyphMetrics glyph_metrics;
+} FontWritingStep;
+
+typedef struct {
+    uint16_t magic; /* 0x0F06 */
+    uint16_t mask;
+    FontString *string;
+    FontCharacter *current;
+    float pen_x, pen_y;
+    FontWritingMetrics metrics;
+    FontWritingStep step;
+} FontWritingContext;
+_Static_assert(sizeof(FontWritingContext) <= 256, "FontWritingContext fits inside SceFontWriting");
+
+static ABI int32_t font_writing_init(void *writing_buf, FontString *string, FontCharacter *character) {
+    once("sceFontWritingInit");
+    if (!writing_buf) return ERR_INVALID_PARAMETER;
+    memset(writing_buf, 0, 256);
+    if (!string || string->magic != 0xf05) return ERR_INVALID_PARAMETER;
+    FontWritingContext *ctx = (FontWritingContext *)writing_buf;
+    ctx->magic = 0x0f06;
+    ctx->string = string;
+    ctx->current = character ? character : string->characters;
+    ctx->pen_x = 0.0f;
+    ctx->pen_y = 0.0f;
+    return FONT_OK;
+}
+
+static ABI FontWritingStep *font_writing_render_step(void *writing_buf) {
+    once("sceFontWritingRefersRenderStep");
+    if (!writing_buf) return NULL;
+    FontWritingContext *ctx = (FontWritingContext *)writing_buf;
+    if (ctx->magic != 0x0f06 || !ctx->current) return NULL;
+
+    while (ctx->current) {
+        FontCharacter *c = ctx->current;
+        ctx->current = c->next;
+
+        memset(&ctx->step, 0, sizeof(ctx->step));
+        ctx->step.x = ctx->pen_x;
+        ctx->step.y = ctx->pen_y;
+        ctx->step.font = c->font;
+        ctx->step.profile = 1;
+        ctx->step.glyph_code = c->code;
+
+        if (c->font) {
+            GlyphMetrics gm = {0};
+            if (font_get_char_glyph_metrics(c->font, c->code, &gm) == FONT_OK) {
+                ctx->step.glyph_metrics = gm;
+                ctx->step.advance_x = gm.h_advance;
+                ctx->step.advance_y = gm.v_advance;
+            } else {
+                ctx->step.advance_x = c->font->scale_w * 0.5f;
+            }
+        } else {
+            ctx->step.advance_x = 16.0f;
+        }
+
+        ctx->pen_x += ctx->step.advance_x;
+        ctx->pen_y += ctx->step.advance_y;
+
+        ctx->metrics.advance_x = ctx->pen_x;
+        ctx->metrics.advance_y = ctx->pen_y;
+        if (ctx->pen_x > ctx->metrics.extent.right) ctx->metrics.extent.right = ctx->pen_x;
+
+        return &ctx->step;
+    }
+    return NULL;
+}
+
+static ABI int32_t font_writing_get_render_metrics(void *writing_buf, FontWritingMetrics *metrics) {
+    once("sceFontWritingGetRenderMetrics");
+    if (!writing_buf || !metrics) return ERR_INVALID_PARAMETER;
+    FontWritingContext *ctx = (FontWritingContext *)writing_buf;
+    if (ctx->magic != 0x0f06) return ERR_INVALID_PARAMETER;
+    *metrics = ctx->metrics;
+    return FONT_OK;
+}
+
+/* Glyph object structures */
+typedef struct {
+    uint16_t magic; /* 0x0F03 */
+    uint16_t pad;
+    uint32_t code;
+    Font *font;
+    GlyphMetrics metrics;
+    float horizontal_advance;
+} FontGlyphObject;
+
+static ABI int32_t font_generate_char_glyph(Font *handle, uint32_t code, const void *detail, FontGlyphObject **out) {
+    (void)detail;
+    once("sceFontGenerateCharGlyph");
+    if (!out) return ERR_INVALID_PARAMETER;
+    *out = NULL;
+    Font *font = font_of(handle);
+    if (!font) return ERR_INVALID_FONT_HANDLE;
+    FontGlyphObject *obj = calloc(1, sizeof(*obj));
+    if (!obj) return ERR_ALLOCATION_FAILED;
+    obj->magic = 0x0f03;
+    obj->code = code;
+    obj->font = font;
+    font_get_char_glyph_metrics(font, code, &obj->metrics);
+    obj->horizontal_advance = obj->metrics.h_advance;
+    *out = obj;
+    return FONT_OK;
+}
+
+static ABI int32_t font_delete_glyph(const FontMemory *memory, FontGlyphObject **pointer) {
+    (void)memory;
+    once("sceFontDeleteGlyph");
+    if (!pointer) return ERR_INVALID_PARAMETER;
+    FontGlyphObject *obj = *pointer;
+    if (obj && obj->magic == 0x0f03) {
+        obj->magic = 0;
+        free(obj);
+    }
+    *pointer = NULL;
+    return FONT_OK;
+}
+
+static ABI float *font_glyph_metrics_horizontal_advance(FontGlyphObject *glyph) {
+    once("sceFontGlyphRefersMetricsHorizontalAdvance");
+    return glyph && glyph->magic == 0x0f03 ? &glyph->horizontal_advance : NULL;
+}
+
+
