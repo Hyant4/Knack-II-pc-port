@@ -419,13 +419,37 @@ static void RemoveAppendBufferLaneOffset(IR::Inst& vx) {
         }
         const auto other = user->Arg(1 - operand);
         if (other.IsImmediate()) {
-            ASSERT_MSG(other.U32() == 1u || other.U32() == std::numeric_limits<u32>::max() &&
-                                                vx.GetOpcode() == IR::Opcode::DataConsume,
+            ASSERT_MSG(other.U32() == 0u || other.U32() == 1u ||
+                           (other.U32() == std::numeric_limits<u32>::max() &&
+                            vx.GetOpcode() == IR::Opcode::DataConsume),
                        "Unexpected constant offset {} to DataConsume result", other.U32());
-            use = FindUniqueUser(user, [](const IR::Inst* inst) {
-                return inst->GetOpcode() == IR::Opcode::IAdd32 ||
-                       inst->GetOpcode() == IR::Opcode::ISub32;
-            });
+            if (other.U32() == 0u) {
+                IR::Use chained_use{};
+                for (auto& u : user->Uses()) {
+                    if (u.user->GetOpcode() == IR::Opcode::IAdd32 ||
+                        u.user->GetOpcode() == IR::Opcode::ISub32) {
+                        auto vz_cand = u.user->Arg(1 - u.operand);
+                        auto vy_cand = IsMbcntWithExec(vz_cand, false, exec);
+                        if (!vy_cand.IsEmpty() && !vy_cand.IsImmediate()) {
+                            chained_use = u;
+                            break;
+                        }
+                    }
+                }
+                if (chained_use.user) {
+                    IR::Inst* orig_user = user;
+                    use = chained_use;
+                    orig_user->ReplaceUsesWith(IR::Value{&vx});
+                } else {
+                    user->ReplaceUsesWithAndRemove(IR::Value{&vx});
+                    continue;
+                }
+            } else {
+                use = FindUniqueUser(user, [](const IR::Inst* inst) {
+                    return inst->GetOpcode() == IR::Opcode::IAdd32 ||
+                           inst->GetOpcode() == IR::Opcode::ISub32;
+                });
+            }
         }
 
         // Other patterns
