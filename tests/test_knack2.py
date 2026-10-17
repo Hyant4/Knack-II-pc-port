@@ -77,6 +77,19 @@ class KnackTests(unittest.TestCase):
         self.assertEqual(Path(env['PATH'].split(os.pathsep)[0]),
                          Path.home() / 'AppData/Local/knack2-toolchain/msys64/clang64/bin')
 
+    def test_explicit_input_and_capture_paths(self):
+        pad = self.root / 'pad input.txt'
+        capture = self.root / 'frame captures'
+        with self.assertRaises(ValueError):
+            run.runtime_environment(self.root, pad_file=pad)
+        pad.write_text('')
+        with patch.dict(os.environ, {'TLG_PAD_FILE': 'unrelated.txt'}):
+            self.assertNotIn('TLG_PAD_FILE', run.runtime_environment(self.root))
+            env = run.runtime_environment(self.root, pad_file=pad, capture_dir=capture)
+        self.assertEqual(env['TLG_PAD_FILE'], str(pad.resolve()))
+        self.assertEqual(env['TLG_FRAME_DUMP_TRIGGER'], str(capture / 'capture.request'))
+        self.assertTrue(capture.is_dir())
+
     def test_supervisor_timeout_and_child_exit(self):
         command = [sys.executable, '-c', 'import sys; print("stage"); sys.exit(75)']
         log = self.root / 'child.log'

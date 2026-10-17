@@ -96,21 +96,18 @@ static ABI FontCharacter *font_string_render_characters(FontString *string,
                                                        FontCharacter *last,
                                                        uint32_t *count) {
     once("sceFontStringRefersRenderCharacters");
-    uint32_t render_count = 0;
-    FontCharacter *first_render = NULL;
-    if (string && string->magic == 0xf05 && string->count) {
-        FontCharacter *c = start ? start : string->characters;
-        while (c) {
-            if (!(c->flags & 0xe00) && c->code > 32) {
-                if (!first_render) first_render = c;
-                ++render_count;
-            }
-            if (c == last) break;
-            c = c->next;
-        }
-    }
-    if (count) *count = render_count;
-    return first_render;
+    if (count) *count = 0;
+    if (!count || !string || string->magic != 0xf05 || !string->count) return NULL;
+    uintptr_t begin = (uintptr_t)string->characters;
+    uintptr_t end = begin + string->count * sizeof(FontCharacter);
+    uintptr_t first = start ? (uintptr_t)start : begin;
+    uintptr_t final = last ? (uintptr_t)last : end - sizeof(FontCharacter);
+    if (first < begin || first >= end || final < first || final >= end ||
+        (first - begin) % sizeof(FontCharacter) || (final - begin) % sizeof(FontCharacter)) return NULL;
+    /* Spaces still occupy a writing step. The guest iterates exactly this count;
+     * filtering them here truncates the final letters while the iterator includes them. */
+    *count = (uint32_t)((final - first) / sizeof(FontCharacter)) + 1;
+    return (FontCharacter *)first;
 }
 
 /* Writing and glyph layout structures */
@@ -132,6 +129,11 @@ typedef struct {
     float positioning_x, positioning_y;
     GlyphMetrics glyph_metrics;
 } FontWritingStep;
+_Static_assert(sizeof(FontWritingStep) == 0x48, "SceFontWritingStep size");
+_Static_assert(offsetof(FontWritingStep, advance_x) == 0x08, "Writing step advance X");
+_Static_assert(offsetof(FontWritingStep, glyph_code) == 0x1c, "Writing step glyph code");
+_Static_assert(offsetof(FontWritingStep, positioning_x) == 0x20, "Writing step anchor X");
+_Static_assert(offsetof(FontWritingStep, positioning_y) == 0x24, "Writing step anchor Y");
 
 typedef struct {
     uint16_t magic; /* 0x0F06 */
@@ -171,6 +173,12 @@ static ABI FontWritingStep *font_writing_render_step(void *writing_buf) {
         memset(&ctx->step, 0, sizeof(ctx->step));
         ctx->step.x = ctx->pen_x;
         ctx->step.y = ctx->pen_y;
+        /* Knack's raster loop at game.elf+0x5f1dc8/+0x5f1e58 consumes
+         * Positioning at +0x20/+0x24, not the x/y fields at +0/+4.
+         * These are cumulative baseline coordinates in pixels; FreeType's
+         * 26.6 metrics have already been converted by fill_metrics(). */
+        ctx->step.positioning_x = ctx->pen_x;
+        ctx->step.positioning_y = ctx->pen_y;
         ctx->step.font = c->font;
         ctx->step.profile = 1;
         ctx->step.glyph_code = c->code;
@@ -180,7 +188,8 @@ static ABI FontWritingStep *font_writing_render_step(void *writing_buf) {
             if (font_get_char_glyph_metrics(c->font, c->code, &gm) == FONT_OK) {
                 ctx->step.glyph_metrics = gm;
                 ctx->step.advance_x = gm.h_advance;
-                ctx->step.advance_y = gm.v_advance;
+                /* Vertical glyph metrics do not move a horizontal baseline. */
+                ctx->step.advance_y = 0.0f;
             } else {
                 ctx->step.advance_x = c->font->scale_w * 0.5f;
             }

@@ -87,7 +87,7 @@ def read_exec_request(path, profile):
     return guest[6:], args
 
 
-def runtime_environment(out):
+def runtime_environment(out, *, pad_file=None, capture_dir=None):
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
     toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
@@ -98,6 +98,16 @@ def runtime_environment(out):
     env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
                TLG_CONFIG=str(out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
+    if pad_file is not None:
+        pad_file = Path(pad_file).resolve()
+        if not pad_file.is_file():
+            raise ValueError('--pad-file must name an existing input file')
+        env['TLG_PAD_FILE'] = str(pad_file)
+    if capture_dir is not None:
+        capture_dir = Path(capture_dir).resolve()
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        env['TLG_DUMP_DIR'] = str(capture_dir)
+        env['TLG_FRAME_DUMP_TRIGGER'] = str(capture_dir / 'capture.request')
     return env
 
 
@@ -125,6 +135,8 @@ def main(argv=None):
     mode.add_argument('--check-imports', action='store_true')
     parser.add_argument('--timeout', type=int, default=180, help='maximum seconds for the entire guest session')
     parser.add_argument('--out', type=Path, default=ROOT / 'out/knack2')
+    parser.add_argument('--pad-file', type=Path, help='explicit scePad button input file for diagnostics')
+    parser.add_argument('--capture-dir', type=Path, help='write capture.request here to dump the next presented frame')
     args = parser.parse_args(argv)
     if args.timeout < 1:
         parser.error('--timeout must be positive')
@@ -139,7 +151,7 @@ def main(argv=None):
     probe = PORT / 'out/tlg-probe.exe'
     if not probe.is_file():
         raise ValueError('Build the runtime first: .\\build.ps1')
-    env = runtime_environment(out)
+    env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir)
     user = out / 'user'
     user.mkdir(exist_ok=True)
     if not args.check_imports:

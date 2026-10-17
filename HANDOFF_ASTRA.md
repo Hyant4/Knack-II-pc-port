@@ -1,9 +1,114 @@
 # HANDOFF_ASTRA.md
 
-> Atualização de 17/10/2026: o bloqueio SaveData descrito abaixo foi superado.
-> **Dois boots chegaram à tela de título de Knack II.** A seção 4 registra a implementação,
-> evidências e limitações atuais. Seções 1–3 preservam o handoff anterior como histórico;
+> Atualização de 17/10/2026: título salvo no commit `09e6ccc`, integrado por fast-forward
+> em `knack2-windows`. **Texto corrigido e Chapter 1-1 carregado**, com tutorial e pausa.
+> Cenário 3D permanece gravemente incompleto. A seção 5 registra a continuação atual.
+> Seções 1–4 preservam o handoff anterior como histórico;
 > assinaturas e NIDs históricos devem ser conferidos no código antes de novas alterações.
+
+## 5. Texto corrigido e primeira fase — continuação de 17/10/2026
+
+### Git, arquivos e interfaces
+
+O marco SaveData da seção 4 foi salvo em `flash-boot-debug` com o commit
+`09e6ccc`: `feat(savedata): implement sceSaveDataGetParam, backup and events to reach Knack 2 title screen`.
+Merge `--ff-only` concluído para `knack2-windows`, preservando os commits de fontes e DataConsume.
+Esta continuação parte desse commit, na branch `knack2-windows`.
+
+Arquivos desta continuação:
+
+- `port/src/knack_font_text.inc`: preenche âncoras de glifos, mantém baseline horizontal e inclui espaços na contagem de passos. Edição expressamente solicitada pelo usuário no passo 2.
+- `tests/test_knack_font.c` e `tests/test_font.py`: contrato real FreeType, offsets consumidos pelo guest, frase inteira, espaços, limites de faixa e escala 32/64 pixels.
+- `run.py`: opções explícitas `--pad-file` e `--capture-dir`, conectadas aos mecanismos de diagnóstico existentes.
+- `tests/test_knack2.py`: caminhos com espaços, rejeição de arquivo de entrada ausente e isolamento das variáveis herdadas.
+- `docs/KNACK2_FONT_ABI.md`: evidência da análise do consumidor guest e referência pública do layout.
+- `README.md`: estado atualizado, reprodução de entrada/captura e testes.
+- `HANDOFF_ASTRA.md`: este registro.
+
+Nenhuma nova interface C ou header precisa ser conectado ao core. A assinatura Python
+passou a `runtime_environment(out, *, pad_file=None, capture_dir=None)`.
+`runtime_gr2_font.c`, structs binárias, macros ABI, shaders, memória, hooks e renderer
+não foram alterados. `.vscode/settings.json` e os patches preexistentes do submódulo
+`fsr-vulkan` continuam preservados, fora dos commits desta tarefa.
+
+### Causa do texto e validação
+
+O trecho em `game.elf+0x5ed0fc` mede a frase; o rasterizador em `+0x5f1db0`
+lê código do glifo em `step+0x1c`, posição X em `+0x20` e Y em `+0x24`.
+`pen_x` já acumulava corretamente, mas só era copiado para `step.x`, que não é
+o campo de posicionamento lido nesse caminho. `positioning_x` ficava zero.
+Agora recebe `pen_x` antes do avanço; `advance_x` continua individual em `+0x08`.
+`advance_y` fica zero no caminho horizontal. Métricas FreeType já estão em pixels,
+convertidas de 26.6 por `fill_metrics`, sem conversão adicional. Espaços permanecem
+na contagem para não cortar as letras finais. Assertions estáticas preservam o
+layout existente de 72 bytes. Não houve patch no código do jogo.
+
+Build `build.ps1 -Jobs 6` concluído (`out/build-font-positions.log`). Os 12 testes
+de `tests/` passaram, incluindo o teste C compilado com `-Wall -Wextra -Werror`.
+Parser/linker permanecem cobertos pela execução anterior, registrada na seção 4.
+Análise completa repetida na sessão `out/knack2/session-20261017-181913/`:
+eboot zero imports ausentes; game 61, exit 1 esperado.
+
+### Execução e evidência visual
+
+Comando executado:
+
+```powershell
+.\.venv\Scripts\python.exe run.py --game-dir 'C:\Users\dartv\Downloads\knack 2\CUSA08014' --timeout 600 --pad-file out/knack2/font-gameplay/pad.txt --capture-dir out/knack2/font-gameplay/frames
+```
+
+Sessão: `out/knack2/session-20261017-181121/`, log `01-game.elf.log`.
+Encerramento esperado pelo limite configurado: `game.elf` exit 124; `eboot.bin`
+exit 75 na transição inicial. Nenhum processo do teste permaneceu em execução.
+Capturas: `out/knack2/font-gameplay/`; verificação e hashes em
+`out/knack2/font-gameplay/font-gameplay-verification.json`.
+O canal nativo de Computer Use estava indisponível (`native pipe ... os error 2`).
+As imagens foram obtidas pelo readback já existente no renderer, ativado por arquivo,
+e inspecionadas após decodificação RGBA, sem reescalonamento. Não houve alteração no renderer.
+
+Sequência observada:
+
+1. `title-01.png`: logo e **Press Any Button** completo, sem sobreposição.
+2. Pulso Options de 500 ms no título; vídeo inicial reproduzido até EOF.
+3. `stage-07.png`: seleção Single Player; Cross de 500 ms confirma.
+4. `menu-08.png`: dificuldade Normal; Cross de 500 ms confirma.
+5. `menu-09.png`: **CHAPTER 1-1 — THE INVASION**, HUD e cenário 3D.
+6. `gameplay-10.png`: tutorial **MOVE**, após entrada de analógico esquerdo.
+7. `gameplay-11.png`: tutorial desapareceu após outro pulso `ly=0` de três segundos.
+8. `pause-12.png`: Options abre menu de pausa; confirma **NEWHAVEN / CHAPTER 1-1 / NORMAL**.
+   Cross retorna à fase. Movimento preciso do personagem não foi comprovado visualmente,
+   devido à falha de renderização descrita abaixo.
+
+Arquivos RAW correspondentes: `frames/output_001`, `007`, `008`, `009`, `010`,
+`011`, `012`, todos com sufixo `_1704x959.raw`; formato RGBA de 8 bits por canal.
+Também existem os buffers de display em 1920x1080. A sequência partiu do save local
+existente, confirmou seleção inicial e gravou MSAVESYS/MSLOT00 com backup; não valida
+instalação sem save. Nenhum `STOP: first unsupported PS4 import` ou crash ocorreu
+no caminho observado. Nenhuma implementação adicional dos 61 imports foi necessária.
+
+### Anomalias para Astra — renderer somente leitura
+
+**Bloqueio visual atual:** geometria/cenário e personagem aparecem predominantemente
+pretos ou visualmente incompletos, enquanto fumaça, partículas, emissivos, HUD,
+tutorial e menus aparecem. Já ocorre antes da seleção de jogadores e persiste
+na fase e no menu de pausa. Capturas `gameplay-10.png` e `pause-12.png` reproduzem
+o problema. Primeira fase está carregada; jogabilidade plena permanece sem validação.
+
+Indícios registrados no log, sem causa estabelecida:
+
+- `vk_runtime.cpp:62 SanitizeCopyLayers`, aproximadamente +183,5 s, linhas 3306/3309/3314:
+  `Coercing copy source layers 1 and destination layers 2 to minimum (CopyImage)`;
+  em seguida 2/3 e 3/4. Verificar cópias de camadas no caminho do cenário.
+- Linha 3683: `Texture cache: memory pressure, 2657 of 2582 MiB (critical 5165): 6532 images evicted, 0 written back since the last report`.
+  Relatórios posteriores mostram novas expulsões pequenas. Isso é evidência, não causa provada.
+- Avisos de extensões/formatos indisponíveis e `sceAvPlayerSetLogCallback` STUBBED
+  já aparecem no início; vídeo termina normalmente. Validation layers estavam desligadas.
+  Não foi feito diagnóstico com RenderDoc, validação Vulkan ou comparação de shaders.
+
+Não alterar o núcleo gráfico nesta tarefa: regra de ouro de `AGENTS.md` manda
+documentar anomalias da Zona Bloqueada neste arquivo. Próxima investigação deve
+isolar passagem gráfica, cópias de camadas e recursos associados ao frame defeituoso;
+não substituir por stubs os 61 imports que ainda não bloquearam esse caminho.
 
 ## 1. Arquivos Criados/Modificados nesta Sessão
 - **Branch:** `flash-boot-debug` (commit `15cb965`: `feat(font): implement remaining libSceFont string and writing APIs for Knack 2 boot`).

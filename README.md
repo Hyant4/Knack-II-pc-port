@@ -2,7 +2,7 @@
 
 Runtime experimental para **CUSA08014 / 01.01**, derivado de `iss_pc`: executa o código x86-64 original e traduz gráficos para Vulkan. O perfil confere os hashes dos dois executáveis em [profiles/CUSA08014-01.01.json](profiles/CUSA08014-01.01.json).
 
-**Marco local de 17/10/2026:** tela de título de Knack II confirmada em dois boots, com mapa, logotipo e copyright. Capturas separadas por 63,243 segundos no primeiro e 34,500 segundos no segundo. Máquina: Windows, Ryzen 7 5700G, RX 6650 XT, 32 GB RAM. O prompt abaixo do logotipo apresenta glifos sobrepostos. Gameplay, áudio completo, desempenho e Linux continuam sem validação.
+**Marco local de 17/10/2026:** tela de título de Knack II confirmada em dois boots, com mapa, logotipo e copyright. Capturas separadas por 63,243 segundos no primeiro e 34,500 segundos no segundo. Continuação: glifos corrigidos; seleção Single Player / Normal carregou **Chapter 1-1 — The Invasion**, em Newhaven, com HUD, tutorial de movimento e menu de pausa respondendo a Options. O cenário 3D apresenta áreas extensas pretas ou visualmente incompletas; jogabilidade plena ainda não está validada. Máquina: Windows, Ryzen 7 5700G, RX 6650 XT, 32 GB RAM. Áudio completo, desempenho e Linux permanecem sem validação.
 
 | Camada | Evidência local |
 | --- | --- |
@@ -11,8 +11,10 @@ Runtime experimental para **CUSA08014 / 01.01**, derivado de `iss_pc`: executa o
 | CPU | `eboot.bin` solicita `game.elf`; supervisor inicia processo limpo preservando quatro argumentos |
 | SaveData | GetParam lê 1328 bytes; UmountWithBackup copia arquivos e publica evento de conclusão |
 | Apresentação | Duas inicializações com conteúdo real observado por mais de 30 segundos; encerramento previsto por timeout |
+| Texto | Prompt completo, menus e tutorial legíveis; âncora acumulada corrigida em `FontWritingStep+0x20` |
+| Primeira fase | Chapter 1-1 carregado, pausa funcional; falha gráfica grave no cenário, registrada para diagnóstico |
 
-Os imports restantes não foram acionados durante o trecho observado. A chegada ao título não comprova compatibilidade do jogo inteiro. Os testes partiram do `SAVEDATA00` já existente; primeiro boot sem save ainda requer validação no jogo.
+Nenhum dos 61 imports ausentes interrompeu a transição observada até a primeira fase. Isso não comprova compatibilidade do jogo inteiro. Os testes partiram do `SAVEDATA00` já existente; primeiro boot sem save ainda requer validação no jogo.
 
 ## Compilar
 
@@ -63,6 +65,27 @@ O dump é lido diretamente. Imagens preparadas, logs, caches e saves ficam separ
 
 A restauração automática de backups e as demais APIs SaveData não chamadas neste trecho ainda não foram implementadas. O backup é síncrono e não declara sucesso antes da cópia completa.
 
+### Entrada e captura para diagnóstico
+
+`--pad-file` habilita explicitamente o arquivo de entrada já suportado por `scePad`. O arquivo deve existir antes de iniciar; tokens como `options`, `cross` e `ly=0` permanecem pressionados até limpar seu conteúdo. `--capture-dir` habilita a captura existente do renderer: criar `capture.request` solicita o próximo frame apresentado.
+
+```powershell
+New-Item -ItemType Directory -Force out/knack2/debug | Out-Null
+Set-Content -Encoding ASCII out/knack2/debug/pad.txt ''
+.\.venv\Scripts\python.exe run.py --game-dir $game --timeout 600 --pad-file out/knack2/debug/pad.txt --capture-dir out/knack2/debug/frames
+```
+
+Em outro terminal, na raiz do repositório, após a tela estabilizar:
+
+```powershell
+Set-Content -Encoding ASCII out/knack2/debug/pad.txt 'options'
+Start-Sleep -Milliseconds 500
+Set-Content -Encoding ASCII out/knack2/debug/pad.txt ''
+Set-Content -Encoding ASCII out/knack2/debug/frames/capture.request 'capture'
+```
+
+Os arquivos `output_NNN_LARGURAxALTURA.raw` capturam a apresentação. Na execução validada, usam RGBA de 8 bits por canal; decodifique com FFmpeg `-f rawvideo -pixel_format rgba -video_size LARGURAxALTURA -i ARQUIVO.raw -frames:v 1 captura.png`. A imagem deve ser inspecionada junto do log. Nenhum comando é injetado por padrão.
+
 ## Testar
 
 ```powershell
@@ -75,7 +98,7 @@ $env:PATH = "$tc\clang64\bin;$env:PATH"
 .\.venv\Scripts\python.exe -m unittest discover -s port/tests -p test_link_libc.py -v
 ```
 
-Verificam protocolo LoadExec, argumentos e caminhos com espaços, timeout, isolamento de opções, parser SELF, relocações, TLS, metadados SaveData, limites de buffers, erros de corrupção, eventos e preservação de gerações de backup. Os testes SaveData usam arquivos sintéticos em pasta temporária, sem acessar saves reais. São 27 execuções de teste nesses comandos; uma verificação de módulo é executada pelas duas suítes de link.
+Verificam protocolo LoadExec, argumentos e caminhos com espaços, timeout, isolamento de opções, parser SELF, relocações, TLS, metadados SaveData, limites de buffers, erros de corrupção, eventos e preservação de gerações de backup. O contrato de fontes testa os offsets lidos pelo guest, espaços, linha de base e unidades em pixels usando FreeType e a fonte DejaVuSans redistribuída no projeto. Os testes SaveData usam arquivos sintéticos em pasta temporária, sem acessar saves reais. São 29 execuções de teste nesses comandos; uma verificação de módulo é executada pelas duas suítes de link. Nesta continuação, os 12 testes de `tests/` passaram; parser e linker conservam a validação anterior.
 
 ## Bases e créditos
 
