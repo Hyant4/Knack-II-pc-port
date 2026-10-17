@@ -7,6 +7,73 @@
 > Seções 1–5 preservam o histórico; restrições e diagnósticos antigos não descrevem
 > o estado atual. Alterações gráficas desta etapa foram expressamente autorizadas.
 
+## 7. Validação durante ação — 17/10/2026
+
+Teste encerrado a pedido do usuário, após combate inicial, transição cinematográfica
+e retorno ao gameplay na área interna do Chapter 1-1. Correções gráficas continuam
+salvas em `44bf1e6`; esta etapa não alterou código nem recompilou o runtime.
+
+### Arquivos e interfaces
+
+Único arquivo rastreado alterado nesta etapa: `HANDOFF_ASTRA.md`. Nenhuma interface
+ou header novo. Scripts locais ignorados `out/action-play.py` e
+`out/launch-action-stats.py` exercitaram o pad e a captura já existentes. Capturas
+e sequência de entradas: `out/knack2/action-check/`, incluindo `actions.jsonl`.
+Preservados `.vscode/` e patches preexistentes do submódulo `fsr-vulkan`.
+
+### Evidência observada
+
+Sessão principal com telemetria: `out/knack2/session-20261017-195151/01-game.elf.log`.
+Launcher local adicionou `TLG_FRAME_STATS=1`, `TLG_PERF_DIAG=1` e
+`TLG_AUDIO_STATS=1`, mantendo as otimizações normais. Capturas individuais do display,
+sem trace de passes. Teste usou pausas entre ações; estatísticas da sessão inteira
+não são um benchmark contínuo de combate.
+
+- `r-giant-strike.png`: combate com blindado, dano e fragmentos de relíquias visíveis.
+- `r-giant-kick.png`: explosão/fumaça após combate e recuperação do tamanho do personagem.
+- `r-after-giant.png`: sequência cinematográfica com robô sobre veículo.
+- `r-cutscene-exit.png` e `r-small-exit.png`: retorno ao controle com Knack pequeno,
+  passagem pelo duto e tutorial Size Up na área interna.
+- `r-interior-walk.png`: tamanho restaurado a 13 pés e cenário interno iluminado.
+- `r-interior-fight.png`, `r-interior-combo.png` e `r-kick-close.png`: novo combate,
+  destroços, partículas, dano e recuperação/retomada. Capturas PNG inspecionadas.
+
+Não houve novo import `STOP`, assertion ou device lost identificado no trecho
+observado. Processo de teste PID 28976 encerrado manualmente após o pedido de parar;
+eventual exit de término forçado não representa crash espontâneo.
+
+### Desempenho e anomalias para investigação
+
+- Amostras durante a sequência de ação, linhas 7308 e 7381 do log: 59,8 e 59,2 FPS,
+  pior frame de 33,5 e 66,7 ms, respectivamente. Houve 1/2 compilações, somando
+  23,7/50,6 ms. Não certificar 60 FPS estáveis em toda a fase.
+- Nessas amostras, `buffer_cache.cpp:350` concentrou 2030,020/1759,789 ms de espera
+  acumulada por janela de aproximadamente 5 s, em 430/432 chamadas; máximos por
+  chamada de 13,061/13,871 ms. Leitura do código confirma `scheduler.Finish()` em
+  `BufferCache::DownloadMemory`. É candidato concreto a investigação de readback;
+  esses totais não equivalem diretamente a tempo extra por frame. Nenhuma mudança
+  em sincronização, ABI, memória ou hooks foi feita nesta etapa.
+- Transição cinematográfica teve amostras a 30 FPS e uma janela a 27,3 FPS,
+  pior frame de 366,5 ms, com 15 compilações somando 580,5 ms (linha 8050).
+  Correlação registrada; causa exclusiva do pico não foi isolada.
+- AudioOut manteve buffers nas portas 0, 1 e 17, com `starved 0` nas amostras
+  examinadas. Não foi feita escuta para certificar conteúdo ou sincronismo sonoro.
+  Nenhum evento de inicialização/erro de Ajm foi identificado; sua cobertura
+  permanece não demonstrada, mesmo com AudioOut ativo.
+- AvPlayer abriu vídeos de UI e `st01/mv_01a_020a_mv_02a_010a.mp4` durante o boot;
+  há saídas normais dos decoders do primeiro vídeo. O aviso SetLogCallback STUBBED
+  permanece. A cutscene posterior foi vista, mas não foi atribuída a uma nova
+  abertura do AvPlayer; não extrapolar sua validação para todos os vídeos.
+- Avisos de pressão de memória da texture cache persistem (por exemplo,
+  2806 MiB sobre orçamento de 2582 MiB, limiar crítico 5165 MiB). Sem device lost
+  observado. Vulkan validation layers não estavam habilitadas.
+
+Quebra específica de Sunstones **não confirmada**. Nomes antigos de capturas com
+`sunstone` não comprovam a ação. Persistência de um novo checkpoint após reiniciar
+também não foi retestada. Próxima etapa deve partir destes limites, sem repetir
+longas tentativas de combate automaticamente. Usuário considerou suficiente a
+quantidade de testes deste marco.
+
 ## 6. Correção gráfica do Chapter 1-1 — 17/10/2026
 
 ### Diagnóstico confirmado
