@@ -51,6 +51,13 @@ void AddBuffers(Entry& entry) {
     pending_buffers.clear();
 }
 bool pass_open = false;
+bool GpuFlipBoundary() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_CAPTURE_GPU_FLIP");
+        return value && *value == '1';
+    }();
+    return enabled;
+}
 std::mutex display_mutex;
 std::vector<VAddr> display_buffers;
 // tlg: read on every draw; the game registers a handful of display buffers once.
@@ -180,6 +187,18 @@ void FrameCapture::Request() {
     requested.store(true, std::memory_order_release);
 }
 
+void FrameCapture::OnGpuFlip(VAddr address) {
+    if (!GpuFlipBoundary()) return;
+    const auto current = state.load(std::memory_order_acquire);
+    if (current == Idle) return;
+    if (current == Recording) Write(address);
+    entries.clear();
+    pending_sampled.clear();
+    pending_buffers.clear();
+    pass_open = false;
+    state.store(current == Armed ? Recording : Idle, std::memory_order_release);
+}
+
 std::string FrameCapture::LastResult() {
     std::scoped_lock lk{result_mutex};
     return result;
@@ -230,7 +249,7 @@ void FrameCapture::BeginPass(const VideoCore::ImageInfo* const* colors, u32 num_
     display = display && targets.size() == 1;
     const bool new_pass = !(pass_open && !entries.empty() && !entries.back().compute &&
                             entries.back().colors == targets);
-    if (display && new_pass) {
+    if (display && new_pass && !GpuFlipBoundary()) {
         if (state.load(std::memory_order_relaxed) == Recording) {
             Write(last_presented.load(std::memory_order_relaxed));
             entries.clear();

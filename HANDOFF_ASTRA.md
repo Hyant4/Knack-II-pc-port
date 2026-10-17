@@ -1,10 +1,106 @@
 # HANDOFF_ASTRA.md
 
-> Atualização de 17/10/2026: título salvo no commit `09e6ccc`, integrado por fast-forward
-> em `knack2-windows`. **Texto corrigido e Chapter 1-1 carregado**, com tutorial e pausa.
-> Cenário 3D permanece gravemente incompleto. A seção 5 registra a continuação atual.
-> Seções 1–4 preservam o handoff anterior como histórico;
-> assinaturas e NIDs históricos devem ser conferidos no código antes de novas alterações.
+> Atualização de 17/10/2026: **cenário inicial do Chapter 1-1 restaurado**, com
+> iluminação, geometria, movimento e pausa verificados. A seção 6 registra as duas
+> causas gráficas corrigidas, testes e capturas em execução normal.
+> Marcos anteriores `09e6ccc` e `1e13acc` preservados em `knack2-windows`.
+> Seções 1–5 preservam o histórico; restrições e diagnósticos antigos não descrevem
+> o estado atual. Alterações gráficas desta etapa foram expressamente autorizadas.
+
+﻿## 6. Correção gráfica do Chapter 1-1 — 17/10/2026
+
+### Diagnóstico confirmado
+
+Branch `knack2-windows` sincronizada com `git merge --ff-only flash-boot-debug` (já atualizada, HEAD inicial `1e13acc`). `09e6ccc` e `1e13acc` preservados. Escopo gráfico e runtime GPU autorizados expressamente nesta etapa; ABI, memória virtual, hooks, fontes e SaveData não foram editados.
+
+Duas falhas distintas estavam ocultas pela apresentação preta:
+
+1. **Limpeza do buffer de transparências MSAA.** O compute `0299e222` repete 16 bytes brutos em `0x10b4cb0000`, 17.694.720 bytes. Constante capturada: `00000000 3c000000 00000000 3c000000`, dois texels RGBA16F `(0,0,0,1)`. `TextureCache::RefreshImage` ignorava superfícies com `guest_samples > 1`, inclusive com MSAA desligado no host. O compute de composição `3c466c60` multiplica a cena opaca pelo alpha das transparências. Todos os 518.400 pixels chegavam com alpha zero, apagando uma cena já iluminada corretamente.
+2. **Descritores de vértices preparados antes da atualização do guest.** `TryPreparedPipeline` compara os registros e user data achatados, mas `VertexAttribute::GetSharp` lê o V# através de um ponteiro para memória do guest. O conteúdo apontado pode mudar sem mudar o ponteiro nem os dados achatados. Reutilizar esses V#s antigos produzia triângulos gigantes e cenário deformado. Comparação durante a mesma execução: máscara de otimizações `0` reproduziu corrupção; `4096` (PreparedResources desligado) restaurou cenário; retornar a `0` reproduziu, retornar a `4096` restaurou novamente. A correção compara os V#s atuais antes de aceitar os inputs preparados e usa o caminho normal quando diferem.
+
+As capturas completas de diagnóstico alteram o caminho de preparação de vértices e sincronizam readbacks; por isso um frame correto durante diagnóstico sozinho não validava estabilidade. A aceitação final usou execução normal, sem trace de passes ou máscaras especiais.
+
+### Alterações e interfaces
+
+- `port/gpu/shadps4/video_core/texture_cache/buffer_clear.h` (novo): registro de preenchimento uniforme, consumo por endereço/tamanho exatos e invalidação por sobreposição.
+- `port/gpu/shadps4/video_core/texture_cache/texture_cache.h` e `port/gpu/shadps4/video_core/texture_cache/texture_cache.cpp`: `RecordBufferClear(VAddr, u64, const BufferClears::Pattern&)`; preserva limpeza pendente até criação/atualização da imagem; converte padrão RGBA16F repetido para clear Vulkan; cancela registro em escritas CPU/GPU, escrita em attachment/storage e unmap.
+- `port/gpu/shadps4/video_core/renderer_vulkan/vk_rasterizer.cpp`: reconhece shader bruto verificado, valida cobertura total e constantes residentes no CPU; mantém dispatch original para consumidores do buffer; valida descritores de vértices antes de reutilizar preparação; trace agora inclui clear, máscaras e blend de alpha.
+- `port/gpu/shadps4/shader_recompiler/frontend/fetch_shader.h`: `FetchShaderData::MatchesBuffers(const Info&, std::span<const AmdGpu::Buffer>) const`. Nenhum campo ou layout de struct modificado.
+- `port/gpu/shadps4/video_core/renderer_vulkan/vk_frame_capture.h`, `port/gpu/shadps4/video_core/renderer_vulkan/vk_frame_capture.cpp` e `port/gpu/shadps4/core/libraries/videoout/driver.cpp`: `FrameCapture::OnGpuFlip(VAddr)`, ativado por `TLG_CAPTURE_GPU_FLIP=1`, delimita captura para jogos que copiam/compõem o display via compute; drena fila de draws antes de acessar entradas do trace.
+- `port/gpu/shadps4/video_core/renderer_vulkan/vk_pipeline_cache.cpp`: serializa e deduplica dumps de shader por nome. Escritas concorrentes de shaders de cópia causavam sharing violations no Windows.
+- `port/tests/test_buffer_clear.cpp` (novo), `port/tests/test_async_fetch_snapshot.cpp`, `port/tests/test_frame_capture.cpp`, `port/gpu/CMakeLists.txt`: regressões de invalidação, V# mutável com ponteiro constante e captura sem draw direto no display.
+- `README.md` e `HANDOFF_ASTRA.md`: estado e evidências atualizados.
+
+Interfaces já conectadas, sem trabalho pendente de integração. Sem alterações nos executáveis originais ou distribuição de dados do jogo. `.vscode/` e patches preexistentes do submódulo `fsr-vulkan` preservados.
+
+### Hipóteses revistas
+
+- Avisos de formatos A2B10G10R10 Snorm/Sint e R32G32B32 vêm da enumeração geral de capacidades. Esses formatos não aparecem nos attachments do frame examinado. G-Buffer usa RGBA8, RG16F, RGBA16F e A2B10G10R10 **Unorm**. Não aplicado remapeamento cego de 32 para 64 bits, que exigiria conversão de dados/strides.
+- `RemoveAppendBufferLaneOffset`: caminho existente de offset zero encontra IAdd/ISub encadeado com mbcnt e substitui lane offset por zero. Revisão concluiu que a simplificação já ocorre; nenhuma alteração adicional. Dumps do caminho Continue examinado contêm DataAppend, sem DataConsume encontrado. Não alegar cobertura de todos os shaders/fases.
+- Experimentos com barreiras globais, espera GPU antes de EOP/EOS e rastreamento extra de GDS não eliminaram o defeito de descritores. Alterações experimentais removidas; nenhum finish por frame ou bloqueio global foi mantido como correção.
+
+### Evidência intermediária
+
+- Frame trace baseline: `out/knack2/gpu-trace/trace/frame_20261017-184050_1.txt`; inputs/outputs brutos em `gpu-trace/passes/`.
+- Antes da composição: `gpu-trace/hdr-081.png`; depois: `gpu-trace/hdr-082.png`. Essas imagens HDR são conversões diagnósticas, não prova do display.
+- Primeiro frame apresentado após corrigir alpha: `out/knack2/gpu-fixed/stage-01.png`; sessão `session-20261017-185435`.
+- `out/knack2/gpu-fixed/alpha-verification.json`: antes 518.400/518.400 alphas zero; depois 429.262 alphas 1, apenas 8 zero, média 0,926076. Valores intermediários preservam fumaça/partículas.
+- A/B dos inputs preparados: sessão `session-20261017-190422`, imagens `gpu-gds/gds-only.png`, `no-prepared.png`, `prepared-again.png`, `no-prepared-02.png`. A alteração experimental GDS presente nessa sessão foi removida posteriormente.
+
+### Validação final e reprodução
+
+Build Windows `build.ps1 -Jobs 6` concluído; log `out/build-graphics-final.log`.
+Três testes nativos passaram, registrados em `out/graphics-tests.log`:
+
+- `buffer-clear-test`: correspondência exata, consumo único, atualização mais recente,
+  invalidação por sobreposição parcial, intervalos adjacentes e padrão uniforme.
+- `async-fetch-snapshot-test`: descritor muda com ponteiro constante, troca de endereço
+  e stride, restauração e contagem; preserva snapshot imutável do compilador.
+- `frame-capture-test`: frame sem draw direto no display, fronteiras de flip,
+  buffer nulo ignorado e arquivo de captura produzido.
+
+Execução final com padrões de `run.py`, sem máscara de otimizações, barreiras extras,
+fences globais, captura de passes ou desativação da preparação assíncrona:
+
+```powershell
+.\.venv\Scripts\python.exe run.py --game-dir 'C:\Users\dartv\Downloads\knack 2\CUSA08014' --timeout 420 --pad-file out/knack2/gpu-verified/pad.txt --capture-dir out/knack2/gpu-verified/frames
+```
+
+O pad começa neutro (`lx=128 ly=128 rx=128 ry=128`). Após título estabilizado,
+Options por 700 ms; após menu, Cross por 700 ms seleciona **Continue** no save local
+existente. Um pulso `ly=0` por dois segundos move o personagem; Options abre pausa.
+Solicitações individuais `capture.request` usam o readback de apresentação existente.
+PNGs foram decodificados dos RAWs RGBA, sem redimensionamento, e inspecionados:
+
+| Captura em `out/knack2/gpu-verified/` | Conteúdo observado |
+| --- | --- |
+| `title.png` | Título e prompt legíveis |
+| `stage-01.png` | Knack, ruas, prédios, iluminação e fumaça visíveis |
+| `stage-02.png` | Mesmo cenário completo, 57,162 segundos depois, sem triângulos esticados |
+| `movement.png` | Personagem avançou e deslocou lixeira; geometria preservada |
+| `pause.png` | NEWHAVEN / CHAPTER 1-1 / THE INVASION / NORMAL, com cenário visível |
+
+Sessão `out/knack2/session-20261017-191255/`: `00-eboot.bin.log`, `01-game.elf.log`
+e `session.json`. Nenhum novo import STOP, assertion, device lost ou crash observado.
+`eboot.bin` saiu com 75 na transição esperada. Ao terminar a validação, o processo
+do jogo foi encerrado manualmente; `game.elf` exit `4294967295` registra esse término
+forçado, não uma falha espontânea. Nenhum processo do teste permanece aberto.
+
+Hashes, intervalo entre RAWs e arquivos de evidência:
+`out/knack2/gpu-verified/visual-verification.json`.
+SHA-256 do runtime testado:
+`a14c22c5eadf55a3a9ceef6aa22b66e903d3d1e44e5575194d68920da19a0fe5`.
+O supervisor continua com `visual_verified: false`: não inspeciona pixels.
+
+### Limites e anomalias restantes
+
+Validação cobre o trecho inicial do Chapter 1-1, retomado de save existente,
+com movimento curto e pausa. Não certifica a fase inteira, áudio, desempenho,
+instalação sem save ou outros capítulos. Vulkan validation layers ficaram desligadas.
+Os 61 imports ausentes da análise anterior não bloquearam esse caminho e não foram
+substituídos por stubs. Os avisos gerais de formatos do host permanecem; não causaram
+a apresentação preta examinada. Nenhum bloqueio observado exigiu editar ABI,
+memória virtual ou hooks fora do escopo gráfico autorizado.
 
 ## 5. Texto corrigido e primeira fase — continuação de 17/10/2026
 

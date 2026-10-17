@@ -12,6 +12,7 @@
 #include "common/debug.h"
 #include "common/div_ceil.h"
 #include "common/hash.h"
+#include "common/number_utils.h"
 #include "common/scope_exit.h"
 #include "core/emulator_settings.h"
 #include "core/memory.h"
@@ -573,11 +574,12 @@ void TextureCache::CopyAlias(ImageId src_id, ImageId dst_id, const Extent3D& ext
 
 void TextureCache::PublishAliasWrite(ImageId image_id) {
     Image& image = slot_images[image_id];
+    std::scoped_lock lock{mutex};
+    buffer_clears.Forget(image.info.guest_address, image.info.guest_size);
     image.alias_generation = ++alias_generation;
     if (False(image.flags & ImageFlagBits::Aliased)) {
         return;
     }
-    std::scoped_lock lock{mutex};
     AliasState& state = alias_states[image.info.guest_address];
     if (IsLiveImage(state.backing, state.backing_uid) &&
         !CanAlias(image, slot_images[state.backing])) {
@@ -621,6 +623,7 @@ void TextureCache::MarkAsMaybeDirty(ImageId image_id, Image& image) {
 
 void TextureCache::InvalidateMemory(VAddr addr, size_t size) {
     std::scoped_lock lock{mutex};
+    buffer_clears.Forget(addr, size);
     const auto pages_start = PageManager::GetPageAddr(addr);
     const auto pages_end = PageManager::GetNextPageAddr(addr + size - 1);
     ForEachImageInRegion(pages_start, pages_end - pages_start, [&](ImageId image_id, Image& image) {
@@ -674,6 +677,7 @@ void TextureCache::ApplyBackingWrites() {
     // texture pool; their readbacks put the new texels in memory without a fault, and textures
     // there kept the old contents until a restart.
     for (const auto& [address, size] : writes) {
+        buffer_clears.Forget(address, size);
         ForEachImageInRegion(address, size, [&](ImageId image_id, Image& image) {
             // Images sharing memory with a GPU writer are synchronized by SynchronizeAlias.
             if (True(image.flags & (ImageFlagBits::GpuModified | ImageFlagBits::Aliased))) {
@@ -685,10 +689,17 @@ void TextureCache::ApplyBackingWrites() {
     }
 }
 
+void TextureCache::RecordBufferClear(VAddr address, u64 size,
+                                     const BufferClears::Pattern& pattern) {
+    std::scoped_lock lock{mutex};
+    buffer_clears.Record(address, size, pattern);
+}
+
 void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size) {
     // Partial buffer writes still need the image's untouched bytes in guest memory.
     ResolveReadbacks(address, max_size, true, ReadbackSource::GpuPartialWrite);
     std::scoped_lock lock{mutex};
+    buffer_clears.Forget(address, max_size);
     ForEachImageInRegion(address, max_size, [&](ImageId image_id, Image& image) {
         // Only consider images that match base address.
         // TODO: Maybe also consider subresources
@@ -704,6 +715,7 @@ void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size) {
 void TextureCache::UnmapMemory(VAddr cpu_addr, size_t size) {
     CancelReadbacks(cpu_addr, size);
     std::scoped_lock lk{mutex};
+    buffer_clears.Forget(cpu_addr, size);
 
     ImageIds deleted_images;
     ForEachImageInRegion(cpu_addr, size, [&](ImageId id, Image&) { deleted_images.push_back(id); });
@@ -1405,7 +1417,27 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
 }
 
 void TextureCache::RefreshImage(Image& image) {
-    if (False(image.flags & ImageFlagBits::Dirty) || image.info.guest_samples > 1) {
+    if (False(image.flags & ImageFlagBits::Dirty)) {
+        return;
+    }
+    // MSAA images cannot use the ordinary buffer upload/detile path. Knack's raw fill
+    // writes two identical packed RGBA16F texels per invocation; every sample has the
+    // same value, so a Vulkan clear is exact even when host MSAA is disabled.
+    if (image.info.guest_samples > 1 && image.info.resources.levels == 1 &&
+        image.info.pixel_format == vk::Format::eR16G16B16A16Sfloat) {
+        if (const auto pattern = buffer_clears.Take(image.info.guest_address,
+                                                   image.info.guest_size);
+            pattern && BufferClears::Repeats64(*pattern)) {
+            const vk::ClearValue clear{.color = {.float32 = std::array<float, 4>{
+                NumberUtils::Uf16ToF32((*pattern)[0] & 0xffff),
+                NumberUtils::Uf16ToF32((*pattern)[0] >> 16),
+                NumberUtils::Uf16ToF32((*pattern)[1] & 0xffff),
+                NumberUtils::Uf16ToF32((*pattern)[1] >> 16)}}};
+            runtime.ClearImage(&image, {.base = {}, .extent = image.info.resources}, clear);
+            return;
+        }
+    }
+    if (image.info.guest_samples > 1) {
         return;
     }
     ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,

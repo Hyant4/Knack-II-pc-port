@@ -2133,11 +2133,18 @@ void PipelineCache::DumpShader(std::span<const u32> code, u64 hash, Shader::HwSt
     }
 
     using namespace Common::FS;
+    // Copy shaders are requested by draw preparation workers as well as the GPU thread.
+    // Write each immutable (hash, permutation, extension) only once; concurrent truncation
+    // otherwise fails with sharing violations on Windows and can destroy a useful dump.
+    static std::mutex dump_mutex;
+    static std::unordered_set<std::string> dumped;
+    std::scoped_lock dump_lock{dump_mutex};
+    const auto filename = fmt::format("{}.{}", GetShaderName(stage, hash, perm_idx), ext);
+    if (!dumped.insert(filename).second) return;
     const auto dump_dir = GetUserPath(PathType::ShaderDir) / "dumps";
     if (!std::filesystem::exists(dump_dir)) {
         std::filesystem::create_directories(dump_dir);
     }
-    const auto filename = fmt::format("{}.{}", GetShaderName(stage, hash, perm_idx), ext);
     const auto file = IOFile{dump_dir / filename, FileAccessMode::Create};
     file.WriteSpan(code);
 }

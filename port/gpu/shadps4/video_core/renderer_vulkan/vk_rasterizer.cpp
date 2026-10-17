@@ -1582,6 +1582,33 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
     DebugState.IncDispatch();
     scheduler.CountWork();
 
+    // Verified raw fill shader: one 16-byte constant vector is stored at
+    // (workgroup_x * 64 + local_x) * 16. Keep the actual buffer dispatch for aliases,
+    // and retain its packed pattern for an MSAA image that cannot be uploaded.
+    if (cs.pgm_hash == 0x0299e222 && cs.buffers.size() == 2 && cs.images.empty() &&
+        cs_program.num_thread_x.full == 64 && cs_program.num_thread_y.full == 1 &&
+        cs_program.num_thread_z.full == 1 && dim_y == 1 && dim_z == 1 &&
+        !cs.buffers[0].is_written && cs.buffers[1].is_written &&
+        !cs.buffers[0].IsSpecial() && !cs.buffers[1].IsSpecial()) {
+        const auto source = cs.buffers[0].GetSharp(cs);
+        const auto dest = cs.buffers[1].GetSharp(cs);
+        if (source.base_address && dest.base_address && dim_x && source.GetSize() == 16 &&
+            u64(dim_x) * 64 * 16 == dest.GetSize() &&
+            memory->ClampRangeSize(dest.base_address, dest.GetSize()) == dest.GetSize() &&
+            memory->ClampRangeSize(source.base_address, 16) == 16 &&
+            !buffer_cache.IsRegionGpuModified(source.base_address, 16)) {
+            VideoCore::BufferClears::Pattern pattern;
+            std::memcpy(pattern.data(), reinterpret_cast<const void*>(source.base_address), 16);
+            if (VideoCore::BufferClears::Repeats64(pattern)) {
+                texture_cache.RecordBufferClear(dest.base_address, dest.GetSize(), pattern);
+                if (FrameCapture::IsRecording()) {
+                    LOG_INFO(Render_Vulkan, "Packed buffer clear {:#x}+{} pattern={:08x},{:08x}",
+                             u64(dest.base_address), dest.GetSize(), pattern[0], pattern[1]);
+                }
+            }
+        }
+    }
+
     // tlg diagnostics: TLG_DIAG_IMAGES=1 writes the images a dispatch read and wrote, after
     // it, while a frame capture records (TLG_CAPTURE_TRIGGER).
     static const bool diag_images = [] {
@@ -2299,6 +2326,10 @@ void Rasterizer::ResolveVertexBuffers(const GraphicsPipeline* pipeline,
                 !TlgToggle::Disabled(TlgToggle::PreparedResources)
             ? &prepared->vertex
             : nullptr;
+    if (ready && !fetch->MatchesBuffers(pipeline->GetStage(Shader::SwStage::Vertex),
+                                        {ready->buffers, ready->count})) {
+        ready = nullptr;
+    }
     if (ready) {
         attributes.assign(ready->attributes, ready->attributes + ready->count);
         bindings.assign(ready->bindings, ready->bindings + ready->count);
@@ -3606,8 +3637,25 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
             regs.ps_input_addr.persp_sample_ena || regs.ps_input_addr.linear_sample_ena;
         census.feedback_loop = attachment_feedback_loop;
         census.area = {state.width, state.height};
+        auto census_text = PassCensus::Format(census);
+        for (u32 cb = 0; cb < state.num_color_attachments; ++cb) {
+            const auto& color = regs.color_buffers[cb];
+            const auto& attachment = state.color_attachments[cb];
+            const auto& blend = regs.blend_control[cb];
+            census_text += fmt::format(
+                "\n  color{} clear={} words={:08x},{:08x} value={:08x},{:08x},{:08x},{:08x} "
+                "cmask={:#x} fast={} target_mask={:x} shader_mask={:x} "
+                "alpha_blend={}/{}/{} separate={}",
+                cb, attachment.is_clear, color.clear_word0, color.clear_word1,
+                attachment.clear_value[0], attachment.clear_value[1],
+                attachment.clear_value[2], attachment.clear_value[3],
+                color.CmaskAddress(), u32(color.info.fast_clear),
+                regs.color_target_mask.GetMask(cb), key.cb_shader_mask.GetMask(cb),
+                u32(blend.alpha_src_factor), u32(blend.alpha_func),
+                u32(blend.alpha_dst_factor), u32(blend.separate_alpha_blend));
+        }
         FrameCapture::BeginPass(colors.data(), state.num_color_attachments, depth,
-                                PassCensus::Format(census));
+                                std::move(census_text));
         diag_targets.clear();
         for (u32 cb = 0; cb < state.num_color_attachments; ++cb) {
             if (cb_descs[cb].first) {

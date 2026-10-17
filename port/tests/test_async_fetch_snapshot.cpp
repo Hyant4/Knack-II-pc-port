@@ -36,6 +36,20 @@ int main() {
     assert(snapshot.fetch && snapshot.fetch->attributes.size() == 1);
     assert(snapshot.buffers[0].base_address == 0x12340);
 
+    // A draw-preparation snapshot must be rejected when the pointed-to V# changes,
+    // even though the user-data pointer and flattened shader constants remain unchanged.
+    const auto original_ud = ud;
+    assert(snapshot.fetch->MatchesBuffers(info, snapshot.buffers));
+    buffer.base_address = 0x56780;
+    assert(ud == original_ud);
+    assert(!snapshot.fetch->MatchesBuffers(info, snapshot.buffers));
+    buffer.base_address = 0x12340;
+    buffer.stride = 32;
+    assert(!snapshot.fetch->MatchesBuffers(info, snapshot.buffers));
+    buffer.stride = 16;
+    assert(snapshot.fetch->MatchesBuffers(info, snapshot.buffers));
+    assert(!snapshot.fetch->MatchesBuffers(info, {}));
+
     // Both guest pointers are invalid after capture. A compiler worker must not dereference them.
     ud.fill(0);
     auto worker = std::async(std::launch::async, [&] {

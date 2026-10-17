@@ -2,7 +2,7 @@
 
 Runtime experimental para **CUSA08014 / 01.01**, derivado de `iss_pc`: executa o código x86-64 original e traduz gráficos para Vulkan. O perfil confere os hashes dos dois executáveis em [profiles/CUSA08014-01.01.json](profiles/CUSA08014-01.01.json).
 
-**Marco local de 17/10/2026:** tela de título de Knack II confirmada em dois boots, com mapa, logotipo e copyright. Capturas separadas por 63,243 segundos no primeiro e 34,500 segundos no segundo. Continuação: glifos corrigidos; seleção Single Player / Normal carregou **Chapter 1-1 — The Invasion**, em Newhaven, com HUD, tutorial de movimento e menu de pausa respondendo a Options. O cenário 3D apresenta áreas extensas pretas ou visualmente incompletas; jogabilidade plena ainda não está validada. Máquina: Windows, Ryzen 7 5700G, RX 6650 XT, 32 GB RAM. Áudio completo, desempenho e Linux permanecem sem validação.
+**Marco local de 17/10/2026:** tela de título de Knack II confirmada em dois boots, com mapa, logotipo e copyright. Capturas separadas por 63,243 segundos no primeiro e 34,500 segundos no segundo. Continuação: glifos corrigidos; seleção Single Player / Normal carregou **Chapter 1-1 — The Invasion**, em Newhaven, com HUD, tutorial de movimento e menu de pausa respondendo a Options. Correção gráfica posterior restaurou o cenário inicial: ruas, prédios, personagem, iluminação e fumaça visíveis, com duas capturas separadas por 57,162 segundos, movimento e pausa verificados em execução normal. Jogabilidade da fase inteira ainda não está validada. Máquina: Windows, Ryzen 7 5700G, RX 6650 XT, 32 GB RAM. Áudio completo, desempenho e Linux permanecem sem validação.
 
 | Camada | Evidência local |
 | --- | --- |
@@ -12,9 +12,11 @@ Runtime experimental para **CUSA08014 / 01.01**, derivado de `iss_pc`: executa o
 | SaveData | GetParam lê 1328 bytes; UmountWithBackup copia arquivos e publica evento de conclusão |
 | Apresentação | Duas inicializações com conteúdo real observado por mais de 30 segundos; encerramento previsto por timeout |
 | Texto | Prompt completo, menus e tutorial legíveis; âncora acumulada corrigida em `FontWritingStep+0x20` |
-| Primeira fase | Chapter 1-1 carregado, pausa funcional; falha gráfica grave no cenário, registrada para diagnóstico |
+| Primeira fase | Cenário inicial do Chapter 1-1 restaurado; movimento e pausa funcionais; duas capturas separadas por 57,162 segundos |
 
 Nenhum dos 61 imports ausentes interrompeu a transição observada até a primeira fase. Isso não comprova compatibilidade do jogo inteiro. Os testes partiram do `SAVEDATA00` já existente; primeiro boot sem save ainda requer validação no jogo.
+
+A falha gráfica tinha duas causas: limpeza do buffer MSAA de transparências não aplicada à imagem Vulkan (alpha zero apagava a composição) e descritores de vértices antigos reutilizados após atualização do guest. A correção propaga o padrão real de limpeza e verifica os descritores antes de reutilizar a preparação. Evidências locais em `out/knack2/gpu-verified/`, com hashes em `visual-verification.json`; diagnóstico detalhado na seção 6 de [HANDOFF_ASTRA.md](HANDOFF_ASTRA.md). Capturas, dump e saves ficam fora do Git.
 
 ## Compilar
 
@@ -99,6 +101,17 @@ $env:PATH = "$tc\clang64\bin;$env:PATH"
 ```
 
 Verificam protocolo LoadExec, argumentos e caminhos com espaços, timeout, isolamento de opções, parser SELF, relocações, TLS, metadados SaveData, limites de buffers, erros de corrupção, eventos e preservação de gerações de backup. O contrato de fontes testa os offsets lidos pelo guest, espaços, linha de base e unidades em pixels usando FreeType e a fonte DejaVuSans redistribuída no projeto. Os testes SaveData usam arquivos sintéticos em pasta temporária, sem acessar saves reais. São 29 execuções de teste nesses comandos; uma verificação de módulo é executada pelas duas suítes de link. Nesta continuação, os 12 testes de `tests/` passaram; parser e linker conservam a validação anterior.
+
+Regressões gráficas desta etapa (após o build e com CLANG64 no PATH):
+
+```powershell
+cmake --build port/out/gpu --target buffer-clear-test frame-capture-test async-fetch-snapshot-test -j 6
+.\port\out\gpu\buffer-clear-test.exe
+.\port\out\gpu\frame-capture-test.exe
+.\port\out\gpu\async-fetch-snapshot-test.exe
+```
+
+Os três testes passaram: invalidação de limpezas por escritas sobrepostas, descritores mutáveis de vértices e captura delimitada pelo flip GPU. A validação visual usou o launcher normal, sem desativar otimizações ou forçar barreiras globais.
 
 ## Bases e créditos
 

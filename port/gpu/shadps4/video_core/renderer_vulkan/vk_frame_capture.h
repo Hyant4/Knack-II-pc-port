@@ -23,6 +23,8 @@ class FrameCapture {
 public:
     /// VideoOut thread, per flip: frame boundary, presented buffer, trigger file check.
     static void OnFlip(VAddr presented_address);
+    /// Optional stream-ordered boundary for games that copy to the display instead of drawing.
+    static void OnGpuFlip(VAddr address);
 
     /// VideoOut: a display buffer the game registered. A pass drawing into one starts a frame
     /// in the GPU command stream (the flip itself runs a frame behind).

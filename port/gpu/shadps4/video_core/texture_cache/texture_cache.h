@@ -27,6 +27,7 @@
 #include "shader_recompiler/resource.h"
 #include "video_core/multi_level_page_table.h"
 #include "video_core/texture_cache/blit_helper.h"
+#include "video_core/texture_cache/buffer_clear.h"
 #include "video_core/texture_cache/image.h"
 #include "video_core/texture_cache/image_view.h"
 #include "video_core/texture_cache/sampler.h"
@@ -139,6 +140,8 @@ public:
 
     /// Marks an image as dirty if it exists at the provided address.
     void InvalidateMemoryFromGPU(VAddr address, size_t max_size);
+
+    void RecordBufferClear(VAddr address, u64 size, const BufferClears::Pattern& pattern);
 
     /// Evicts any images that overlap the unmapped range.
     void UnmapMemory(VAddr cpu_addr, size_t size);
@@ -567,6 +570,7 @@ private:
     void RetireReadbacks();
     PageTable page_table;
     std::mutex mutex;
+    BufferClears buffer_clears;
     /// tlg (gow3_pc #331): under `mutex`. GPU-modified images hold the written data themselves.
     void ApplyBackingWrites();
     std::mutex backing_writes_mutex;

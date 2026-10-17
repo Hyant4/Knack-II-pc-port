@@ -4,6 +4,7 @@
 #pragma once
 
 #include <optional>
+#include <span>
 #include <vector>
 #include "common/types.h"
 #include "shader_recompiler/info.h"
@@ -50,6 +51,20 @@ struct FetchShaderData {
     std::vector<VertexAttribute> attributes;
     s8 vertex_offset_sgpr = -1;   ///< SGPR of vertex offset from VADDR
     s8 instance_offset_sgpr = -1; ///< SGPR of instance offset from VADDR
+
+    // Fetch V#s are read through guest pointers, outside the flattened shader user data.
+    // An unchanged pointer does not prove that a preparation worker's descriptors are current.
+    bool MatchesBuffers(const Info& info, std::span<const AmdGpu::Buffer> buffers) const {
+        if (buffers.size() != attributes.size()) {
+            return false;
+        }
+        for (size_t i = 0; i < attributes.size(); ++i) {
+            if (!(attributes[i].GetSharp(info) == buffers[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     bool operator==(const FetchShaderData& other) const {
         return attributes == other.attributes && vertex_offset_sgpr == other.vertex_offset_sgpr &&

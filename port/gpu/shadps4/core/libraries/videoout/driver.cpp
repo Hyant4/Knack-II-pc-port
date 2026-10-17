@@ -630,6 +630,13 @@ bool VideoOutDriver::SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg,
 }
 
 void VideoOutDriver::SubmitFlipInternal(VideoOutPort* port, s32 index, s64 flip_arg, bool is_eop) {
+    if (Vulkan::FrameCapture::Active() &&
+        std::this_thread::get_id() == liverpool->GetGpuCommandProcessorThread()) {
+        // Stage B owns capture entries while recording draws. Finish its queued work before
+        // closing or opening a GPU-stream capture on the command processor thread.
+        presenter->GetRasterizer().DrainDrawPipe();
+        Vulkan::FrameCapture::OnGpuFlip(index >= 0 ? port->buffer_slots[index].address_left : 0);
+    }
     // tlg: frame boundaries of TLG_FRAME_RECORD_TRIGGER, in stream order on the GPU thread.
     Vulkan::FrameRecord::OnFlip(index >= 0 ? port->buffer_slots[index].address_left : 0,
                                 std::this_thread::get_id() ==
