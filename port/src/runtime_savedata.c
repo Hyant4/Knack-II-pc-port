@@ -16,6 +16,9 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #ifndef _WIN32
 #include <ftw.h>
 #endif
@@ -28,6 +31,7 @@
 #define ERR_INTERNAL ((int32_t)0x809F000B)
 #define ERR_MOUNT_FULL ((int32_t)0x809F000C)
 #define ERR_BAD_MOUNTED ((int32_t)0x809F000D)
+#define ERR_BROKEN ((int32_t)0x809F000F)
 #define ERR_INVALID_USER ((int32_t)0x809F0011)
 #define ERR_MEMORY_NOT_READY ((int32_t)0x809F0012)
 #define MODE_RDONLY 1
@@ -67,6 +71,8 @@ static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
 static int initialized;
 static char title_id[16]="UNKNOWN";
 static struct { int used, saved; char host[700], meta[700]; } slots[SLOTS]; /* saved: param written */
+/* Host bookkeeping; no guest structure layout changes. */
+static struct { int32_t user; TitleId title; DirName dir; uint32_t mode; } slot_identity[SLOTS];
 static char memory_path[720];
 static uint64_t memory_size;
 static size_t mounts_done, memory_writes;
@@ -162,6 +168,7 @@ static int32_t mount(int32_t user, const char *title, const DirName *dir, uint32
     if (!initialized) return ERR_NOT_INITIALIZED;
     if (user<0) return ERR_INVALID_USER;
     if (!dir || !result || !valid_name(dir->data,sizeof(dir->data))) return ERR_PARAMETER;
+    if (title && !valid_name(title,10)) return ERR_PARAMETER;
     char base[600], host[640], meta[680];
     root(user,title,base,sizeof(base));
     snprintf(host,sizeof(host),"%s/%s",base,dir->data);
@@ -180,6 +187,12 @@ static int32_t mount(int32_t user, const char *title, const DirName *dir, uint32
     if (!exists && (make_dirs(host) || make_dirs(meta))) { pthread_mutex_unlock(&lock); return ERR_INTERNAL; }
     if (!exists) { Param empty={0}; write_param(meta,&empty); }
     slots[slot].used=1;
+    slots[slot].saved=0;
+    memset(&slot_identity[slot],0,sizeof(slot_identity[slot]));
+    slot_identity[slot].user=user;
+    slot_identity[slot].mode=mode;
+    snprintf(slot_identity[slot].title.data,sizeof(slot_identity[slot].title.data),"%s",title && *title ? title : title_id);
+    slot_identity[slot].dir=*dir;
     snprintf(slots[slot].host,sizeof(slots[slot].host),"%s",host);
     snprintf(slots[slot].meta,sizeof(slots[slot].meta),"%s",meta);
     memset(result,0,sizeof(*result));
@@ -203,14 +216,28 @@ static ABI int32_t save_mount2(const Mount2 *m, MountResult *result) {
     return mount(m->user,NULL,m->dir,m->mode,result);
 }
 static int slot_of(const MountPoint *point) {
-    if (!point || strncmp(point->data,"/savedata",9)) return -1;
-    int slot=atoi(point->data+9);
+    if (!point || strnlen(point->data,sizeof(point->data))==sizeof(point->data) ||
+        strncmp(point->data,"/savedata",9)) return -1;
+    const char *number=point->data+9;
+    if (*number<'0' || *number>'9') return -1;
+    int slot=*number++-'0';
+    if (*number) {
+        if (slot!=1 || *number<'0' || *number>'5') return -1;
+        slot=10+(*number++-'0');
+    }
+    if (*number) return -1;
     return slot>=0 && slot<SLOTS && slots[slot].used ? slot : -1;
 }
-static ABI int32_t save_umount(const MountPoint *point) {
+#include "knack_savedata_backup.inc"
+
+static int32_t save_umount_internal(const MountPoint *point,int backup) {
     if (!initialized) return ERR_NOT_INITIALIZED;
     pthread_mutex_lock(&lock);
     int slot=slot_of(point);
+    if (slot>=0 && backup) {
+        int32_t result=save_backup_slot(slot);
+        if (result) { pthread_mutex_unlock(&lock); return result; }
+    }
     int saved=slot>=0 && slots[slot].saved;
     if (slot>=0) { runtime_file_unmount(point->data); slots[slot].used=slots[slot].saved=0; }
     pthread_mutex_unlock(&lock);
@@ -221,6 +248,42 @@ static ABI int32_t save_umount(const MountPoint *point) {
     if (saved && toast) tlggpu_save_toast(0);
     return slot>=0 ? 0 : ERR_NOT_FOUND;
 }
+static ABI int32_t save_umount(const MountPoint *point) { return save_umount_internal(point,0); }
+static ABI int32_t save_umount_backup(const MountPoint *point) { return save_umount_internal(point,1); }
+/* ABI and field semantics verified against shadPS4 e6c79a5 savedata.cpp
+ * (Copyright 2024 shadPS4 Emulator Project, GPL-2.0-or-later).
+ * Metadata reads never create or repair files, including on read-only mounts.
+ */
+static ABI int32_t save_get_param(const MountPoint *point, uint32_t type, void *buffer,
+                                  uint64_t size, uint64_t *got_size) {
+    if (!initialized) return ERR_NOT_INITIALIZED;
+    if (!point || !buffer || type>5) return ERR_PARAMETER;
+    uint64_t required=type==0 ? sizeof(Param) : type==4 ? sizeof(uint32_t) : type==5 ? sizeof(int64_t) : 1;
+    if (size<required) return ERR_PARAMETER;
+    pthread_mutex_lock(&lock);
+    int slot=slot_of(point);
+    if (slot<0) { pthread_mutex_unlock(&lock); return ERR_NOT_MOUNTED; }
+    Param p;
+    if (read_param(slots[slot].meta,&p)) { pthread_mutex_unlock(&lock); return ERR_BROKEN; }
+    pthread_mutex_unlock(&lock);
+    const void *source=&p;
+    if (type>=1 && type<=3) {
+        const char *text=type==1 ? p.title : type==2 ? p.subtitle : p.detail;
+        size_t capacity=type==3 ? sizeof(p.detail) : sizeof(p.title);
+        size_t length=strnlen(text,capacity);
+        if (length>size-1) length=(size_t)(size-1);
+        memcpy(buffer,text,length);
+        ((char *)buffer)[length]=0;
+        required=length+1;
+    } else {
+        if (type==4) source=&p.user_param;
+        if (type==5) source=&p.mtime;
+        memcpy(buffer,source,(size_t)required);
+    }
+    if (got_size) *got_size=required;
+    if (runtime_verbose()) printf("SaveData: GetParam type=%u returned %llu bytes\n",type,(unsigned long long)required);
+    return 0;
+}
 static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const void *buffer, uint64_t size) {
     if (!initialized) return ERR_NOT_INITIALIZED;
     if (!buffer) return ERR_PARAMETER;
@@ -228,6 +291,7 @@ static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const 
     int slot=slot_of(point);
     if (slot<0) { pthread_mutex_unlock(&lock); return ERR_NOT_MOUNTED; }
     Param p; read_param(slots[slot].meta,&p);
+    if (slot_identity[slot].mode & MODE_RDONLY) { pthread_mutex_unlock(&lock); return ERR_BAD_MOUNTED; }
     switch (type) {
     case 0: if (size<sizeof(Param)) goto bad; memcpy(&p,buffer,sizeof(p)); break;     /* ALL */
     case 1: snprintf(p.title,sizeof(p.title),"%.*s",(int)size,(const char *)buffer); break;
@@ -411,6 +475,8 @@ static const RuntimeExport exports[]={
     {"sceSaveDataInitialize3",save_initialize}, {"sceSaveDataTerminate",save_terminate},
     {"sceSaveDataMount",save_mount}, {"sceSaveDataMount2",save_mount2}, {"sceSaveDataUmount",save_umount},
     {"sceSaveDataSetParam",save_set_param}, {"sceSaveDataSaveIcon",save_icon}, {"sceSaveDataDelete",save_delete},
+    {"sceSaveDataGetParam",save_get_param},
+    {"sceSaveDataUmountWithBackup",save_umount_backup}, {"sceSaveDataGetEventResult",save_get_event},
     {"sceSaveDataDirNameSearch",save_search},
     {"sceSaveDataSetupSaveDataMemory",memory_setup}, {"sceSaveDataGetSaveDataMemory",memory_get},
     {"sceSaveDataSetSaveDataMemory",memory_set},

@@ -71,6 +71,12 @@ class KnackTests(unittest.TestCase):
         self.assertNotIn('GOW3_FPS', env)
         self.assertEqual(env['KNACK2_PROFILE'], 'CUSA08014-01.01')
 
+    def test_empty_toolchain_variable_uses_default(self):
+        with patch.dict(os.environ, {'MSYS2_ROOT': ''}):
+            env = run.runtime_environment(self.root)
+        self.assertEqual(Path(env['PATH'].split(os.pathsep)[0]),
+                         Path.home() / 'AppData/Local/knack2-toolchain/msys64/clang64/bin')
+
     def test_supervisor_timeout_and_child_exit(self):
         command = [sys.executable, '-c', 'import sys; print("stage"); sys.exit(75)']
         log = self.root / 'child.log'

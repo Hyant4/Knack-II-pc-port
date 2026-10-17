@@ -90,7 +90,7 @@ def read_exec_request(path, profile):
 def runtime_environment(out):
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
-    toolchain = Path(env.get('MSYS2_ROOT', Path.home() / 'AppData/Local/knack2-toolchain/msys64'))
+    toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
     env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
     system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
     if system_font.is_file():
