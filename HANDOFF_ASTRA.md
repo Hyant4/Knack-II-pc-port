@@ -7,11 +7,15 @@
 > Seções 1–5 preservam o histórico; restrições e diagnósticos antigos não descrevem
 > o estado atual. Alterações gráficas desta etapa foram expressamente autorizadas.
 
-﻿## 6. Correção gráfica do Chapter 1-1 — 17/10/2026
+## 6. Correção gráfica do Chapter 1-1 — 17/10/2026
 
 ### Diagnóstico confirmado
 
 Branch `knack2-windows` sincronizada com `git merge --ff-only flash-boot-debug` (já atualizada, HEAD inicial `1e13acc`). `09e6ccc` e `1e13acc` preservados. Escopo gráfico e runtime GPU autorizados expressamente nesta etapa; ABI, memória virtual, hooks, fontes e SaveData não foram editados.
+
+Correções e testes salvos em `44bf1e6`: `fix(gpu): restore Chapter 1-1 transparency and vertex geometry`.
+O usuário relatou 60 FPS após essa correção. A validação anterior não mediu frame times;
+esse relato não certifica desempenho durante combate, destruição ou transições.
 
 Duas falhas distintas estavam ocultas pela apresentação preta:
 
