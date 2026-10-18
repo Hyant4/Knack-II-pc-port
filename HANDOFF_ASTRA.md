@@ -3,9 +3,34 @@
 > Atualização de 17/10/2026: **cenário inicial do Chapter 1-1 restaurado**, com
 > iluminação, geometria, movimento e pausa verificados. A seção 6 registra as duas
 > causas gráficas corrigidas, testes e capturas em execução normal.
+> Seção 8 registra o diagnóstico técnico da ausência de áudio (causa raiz no stub silencioso de libSceNgs2).
 > Marcos anteriores `09e6ccc` e `1e13acc` preservados em `knack2-windows`.
 > Seções 1–5 preservam o histórico; restrições e diagnósticos antigos não descrevem
 > o estado atual. Alterações gráficas desta etapa foram expressamente autorizadas.
+
+## 8. Diagnóstico técnico da ausência de áudio no Knack 2 — 17/10/2026
+
+Investigação estritamente somente leitura da ausência de áudio relatada durante o gameplay.
+Nenhum arquivo de código do runtime, ABI, memória, Vulkan ou decodificação foi alterado nesta etapa.
+
+### 8.1. Arquivos Criados/Modificados
+- `HANDOFF_ASTRA.md`: inclusão desta seção 8 de diagnóstico e handoff.
+- `out/inspect_audio_imports.py` (em diretório `out/` ignorado pelo Git): ferramenta temporária para análise quantitativa de imports e relocations.
+- Nenhum arquivo da Zona Bloqueada foi tocado.
+
+### 8.2. Novas Interfaces/Headers
+Nenhuma nova interface ou header implementado nesta rodada.
+
+### 8.3. Anomalias Detectadas (Read-Only) e Causa Raiz
+1. **Causa Raiz Comprovada:** O jogo utiliza a engine de som SoundX (`sndx` da Sony Japan Studio), cujos fluxos de sintetização, carregamento de vozes (`.bsxd`) e mixagem passam integralmente por **`libSceNgs2`** (`libSceNgs2.sprx`). No runtime atual, `libSceNgs2` é um placeholder silencioso em `port/src/runtime_tlg.c:266-320`.
+   - Na linha 292 de `port/src/runtime_tlg.c`, `ngs2_render` executa:
+     `for (uint32_t i=0;i<count;++i) if (buffers[i].buffer) memset(buffers[i].buffer,0,buffers[i].size);`
+   - O thread guest `sndx_out_thread` solicita o render a cada ~5,3 ms via `sceNgs2SystemRender` e entrega os buffers zerados para `sceAudioOutOutputs`.
+   - O runtime entrega esses buffers ao SDL3 WASAPI, gerando reprodução contínua de silêncio digital absoluto (`0.0f`).
+2. **libSceAjm Não Utilizado:** `game.elf` e `eboot.bin` contêm exatamente 0 imports de `libSceAjm`. O log registra `Runtime: Ajm batches=0, jobs=0, ATRAC9 frames decoded=0`. AJM não faz parte do pipeline de Knack 2.
+3. **libSceAudio3d Inativo:** Embora conste nos imports de `game.elf`, `sceAudio3dInitialize` jamais é chamado durante o boot e gameplay (0 chamadas registradas nos logs).
+4. **Backend de Áudio e SDL3 Saudáveis:** SDL3 WASAPI abre com sucesso as portas 0, 1, 8 e 17. Telemetria confirma 938 buffers/5s estáveis nas portas 0, 1 e 17 com `starved 0` e fila de ~7–8 KB. Não há falha na entrega ao dispositivo físico.
+5. **Classificação da Correção:** **ASTRA**. A implementação de `libSceNgs2` (seja por HLE com sampler/decodificadores de bancos `.bsxd` ou por LLE com `TLG_NGS2=native`) reside na Zona Bloqueada (`port/src/runtime_tlg.c` / núcleo de runtime).
 
 ## 7. Validação durante ação — 17/10/2026
 
