@@ -38,5 +38,4 @@ port/dist/
 *.elf
 graphify-out
 HANDOFF_ASTRAS.MD
-AGENTS
 .agents
