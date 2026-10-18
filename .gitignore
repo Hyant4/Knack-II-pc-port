@@ -36,3 +36,6 @@ port/dist/
 /out/
 /.venv/
 *.elf
+graphify-out
+HANDOFF_ASTRAS.MD
+AGENTS.MD
