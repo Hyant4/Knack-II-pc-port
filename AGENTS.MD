@@ -1,8 +1,8 @@
 # AGENTS.md — Governança dos agentes e segurança do port Knack 2 para PC
 
-> **Versão 2.1 — 18/10/2026**  
+> **Versão 2.2 — Governança com dois Tech Leads**  
 > **Projeto:** Knack 2, CUSA08014, perfil 01.01  
-> **Objetivo:** preservar os marcos já atingidos enquanto tarefas de menor risco são delegadas ao Gemini, mantendo o núcleo complexo sob responsabilidade principal do GPT-5.6 Sol, com GPT-6 Astra reservado a escalonamentos excepcionais.
+> **Objetivo:** preservar os marcos já atingidos enquanto tarefas de menor risco são delegadas ao Gemini, mantendo o núcleo complexo com GPT-5.6 Sol, com dois Tech Leads independentes (ChatGPT GPT-6 e Argon no Gemini Chat), e GPT-6 Astra para escalonamentos excepcionais.
 >
 > **Escopo deste documento:** orientação operacional de agentes trabalhando neste repositório. Não substitui o pedido específico do usuário, nem concede autorização para operações destrutivas.
 
@@ -16,7 +16,7 @@ Antes de qualquer implementação:
 2. Confirmar branch, HEAD, alterações locais e submódulos: `git branch --show-current`, `git rev-parse --short HEAD`, `git status --short`, `git submodule status`.
 3. Examinar apenas os arquivos relacionados ao pedido e localizar testes já existentes.
 4. Separar **comportamento comprovado em log/teste**, **relato do usuário**, **hipótese** e **pendência não testada**.
-5. Registrar a situação inicial dos arquivos modificados para não confundir mudanças anteriores com alterações desta tarefa.
+5. Registrar a situação inicial dos arquivos modificados para não confundir mudanças anteriores com alterações desta tarefa. Se ChatGPT e Argon apresentarem diretrizes conflitantes, suspender apenas a decisão controvertida e solicitar arbitragem do usuário.
 
 Referência conhecida em 17/10/2026: `main` e `knack2-windows` apontavam para `8fac797` (marco documentado de combate/transição); essa referência é **histórica**, não substitui a verificação do HEAD atual.
 
@@ -45,11 +45,29 @@ O **Astra** pode assumir investigações de risco particularmente alto, impasses
 
 O **Gemini** realiza triagem de logs, automação, testes, documentação, launcher, UI auxiliar, diagnósticos não invasivos e **ajustes HLE pequenos e isolados** dentro da lista autorizada na seção 4.
 
-### GPT-6 no chat — triagem, planejamento e revisão
+### Usuário — direção e aprovação final
 
-Apoia análise de evidências, priorização e formulação de tarefas. Não é um terceiro executor com permissão implícita de editar o núcleo. Uma sugestão do chat não prevalece sobre autorização expressa do usuário nem sobre a proteção de arquivos.
+O usuário define objetivos, aceita riscos e aprova escopos de implementação crítica. Nenhum Tech Lead ou executor pode presumir autorização para editar arquivos bloqueados, realizar ações destrutivas, criar commits, fazer merges ou enviar pushes por conta própria.
 
-**Critério decisivo:** classificar pelo **risco da alteração**, e não apenas pela palavra “áudio”, “fonte”, “kernel” ou “stub”. Se a correção exigir um arquivo protegido ou um contrato global, **Gemini para, documenta e encaminha ao Sol; o Sol pode solicitar escalonamento ao Astra com aprovação do usuário**. Não contornar a regra criando um segundo caminho, duplicando implementação ou escondendo alteração sob outro arquivo.
+### ChatGPT (GPT-6 neste chat) — Tech Lead de arquitetura e integração
+
+Responsável por priorização, análise de evidências e riscos, revisão da arquitetura e dos contratos, formulação de tarefas e revisão dos resultados. Atua como **Tech Lead e revisor independente**, sem permissão automática para editar o núcleo.
+
+### Argon (Gemini Chat) — Tech Lead de segunda revisão independente
+
+Responsável por uma segunda análise de decisões arquiteturais, hipóteses, alternativas HLE/LLE, contratos de integração e testes. **Argon no Gemini Chat não é o Gemini executor no Antigravity**: são funções distintas, mesmo quando utilizam modelos da mesma família. Argon também não recebe direitos automáticos sobre arquivos protegidos.
+
+### Protocolo de colaboração dos dois Tech Leads
+
+1. **Autoridade:** o usuário aprova a decisão final. ChatGPT e Argon recomendam; Sol e Gemini executam somente tarefas com escopo atribuído e autorizado. Nenhuma análise de Tech Lead amplia as permissões de um agente.
+2. **Independência:** em decisões de grande risco (kernel, ABI, memória, GPU/Vulkan, NGS2, threads, sincronização), é recomendado solicitar uma segunda revisão independente antes de uma grande implementação ou integração. Não exigir duas revisões para pequenos diagnósticos e tarefas de baixo risco.
+3. **Uma especificação aprovada:** os dois Tech Leads não devem enviar instruções concorrentes e conflitantes aos executores. Havendo discordância, expor ao usuário as opções, evidências, riscos e impactos. Não iniciar uma implementação controvertida sem decisão do usuário.
+4. **Comunicação manual:** ChatGPT, Gemini Chat e Antigravity não compartilham automaticamente conversas, arquivos locais, aprovações ou resultados. O usuário faz a transferência de prompts/relatórios; os revisores devem receber o mesmo contexto técnico e confirmar branch, HEAD e fontes.
+5. **Fonte de verdade:** código, Git, logs, testes e os documentos atuais prevalecem sobre resumos de agentes. Registrar em `HANDOFF_ASTRA.md` decisões aceitas, trade-offs, evidências, autoria, pendências e divergências relevantes, sem apagar histórico.
+6. **Fluxo usual:** diagnóstico/documentação do Gemini Antigravity → proposta do Sol para mudanças críticas → revisão de ChatGPT e/ou Argon quando útil → aprovação do usuário → implementação do Sol → testes → revisão dos resultados e handoff.
+7. **Mudança de escopo:** alterar arquitetura aprovada, atingir novos arquivos críticos ou ampliar riscos exige nova autorização. Uma revisão técnica não substitui a aprovação humana.
+
+**Critério decisivo:** classificar pelo **risco da alteração**, e não apenas pela palavra “áudio”, “fonte”, “kernel” ou “stub”. Se a correção exigir um arquivo protegido ou um contrato global, **Gemini para, documenta e encaminha ao Sol; o Sol pode solicitar escalonamento ao Astra com aprovação do usuário**. ChatGPT e Argon podem revisar independentemente a estratégia crítica; só uma proposta aprovada pelo usuário deve ser entregue como instrução ao executor. Não contornar a regra criando um segundo caminho, duplicando implementação ou escondendo alteração sob outro arquivo.
 
 ## 3. Zona bloqueada — READ-ONLY para Gemini; propriedade do Sol
 
@@ -213,7 +231,7 @@ Adicionar seção **nova no topo** com data, título e agente; manter o históri
 - Arquivos exatamente criados/modificados e interfaces novas (ou “nenhuma”).
 - Evidências dos testes: comandos, resultados, logs e imagens locais, distinguindo validação visual, automática e relato.
 - Anomalias e limitações, inclusive o que **não** foi validado.
-- Pendências para Gemini versus pendências reservadas ao Sol; registrar separadamente escalonamentos excepcionais ao Astra.
+- Pendências para Gemini versus pendências reservadas ao Sol; registrar separadamente escalonamentos excepcionais ao Astra e, quando relevante, recomendações divergentes de ChatGPT/Argon e decisão expressa do usuário.
 - Eventuais mudanças já existentes em `.vscode/`, `fsr-vulkan` ou outras partes do worktree que foram preservadas.
 
 Não usar o handoff para atribuir sucesso a uma sessão sem inspeção correspondente. Não incorporar dados proprietários ou grandes dumps ao Git.
