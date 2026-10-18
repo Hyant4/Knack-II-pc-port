@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdatomic.h>
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -351,7 +352,7 @@ typedef struct {
     Ngs2PcmGrain fifo[NGS2_ATRAC9_FIFO_CAPACITY];
     uint32_t pcm_read,pcm_write,pcm_count;
     uint64_t queued_compressed_bytes,decoded_frames,decoded_bytes,decode_errors,cancellations;
-    uint64_t events_enqueued,events_rejected;
+    uint64_t events_enqueued,events_rejected,underruns;
     uint32_t max_segment_depth,max_fifo_depth,snapshot_inflight;
     int active_valid,decode_inflight,faulted,closing;
 } Ngs2Atrac9Voice;
@@ -389,12 +390,28 @@ struct Ngs2System {
     uint64_t compressed_bytes,snapshot_bytes,snapshot_us,decoded_frames,decoded_bytes;
     uint64_t decode_errors,cancellations,events_enqueued,events_rejected;
     uint32_t max_segment_depth,max_fifo_depth;
-    int atrac9_enabled,worker_started,closing;
+    int atrac9_enabled,render_mix_enabled,worker_started,closing;
+    uint32_t render_voice_cursor;
+    uint64_t main_renders,ambiguous_renders_ignored,voices_mixed,grains_consumed;
+    uint64_t underruns,trylock_contentions,render_cancellations,render_time_us;
+    uint64_t render_limit_exceeded;
+    float peak_pcm;
+    double sum_sq_pcm;
+    uint64_t total_samples_rendered;
 };
 
 static pthread_mutex_t ngs2_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ngs2_cond=PTHREAD_COND_INITIALIZER;
 static Ngs2System *ngs2_systems;
+static _Atomic uint64_t ngs2_global_trylock_contentions;
+static _Atomic uintptr_t ngs2_render_owner;
+typedef void (*Ngs2RenderMixHook)(void *arg);
+static Ngs2RenderMixHook ngs2_render_mix_hook;
+static void *ngs2_render_mix_hook_arg;
+static inline __attribute__((unused)) void ngs2_set_render_mix_hook(Ngs2RenderMixHook hook,void *arg) {
+    ngs2_render_mix_hook=hook;
+    ngs2_render_mix_hook_arg=arg;
+}
 static uint64_t ngs2_next_handle=1;
 static uint64_t ngs2_segment_sequence,ngs2_compressed_bytes,ngs2_compressed_bytes_max;
 static unsigned ngs2_unknown_logs,ngs2_descriptor_logs;
@@ -461,6 +478,15 @@ static int ngs2_atrac9_enabled(void) {
             printf("Runtime: NGS2 ATRAC9 HLE-2.2A1 enabled (decode-only, render remains silent)\n");
     }
     return ngs2_atrac9_setting;
+}
+static int ngs2_render_mix_setting=-1;
+static int ngs2_render_mix_enabled(void) {
+    if (ngs2_render_mix_setting<0) {
+        ngs2_render_mix_setting=ngs2_ini_enabled("ngs2_render_mix");
+        if (ngs2_render_mix_setting)
+            printf("Runtime: NGS2 render mixer enabled (F32 8ch master bus)\n");
+    }
+    return ngs2_render_mix_setting;
 }
 static uint64_t ngs2_now_us(void) {
     struct timespec value;
@@ -842,12 +868,14 @@ static ABI int32_t ngs2_system_create(const void *option,const void *allocator,N
     if (!system) return NGS2_INVALID;
     system->grain_samples=grain; system->sample_rate=rate;
     system->atrac9_enabled=ngs2_atrac9_enabled();
+    system->render_mix_enabled=system->atrac9_enabled && ngs2_render_mix_enabled();
     pthread_mutex_lock(&ngs2_lock);
     system->handle=ngs2_new_handle_locked(); system->next=ngs2_systems; ngs2_systems=system;
     if (system->atrac9_enabled) {
         if (!pthread_create(&system->worker,NULL,ngs2_atrac9_worker,system)) system->worker_started=1;
         else {
             system->atrac9_enabled=0;
+            system->render_mix_enabled=0;
             printf("Runtime: NGS2 ATRAC9 worker unavailable; system remains HLE-1 silent\n");
         }
     }
@@ -879,6 +907,27 @@ static ABI int32_t ngs2_system_destroy(Ngs2Handle *handle,Ngs2BufferInfo *info) 
                (unsigned long long)system->decoded_frames,(unsigned long long)system->decoded_bytes,
                (unsigned long long)system->decode_errors,(unsigned long long)system->cancellations,
                system->max_segment_depth,system->max_fifo_depth);
+    if (system->render_mix_enabled) {
+        system->trylock_contentions+=atomic_exchange_explicit(&ngs2_global_trylock_contentions,0,memory_order_relaxed);
+        double rms=system->total_samples_rendered ?
+                   sqrt(system->sum_sq_pcm/(double)system->total_samples_rendered) : 0.0;
+        double avg_us=system->main_renders ?
+                      (double)system->render_time_us/(double)system->main_renders : 0.0;
+        printf("Runtime: NGS2 Mixer summary main_renders=%llu ambiguous_ignored=%llu "
+               "voices_mixed=%llu grains_consumed=%llu underruns=%llu "
+               "trylock_contentions=%llu cancellations=%llu limit_exceeded=%llu "
+               "peak_pcm=%.4f rms_pcm=%.4f render_time_us=%llu (avg=%.2f us/render)\n",
+               (unsigned long long)system->main_renders,
+               (unsigned long long)system->ambiguous_renders_ignored,
+               (unsigned long long)system->voices_mixed,
+               (unsigned long long)system->grains_consumed,
+               (unsigned long long)system->underruns,
+               (unsigned long long)system->trylock_contentions,
+               (unsigned long long)system->render_cancellations,
+               (unsigned long long)system->render_limit_exceeded,
+               system->peak_pcm,(float)rms,
+               (unsigned long long)system->render_time_us,avg_us);
+    }
     while (system->racks) {
         Ngs2Rack *rack=system->racks; system->racks=rack->next; ngs2_free_rack_resources(rack);
     }
@@ -886,16 +935,270 @@ static ABI int32_t ngs2_system_destroy(Ngs2Handle *handle,Ngs2BufferInfo *info) 
     if (info) memset(info,0,sizeof(*info));
     return 0;
 }
+#define NGS2_RENDER_MAX_VOICES 32u
+typedef struct {
+    Ngs2Handle *voice_handle;
+    uint64_t generation;
+    uint32_t expected_pcm_read;
+    uint64_t expected_grain_generation;
+    uint32_t channels;
+    uint32_t matrix_words;
+    float matrix[NGS2_MAX_DESCRIPTOR_WORDS];
+    Ngs2PcmGrain grain;
+    int active;
+} Ngs2RenderSnapshot;
+
+/* One global render owner protects this fixed workspace without heap allocation. */
+static Ngs2RenderSnapshot ngs2_render_snapshots[NGS2_RENDER_MAX_VOICES];
+static float ngs2_render_stage[256*8];
+
 static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffers,uint32_t count) {
-    pthread_mutex_lock(&ngs2_lock);
-    int valid=ngs2_system_locked(handle)!=NULL;
-    pthread_mutex_unlock(&ngs2_lock);
-    if (!valid || (count && !buffers)) return NGS2_INVALID;
-    for (uint32_t i=0;i<count;++i) {
-        if (buffers[i].size>NGS2_MAX_RENDER_BYTES) return NGS2_INVALID;
-        if (buffers[i].buffer) memset(buffers[i].buffer,0,(size_t)buffers[i].size);
+    if (count && !buffers) return NGS2_INVALID;
+
+    /* Double opt-in: both ngs2_atrac9_hle=1 and ngs2_render_mix=1 required */
+    int mix_active=ngs2_atrac9_enabled() && ngs2_render_mix_enabled();
+    if (!mix_active) {
+        /* Legacy HLE-1 permits null destinations and clears each non-null buffer. */
+        for (uint32_t i=0;i<count;++i) {
+            Ngs2RenderBuffer descriptor;
+            memcpy(&descriptor,&buffers[i],sizeof(descriptor));
+            if (descriptor.size>NGS2_MAX_RENDER_BYTES) return NGS2_INVALID;
+            if (descriptor.buffer) memset(descriptor.buffer,0,(size_t)descriptor.size);
+        }
+        pthread_mutex_lock(&ngs2_lock);
+        int valid=(ngs2_system_locked(handle)!=NULL);
+        pthread_mutex_unlock(&ngs2_lock);
+        return valid ? 0 : NGS2_INVALID;
     }
-    return 0;
+
+    /* Experimental real-time mixer path: strictly non-blocking trylock */
+    if (pthread_mutex_trylock(&ngs2_lock)!=0) {
+        atomic_fetch_add_explicit(&ngs2_global_trylock_contentions,1,memory_order_relaxed);
+        return 0; /* Non-blocking: returns silence with preserved FIFOs */
+    }
+
+    Ngs2System *system=ngs2_system_locked(handle);
+    if (!system) {
+        pthread_mutex_unlock(&ngs2_lock);
+        return NGS2_INVALID;
+    }
+
+    if (system->closing || !system->render_mix_enabled) {
+        pthread_mutex_unlock(&ngs2_lock);
+        return 0;
+    }
+
+    uintptr_t expected_owner=0;
+    if (!atomic_compare_exchange_strong_explicit(&ngs2_render_owner,&expected_owner,
+                                                  (uintptr_t)handle,memory_order_acquire,
+                                                  memory_order_relaxed)) {
+        ++system->ambiguous_renders_ignored;
+        pthread_mutex_unlock(&ngs2_lock);
+        return 0;
+    }
+
+    int32_t render_result=0;
+    Ngs2RenderBuffer master={0};
+    for (uint32_t i=0;i<count;++i) {
+        Ngs2RenderBuffer descriptor;
+        memcpy(&descriptor,&buffers[i],sizeof(descriptor));
+        if (descriptor.size>NGS2_MAX_RENDER_BYTES || !descriptor.buffer) {
+            render_result=NGS2_INVALID;
+            pthread_mutex_unlock(&ngs2_lock);
+            goto render_done;
+        }
+        if (!i) master=descriptor;
+        memset(descriptor.buffer,0,(size_t)descriptor.size);
+    }
+
+    /* Count alone cannot identify the master bus. Ambiguous calls remain silent. */
+    if (count<=1 || master.size!=8192 || master.waveform!=0x18 || master.channels!=8) {
+        ++system->ambiguous_renders_ignored;
+        pthread_mutex_unlock(&ngs2_lock);
+        goto render_done;
+    }
+
+    uint64_t render_start=ngs2_now_us();
+
+    /* Ignore output-only racks; count only current-generation source grains. */
+    uint32_t total_eligible=0;
+    for (Ngs2Rack *rack=system->racks;rack;rack=rack->next) {
+        if (rack->rack_id==0x2000 || rack->rack_id==0x3000) continue;
+        for (uint32_t i=0;i<rack->capacity;++i) {
+            Ngs2Voice *voice=&rack->voices[i];
+            if (voice->internal_state==NGS2_VOICE_PLAYING && voice->atrac9 &&
+                !voice->atrac9->closing && !voice->atrac9->faulted) {
+                if (voice->atrac9->pcm_count>0) {
+                    Ngs2PcmGrain *head=&voice->atrac9->fifo[voice->atrac9->pcm_read];
+                    if (head->generation==voice->atrac9->generation) ++total_eligible;
+                } else {
+                    ++voice->atrac9->underruns;
+                    ++system->underruns;
+                }
+            }
+        }
+    }
+
+    /* Safe-fail if active voice count exceeds real-time capacity (Requirement E) */
+    if (total_eligible>NGS2_RENDER_MAX_VOICES) {
+        ++system->render_limit_exceeded;
+        system->render_time_us+=(ngs2_now_us()-render_start);
+        pthread_mutex_unlock(&ngs2_lock);
+        goto render_done; /* Silence: no distorted time-dilation, FIFOs untouched */
+    }
+
+    if (!total_eligible) {
+        system->render_time_us+=(ngs2_now_us()-render_start);
+        ++system->main_renders;
+        pthread_mutex_unlock(&ngs2_lock);
+        goto render_done;
+    }
+
+    Ngs2RenderSnapshot *snapshots=ngs2_render_snapshots;
+    memset(snapshots,0,sizeof(ngs2_render_snapshots));
+    uint32_t active_snapshots=0;
+
+    for (Ngs2Rack *rack=system->racks;rack && active_snapshots<NGS2_RENDER_MAX_VOICES;rack=rack->next) {
+        if (rack->rack_id==0x2000 || rack->rack_id==0x3000) continue;
+        for (uint32_t i=0;i<rack->capacity && active_snapshots<NGS2_RENDER_MAX_VOICES;++i) {
+            Ngs2Voice *voice=&rack->voices[i];
+            if (voice->internal_state!=NGS2_VOICE_PLAYING || !voice->atrac9) continue;
+            Ngs2Atrac9Voice *state=voice->atrac9;
+            if (state->closing || state->faulted || !state->pcm_count) continue;
+
+            Ngs2PcmGrain *head=&state->fifo[state->pcm_read];
+            if (head->generation!=state->generation) continue;
+
+            /* Snapshot grain and matrix under lock WITHOUT advancing FIFO */
+            snapshots[active_snapshots].voice_handle=voice->handle;
+            snapshots[active_snapshots].generation=state->generation;
+            snapshots[active_snapshots].expected_pcm_read=state->pcm_read;
+            snapshots[active_snapshots].expected_grain_generation=head->generation;
+            snapshots[active_snapshots].channels=voice->waveform.channels;
+            uint32_t words=voice->descriptor_words;
+            if (words>NGS2_MAX_DESCRIPTOR_WORDS) words=NGS2_MAX_DESCRIPTOR_WORDS;
+            snapshots[active_snapshots].matrix_words=words;
+            for (uint32_t w=0;w<words;++w) {
+                union { uint32_t u; float f; } cvt={voice->descriptors[w]};
+                snapshots[active_snapshots].matrix[w]=cvt.f;
+            }
+            snapshots[active_snapshots].grain=*head;
+            snapshots[active_snapshots].active=1;
+            ++active_snapshots;
+        }
+    }
+
+    ++system->main_renders;
+    pthread_mutex_unlock(&ngs2_lock);
+
+    /* Test synchronization hook invoked outside lock during mix window */
+    if (ngs2_render_mix_hook) {
+        ngs2_render_mix_hook(ngs2_render_mix_hook_arg);
+    }
+
+    /* Mathematical mixing executes outside ngs2_lock in gate-owned static workspace. */
+    float *stage_f32=ngs2_render_stage;
+    memset(stage_f32,0,sizeof(ngs2_render_stage));
+
+    for (uint32_t s=0;s<active_snapshots;++s) {
+        if (!snapshots[s].active) continue;
+        uint32_t num_ch=snapshots[s].channels;
+        if (!num_ch || num_ch>8) continue;
+        const int16_t *pcm=snapshots[s].grain.pcm;
+        const float *mat=snapshots[s].matrix;
+        uint32_t words=snapshots[s].matrix_words;
+
+        for (uint32_t f=0;f<256;++f) {
+            for (uint32_t dst=0;dst<8;++dst) {
+                float sum=0.0f;
+                for (uint32_t src=0;src<num_ch;++src) {
+                    uint32_t idx=dst*num_ch+src;
+                    if (idx<words) {
+                        float gain=mat[idx];
+                        if (isfinite(gain) && gain>=-64.0f && gain<=64.0f) {
+                            float s_val=(float)pcm[f*num_ch+src]*(1.0f/32768.0f);
+                            sum+=s_val*gain;
+                        }
+                    }
+                }
+                stage_f32[f*8+dst]+=sum*0.25f; /* -12 dB diagnostic master attenuation */
+            }
+        }
+    }
+
+    /* Defensive clamp [-1.0, 1.0] and NaN/Inf sanitization outside lock */
+    float peak=0.0f;
+    double sum_sq=0.0;
+    for (uint32_t i=0;i<256*8;++i) {
+        float val=stage_f32[i];
+        if (!isfinite(val)) val=0.0f;
+        else if (val>1.0f) val=1.0f;
+        else if (val<-1.0f) val=-1.0f;
+        stage_f32[i]=val;
+        float abs_val=fabsf(val);
+        if (abs_val>peak) peak=abs_val;
+        sum_sq+=(double)val*(double)val;
+    }
+
+    /* Transactional publication phase: non-blocking trylock revalidation */
+    if (pthread_mutex_trylock(&ngs2_lock)!=0) {
+        atomic_fetch_add_explicit(&ngs2_global_trylock_contentions,1,memory_order_relaxed);
+        /* Contention: do not publish, do not advance FIFOs (grains preserved) */
+        goto render_done;
+    }
+
+    system=ngs2_system_locked(handle);
+    if (!system || system->closing) {
+        pthread_mutex_unlock(&ngs2_lock);
+        goto render_done;
+    }
+
+    /* Revalidate all voice snapshots against current system/rack/voice state */
+    int any_cancelled=0;
+    for (uint32_t s=0;s<active_snapshots;++s) {
+        if (!snapshots[s].active) continue;
+        Ngs2Voice *voice=ngs2_voice_locked(snapshots[s].voice_handle);
+        if (!voice || voice->internal_state!=NGS2_VOICE_PLAYING ||
+            !voice->atrac9 || voice->atrac9->closing || voice->atrac9->faulted ||
+            voice->atrac9->generation!=snapshots[s].generation ||
+            !voice->atrac9->pcm_count ||
+            voice->atrac9->pcm_read!=snapshots[s].expected_pcm_read ||
+            voice->atrac9->fifo[snapshots[s].expected_pcm_read].generation!=snapshots[s].expected_grain_generation) {
+            any_cancelled=1;
+            break;
+        }
+    }
+
+    if (any_cancelled) {
+        /* Safe diagnostic solution: silence for full quantum, surviving FIFOs preserved */
+        ++system->render_cancellations;
+    } else {
+        /* Descriptor was snapshotted before unlock; never re-read caller-owned fields. */
+        memcpy(master.buffer,stage_f32,sizeof(ngs2_render_stage));
+
+        /* Publication succeeded: commit FIFO advances under the same lock. */
+        for (uint32_t s=0;s<active_snapshots;++s) {
+            Ngs2Voice *voice=ngs2_voice_locked(snapshots[s].voice_handle);
+            Ngs2Atrac9Voice *state=voice->atrac9;
+            state->pcm_read=(state->pcm_read+1u)%NGS2_ATRAC9_FIFO_CAPACITY;
+            --state->pcm_count;
+            ++system->grains_consumed;
+        }
+        pthread_cond_broadcast(&ngs2_cond);
+
+        if (peak>system->peak_pcm) system->peak_pcm=peak;
+        system->sum_sq_pcm+=sum_sq;
+        system->total_samples_rendered+=256*8;
+        system->voices_mixed+=active_snapshots;
+    }
+
+    system->render_time_us+=(ngs2_now_us()-render_start);
+    system->trylock_contentions+=atomic_exchange_explicit(&ngs2_global_trylock_contentions,0,memory_order_relaxed);
+    pthread_mutex_unlock(&ngs2_lock);
+
+render_done:
+    atomic_store_explicit(&ngs2_render_owner,0,memory_order_release);
+    return render_result;
 }
 static ABI int32_t ngs2_query_buffer(uint32_t rack_id,const void *option,Ngs2BufferInfo *info) {
     (void)rack_id;
@@ -1067,7 +1370,14 @@ static int32_t ngs2_control_locked(Ngs2Voice *voice,const void *params,uint16_t 
     case 6: {
         if (size<0x0c) return NGS2_INVALID;
         switch (ngs2_u32(params,8)) {
-        case 0: voice->internal_state=NGS2_VOICE_PLAYING; pthread_cond_broadcast(&ngs2_cond); break;
+        case 0:
+            voice->internal_state=NGS2_VOICE_PLAYING;
+            if (voice->rack->system->atrac9_enabled && !voice->atrac9) {
+                voice->atrac9=calloc(1,sizeof(*voice->atrac9));
+                if (voice->atrac9) voice->atrac9->generation=1;
+            }
+            pthread_cond_broadcast(&ngs2_cond);
+            break;
         case 1: if (voice->internal_state==NGS2_VOICE_PLAYING) voice->internal_state=NGS2_VOICE_PAUSED; break;
         case 2: if (voice->internal_state==NGS2_VOICE_PAUSED) {
             voice->internal_state=NGS2_VOICE_PLAYING; pthread_cond_broadcast(&ngs2_cond);
