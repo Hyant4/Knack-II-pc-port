@@ -1,8 +1,8 @@
 # AGENTS.md — Governança dos agentes e segurança do port Knack 2 para PC
 
-> **Versão 2.0 — 17/10/2026**  
+> **Versão 2.1 — 18/10/2026**  
 > **Projeto:** Knack 2, CUSA08014, perfil 01.01  
-> **Objetivo:** preservar os marcos já atingidos enquanto tarefas de menor risco são delegadas ao Gemini, mantendo o núcleo complexo sob responsabilidade do Astra.
+> **Objetivo:** preservar os marcos já atingidos enquanto tarefas de menor risco são delegadas ao Gemini, mantendo o núcleo complexo sob responsabilidade principal do GPT-5.6 Sol, com GPT-6 Astra reservado a escalonamentos excepcionais.
 >
 > **Escopo deste documento:** orientação operacional de agentes trabalhando neste repositório. Não substitui o pedido específico do usuário, nem concede autorização para operações destrutivas.
 
@@ -23,7 +23,7 @@ Referência conhecida em 17/10/2026: `main` e `knack2-windows` apontavam para `8
 ### Estado técnico conhecido (não extrapolar)
 
 - Houve boot, título, menus, carregamento e testes de gameplay no início de Chapter 1-1, incluindo combate e transição cinematográfica, conforme `HANDOFF_ASTRA.md`.
-- As correções gráficas de transparência e descritores de vértices foram registradas no commit `44bf1e6`. Não as reverter ou “simplificar” sem evidência e autorização do Astra.
+- As correções gráficas de transparência e descritores de vértices foram registradas no commit `44bf1e6`. Não as reverter ou “simplificar” sem evidência, testes e autorização explícita para uma tarefa do núcleo atribuída ao Sol (ou ao Astra em escalonamento excepcional).
 - `runtime_ajm.c` **já contém** decodificação ATRAC9 por LibAtrac9 e MP3 por FFmpeg; `runtime_audio.c` **já contém** saída de áudio SDL3. Não propor implementá-las do zero como se estivessem ausentes.
 - O relatório de ação encontrou portas AudioOut ativas e sem starvation nas amostras analisadas, **mas não confirmou áudio audível**, conteúdo PCM ou funcionamento efetivo dos jobs AJM.
 - O resultado de análise de **61 imports ausentes em `game.elf`** não significa 61 bloqueios exercitados. Não criar stubs em massa, nem devolver sucesso fictício.
@@ -31,9 +31,15 @@ Referência conhecida em 17/10/2026: `main` e `knack2-windows` apontavam para `8
 
 ## 2. Responsáveis e regra de decisão
 
-### Astra — proprietário exclusivo do núcleo crítico
+### GPT-5.6 Sol — proprietário principal do núcleo crítico
 
-O **GPT-6 Astra** conduz engenharia reversa complexa e qualquer mudança capaz de comprometer contratos binários ou comportamento global: kernel, ABI, memory mapping, relocations/linker, bootstrap, hooks/detours, sincronização entre threads, execução guest, GPU/Vulkan, shaders, cache de texturas/buffers, readbacks e correções delicadas de decodificadores/tempos de áudio.
+O **GPT-5.6 Sol** assume implementação e engenharia reversa complexas: kernel, ABI, memory mapping, relocations/linker, bootstrap, hooks/detours, sincronização entre threads, execução guest, GPU/Vulkan, shaders, cache de texturas/buffers, readbacks, NGS2, codecs e correções delicadas de áudio. **Ser proprietário não significa licença para editar tudo:** cada tarefa de núcleo precisa de objetivo e escopo autorizados pelo usuário, baseline Git, avaliação de risco, testes proporcionais e revisão do diff antes de integrar.
+
+O Sol pode ler e, **apenas no escopo aprovado da tarefa**, modificar arquivos da zona bloqueada para Gemini. Não deve delegar uma alteração crítica ao Gemini nem permitir que um script auxiliar a realize indiretamente.
+
+### GPT-6 Astra — escalonamento técnico excepcional
+
+O **Astra** pode assumir investigações de risco particularmente alto, impasses técnicos e revisão independente de alterações críticas **quando o usuário solicitar ou autorizar o escalonamento**. Sua participação não é pré-requisito para cada tarefa do Sol.
 
 ### Gemini (Google Antigravity) — implementação de baixo risco
 
@@ -43,9 +49,9 @@ O **Gemini** realiza triagem de logs, automação, testes, documentação, launc
 
 Apoia análise de evidências, priorização e formulação de tarefas. Não é um terceiro executor com permissão implícita de editar o núcleo. Uma sugestão do chat não prevalece sobre autorização expressa do usuário nem sobre a proteção de arquivos.
 
-**Critério decisivo:** classificar pelo **risco da alteração**, e não apenas pela palavra “áudio”, “fonte”, “kernel” ou “stub”. Se a correção exigir um arquivo protegido ou um contrato global, **Gemini para, documenta e encaminha ao Astra**. Não contornar a regra criando um segundo caminho, duplicando implementação ou escondendo alteração sob outro arquivo.
+**Critério decisivo:** classificar pelo **risco da alteração**, e não apenas pela palavra “áudio”, “fonte”, “kernel” ou “stub”. Se a correção exigir um arquivo protegido ou um contrato global, **Gemini para, documenta e encaminha ao Sol; o Sol pode solicitar escalonamento ao Astra com aprovação do usuário**. Não contornar a regra criando um segundo caminho, duplicando implementação ou escondendo alteração sob outro arquivo.
 
-## 3. Zona bloqueada — READ-ONLY para Gemini
+## 3. Zona bloqueada — READ-ONLY para Gemini; propriedade do Sol
 
 **Proibido modificar, reformatar, renomear, mover, apagar, regenerar ou aplicar patches**, inclusive por scripts, formatadores, builds que reescrevam fontes ou commits automáticos. É permitido ler e citar trechos.
 
@@ -73,11 +79,11 @@ Apoia análise de evidências, priorização e formulação de tarefas. Não é 
 - `port/src/knack_import_names.inc` e tabelas NID/exports geradas ou compartilhadas
 - Outros `port/src/runtime_*.c` **não explicitamente liberados** na seção 4
 
-**Regra de precedência:** esta zona bloqueada prevalece sobre descrições genéricas como “HLE permitido”, “CMake permitido” ou “melhoria simples”. Um arquivo que não esteja explicitamente permitido deve ser tratado como **somente leitura**, até decisão do usuário/Astra.
+**Regra de precedência:** esta zona bloqueada prevalece sobre descrições genéricas como “HLE permitido”, “CMake permitido” ou “melhoria simples”. Um arquivo que não esteja explicitamente permitido deve ser tratado como **somente leitura**, até autorização expressa do usuário e atribuição a Sol ou Astra para aquela tarefa específica.
 
 ### Exceções
 
-Somente **autorização explícita e delimitada do usuário para a tarefa concreta** pode ampliar o escopo do Gemini; a autorização deve identificar arquivos e tipo de mudança. Uma aprovação pontual não altera permanentemente estas regras. Mudanças de ABI, memória, GPU ou hooks continuam preferencialmente com Astra.
+Somente **autorização explícita e delimitada do usuário para a tarefa concreta** pode ampliar o escopo do Gemini; a autorização deve identificar arquivos e tipo de mudança. Uma aprovação pontual não altera permanentemente estas regras. Mudanças de ABI, memória, GPU ou hooks pertencem ao Sol quando houver tarefa autorizada; podem ser escaladas ao Astra em caso de impasse ou risco excepcional. A aprovação de uma tarefa Sol nunca amplia o escopo do Gemini.
 
 ## 4. Zona permitida — Gemini, sob condições
 
@@ -92,12 +98,12 @@ Somente **autorização explícita e delimitada do usuário para a tarefa concre
 | `port/src/runtime_pad.c` | Ajustes isolados de mapeamento de botões e dispositivos SDL | Não alterar ABI, layout guest, threads centrais ou timing sem escalação |
 | `port/src/runtime_savedata.c`, `port/src/knack_savedata_backup.inc` | Correções locais de validação, erros e testes de SaveData | Não mudar layout/offsets, política global de filesystem, persistência sem teste; preservar backups |
 | `port/src/runtime_content.c` | Ajustes específicos e comprovados de `sceAppContent` | Não alterar montagem global de paths ou memória guest |
-| `port/src/runtime_audio.c` | Diagnóstico e, **após evidência**, ajuste estreito do backend SDL3 (ex.: mensagem de erro, seleção de dispositivo) | Proibido mudar pacing, buffering/cadência, sincronização, ABI, formato PCM ou lógica de mix sem Astra |
+| `port/src/runtime_audio.c` | Diagnóstico e, **após evidência**, ajuste estreito do backend SDL3 (ex.: mensagem de erro, seleção de dispositivo) | Proibido mudar pacing, buffering/cadência, sincronização, ABI, formato PCM ou lógica de mix sem Sol (ou Astra em escalonamento autorizado) |
 | `port/src/runtime_services.c` | Apenas correções periféricas pequenas e bem delimitadas de serviços/troféus | Não mexer em kernel, callbacks, ABI, estado global ou fluxo de boot; encaminhar se houver dúvida |
 | `run.py`, `port/run.py` | Somente opções explícitas de observabilidade, documentação de uso e testes dessas opções | Não alterar preparação/linking, ambiente crítico, caminho de saves nem sequência LoadExec |
 | `AGENTS.MD` | **Leitura apenas** | Só editar com pedido explícito do usuário para alterar as regras |
 
-**Integração que exija editar `port/src/runtime.c`, `runtime.h`, `probe.c`, tabela global de exports ou arquivo protegido:** entregar implementação isolada/contrato e solicitar ao Astra a conexão. Não modificar arquivo protegido “só uma linha”.
+**Integração que exija editar `port/src/runtime.c`, `runtime.h`, `probe.c`, tabela global de exports ou arquivo protegido:** entregar implementação isolada/contrato e solicitar ao Sol a conexão; o Astra atua somente quando houver escalonamento autorizado. Não modificar arquivo protegido “só uma linha”.
 
 **Build:** arquivos `CMakeLists.txt` e `build.ps1` são somente leitura por padrão. Para adicionar teste/arquivo ao build, pedir escopo específico; não generalizar permissão de CMake. É aceitável executar comandos de build documentados, desde que preservadas as mudanças locais.
 
@@ -121,7 +127,8 @@ Somente **autorização explícita e delimitada do usuário para a tarefa concre
 - Ler o pedido atual, `README.md`, `AGENTS.MD` e o **topo recente** de `HANDOFF_ASTRA.md`.
 - Executar `git status --short`, `git branch --show-current`, `git rev-parse --short HEAD` e `git submodule status`; registrar arquivos já sujos.
 - Definir em uma frase **o objetivo verificável**, **arquivos que pretende tocar**, **riscos** e **teste mínimo**.
-- Se arquivos protegidos forem necessários, **não editar**. Preparar diagnóstico para Astra.
+- **Gemini:** se arquivos protegidos forem necessários, **não editar**; preparar diagnóstico para o Sol.
+- **Sol:** antes de editar núcleo protegido, verificar autorização concreta, escopo, branch, risco de regressão e testes; sem autorização, apresentar plano e aguardar. O Astra só assume por escalonamento autorizado.
 
 ### 6.2 Durante
 
@@ -150,7 +157,7 @@ Na raiz do projeto, com toolchain existente:
 .\.venv\Scripts\python.exe -m unittest discover -s port/tests -p test_link_libc.py -v
 ```
 
-Para alterações que realmente exijam compilação completa, o comando documentado é `./build.ps1 -Jobs 6` em PowerShell. Antes, confirmar dependências, custo e necessidade. Testes de GPU requerem ambiente apropriado e pertencem, em regra, ao fluxo do Astra.
+Para alterações que realmente exijam compilação completa, o comando documentado é `./build.ps1 -Jobs 6` em PowerShell. Antes, confirmar dependências, custo e necessidade. Testes de GPU requerem ambiente apropriado e pertencem, em regra, ao fluxo do Sol; casos excepcionalmente difíceis podem ser escalados ao Astra.
 
 ## 7. Investigação de áudio — protocolo específico
 
@@ -164,13 +171,15 @@ Para alterações que realmente exijam compilação completa, o comando document
 4. Diferenciar: (a) dispositivo SDL não abriu; (b) SDL abriu, mas PCM entregue é silencioso; (c) PCM não silencioso não toca; (d) jobs AJM não foram exercitados; (e) codec/batch falha de forma comprovada.
 5. Gerar um relatório com excertos de logs, caminhos de evidência, condição de reprodução, medidas PCM relevantes (sem publicar áudio do jogo) e proposta limitada.
 
-**Astra assume** se for necessário alterar `runtime_ajm.c`, batches/ATRAC9, sincronização ou tempo de playback, contratos ABI, threads do motor, hooks, gerenciamento de memória ou código protegido.
+**Sol assume**, mediante tarefa autorizada, se for necessário alterar `runtime_tlg.c` (NGS2), `runtime_ajm.c`, batches/ATRAC9, sincronização ou tempo de playback, contratos ABI, threads do motor, hooks, gerenciamento de memória ou código protegido. A escolha entre LLE e HLE exige diagnóstico de imports, dependências, formatos e testes; a presença de `TLG_NGS2=native` não prova integração LLE funcional. **Astra** fica reservado para revisão ou bloqueios excepcionais autorizados.
 
 Não desabilitar processamento, forçar retorno de sucesso ou gerar silêncio artificial para mascarar o problema.
 
-## 8. Escalonamento obrigatório ao Astra
+## 8. Escalonamento: Gemini → Sol → Astra (quando autorizado)
 
-Parar antes de editar se houver qualquer uma destas situações:
+**Gemini deve parar e encaminhar ao Sol** antes de editar se ocorrer qualquer uma destas situações. **Sol** deve avaliar o diagnóstico e só implementar a correção com autorização e escopo próprios; se o problema for excepcionalmente difícil ou permanecer sem causa isolada, recomendar escalonamento ao **Astra** com aprovação do usuário:
+
+
 
 - Segfault, crash em trecho guest, corrupção de memória, race/deadlock, bloqueio de thread, comportamento ABI ambíguo ou necessidade de hook.
 - Vulkan validation error, shader incorreto, renderização quebrada, dispositivo perdido, buffer-cache, readback ou sincronização GPU.
@@ -181,7 +190,7 @@ Parar antes de editar se houver qualquer uma destas situações:
 **Formato de encaminhamento:**
 
 ```markdown
-### Handoff ao Astra — [título curto] — [data]
+### Handoff ao Sol (ou Astra, se escalado) — [título curto] — [data]
 - Objetivo e sintoma observado:
 - Branch, HEAD e estado Git preexistente:
 - Ambiente e comando mínimo de reprodução:
@@ -191,10 +200,10 @@ Parar antes de editar se houver qualquer uma destas situações:
 - Arquivos/funções implicados (somente leitura):
 - Mudanças feitas fora da zona bloqueada (se houver):
 - Testes executados, resultados e limitações:
-- Decisão solicitada ao Astra:
+- Decisão solicitada ao Sol (ou Astra, se escalado):
 ```
 
-Não executar a alteração protegida depois de preparar esse handoff, salvo nova autorização expressa.
+O Gemini não deve executar a alteração protegida depois de preparar o handoff. O Sol (ou Astra, se escalado) só deve executá-la dentro do escopo autorizado pelo usuário.
 
 ## 9. Atualização de HANDOFF_ASTRA.md
 
@@ -204,12 +213,14 @@ Adicionar seção **nova no topo** com data, título e agente; manter o históri
 - Arquivos exatamente criados/modificados e interfaces novas (ou “nenhuma”).
 - Evidências dos testes: comandos, resultados, logs e imagens locais, distinguindo validação visual, automática e relato.
 - Anomalias e limitações, inclusive o que **não** foi validado.
-- Pendências para Gemini versus pendências reservadas ao Astra.
+- Pendências para Gemini versus pendências reservadas ao Sol; registrar separadamente escalonamentos excepcionais ao Astra.
 - Eventuais mudanças já existentes em `.vscode/`, `fsr-vulkan` ou outras partes do worktree que foram preservadas.
 
 Não usar o handoff para atribuir sucesso a uma sessão sem inspeção correspondente. Não incorporar dados proprietários ou grandes dumps ao Git.
 
-## 10. Critérios de conclusão de uma tarefa Gemini
+## 10. Critérios de conclusão por responsável
+
+### 10.1 Tarefa Gemini
 
 Uma tarefa só está concluída quando todos estes pontos forem satisfeitos:
 
@@ -221,4 +232,19 @@ Uma tarefa só está concluída quando todos estes pontos forem satisfeitos:
 - [ ] Handoff atualizado quando necessário; próximos responsáveis definidos.
 - [ ] Nenhum commit, merge ou push foi feito sem autorização.
 
-**Regra final:** preservar o último estado comprovadamente funcional é mais importante do que resolver rapidamente um problema isolado. Diante da dúvida, **ler, medir, documentar e escalar** — não modificar o núcleo.
+### 10.2 Tarefa GPT-5.6 Sol (núcleo)
+
+- [ ] O agente responsável foi explicitamente designado como Sol e o escopo crítico foi autorizado pelo usuário; uma alteração em arquivo protegido não é presumida a partir do nome da sessão.
+- [ ] Baseline de Git, branch, submódulos, testes e evidência do problema foram registrados antes da edição.
+- [ ] Contratos ABI, structs guest, ownership, concorrência, timing e possíveis regressões foram revisados.
+- [ ] A solução altera somente a menor superfície necessária e possui testes focados com resultados documentados; nenhuma função foi silenciada para mascarar falhas.
+- [ ] O diff integral foi inspecionado; scripts auxiliares, arquivos não rastreados, saves e patches existentes foram preservados.
+- [ ] O marco funcional anterior foi reavaliado na medida necessária; limitações não testadas estão explícitas.
+- [ ] O `HANDOFF_ASTRA.md` foi atualizado no topo com autoria **GPT-5.6 Sol**, evidências e tarefas para Gemini ou Astra, se houver.
+- [ ] Nenhum commit, merge, push ou modificação de outra branch foi feito sem autorização específica.
+
+### 10.3 Uso excepcional do GPT-6 Astra
+
+O Astra recebe um handoff com hipóteses, diffs, logs e tentativas já verificadas. O escopo e a autorização para alterações devem ser explícitos, tal como no fluxo do Sol; sua participação não libera arquivos protegidos ao Gemini.
+
+**Regra final:** preservar o último estado comprovadamente funcional é mais importante do que resolver rapidamente um problema isolado. Diante da dúvida, **ler, medir, documentar e escalar** — o Gemini não modifica o núcleo; o Sol só o modifica em tarefa expressamente autorizada.
