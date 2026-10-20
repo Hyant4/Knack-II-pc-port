@@ -13,6 +13,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
+#include <math.h>
 #include <SDL3/SDL.h>
 
 #define PORTS 25
@@ -38,7 +39,10 @@ typedef struct {
     uint64_t last_output_us;
     pthread_mutex_t lock;
     FILE *dump;                     /* TLG_AUDIO_DUMP: raw converted PCM per port */
-    int stats;
+    int stats,diag;
+    uint64_t diag_start_ns,diag_blocks,diag_nonzero_blocks;
+    float diag_peak_input,diag_peak_output;
+    unsigned diag_input_mask;
     uint64_t stat_start_ns, stat_last_ns, stat_max_gap_ns; /* TLG_AUDIO_STATS */
     unsigned stat_starved, stat_buffers; int stat_min_queued;
 } Port;
@@ -48,6 +52,22 @@ _Static_assert(sizeof(PortState)==32,"AudioOut port state layout");
 static pthread_mutex_t table_lock=PTHREAD_MUTEX_INITIALIZER;
 static Port ports[PORTS];
 static int initialized, sdl_ready=-1;
+static int audio_diag_ini_enabled(void) {
+    const char *path=getenv("TLG_CONFIG");
+    FILE *fp=path && *path ? fopen(path,"rb") : NULL;
+    if (!fp) return 0;
+    int enabled=0; char line[256];
+    while (fgets(line,sizeof(line),fp)) {
+        char *p=line; while (*p==' ' || *p=='\t') ++p;
+        if (*p=='#' || *p==';') continue;
+        char *eq=strchr(p,'='); if (!eq) continue;
+        char *end=eq; while (end>p && (end[-1]==' ' || end[-1]=='\t')) --end;
+        if ((size_t)(end-p)!=strlen("ngs2_audio_diag") || memcmp(p,"ngs2_audio_diag",(size_t)(end-p))) continue;
+        p=eq+1; while (*p==' ' || *p=='\t') ++p;
+        enabled=*p=='1'; break;
+    }
+    fclose(fp); return enabled;
+}
 static size_t buffers_out, ports_opened;
 
 static uint64_t now_ns(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return (uint64_t)t.tv_sec*1000000000u+(uint64_t)t.tv_nsec; }
@@ -146,6 +166,7 @@ static int32_t open_port(int32_t type, uint32_t length, uint32_t freq, uint32_t 
         else fprintf(stderr,"Runtime: SDL audio stream failed (%s); port %d uses the timer sink\n",SDL_GetError(),id);
     }
     p->stats=getenv("TLG_AUDIO_STATS")!=NULL;
+    p->diag=audio_diag_ini_enabled();
     const char *dump=getenv("TLG_AUDIO_DUMP");
     if (dump) {
         char path[4096];
@@ -187,20 +208,64 @@ static int32_t output_port(int32_t handle, const void *data, int pace) {
     pthread_mutex_unlock(&table_lock);
     if (!p) return error;
     pthread_mutex_lock(&p->lock);
+    char diag_line[320]={0};
     size_t samples=(size_t)p->frames*(size_t)p->channels, bytes=samples*(size_t)p->sample_bytes;
     uint64_t period=(uint64_t)p->frames*1000000000u/48000u;
     if (data) {
         /* Apply per-channel volume and map PS4 8ch (L R C LFE SL SR BL BR) to SDL 7.1 order. */
         unsigned char converted[2048*8*4];
         static const int remap[8]={0,1,2,3,6,7,4,5};
+        float diag_input_peak=0.0f,diag_output_peak=0.0f;
+        unsigned diag_mask=0;
         for (size_t f=0;f<(size_t)p->frames;++f) for (int c=0;c<p->channels;++c) {
             int target=p->channels==8 && !p->std_layout ? remap[c] : c;
             size_t from=f*(size_t)p->channels+(size_t)c, to=f*(size_t)p->channels+(size_t)target;
             float gain=(float)p->volume[c]/VOLUME_0DB;
-            if (p->is_float) { float v; memcpy(&v,(const char *)data+from*4,4); v*=gain; memcpy(converted+to*4,&v,4); }
-            else { int16_t v; memcpy(&v,(const char *)data+from*2,2); v=(int16_t)((float)v*gain); memcpy(converted+to*2,&v,2); }
+            if (p->is_float) {
+                float v; memcpy(&v,(const char *)data+from*4,4); v*=gain;
+                memcpy(converted+to*4,&v,4);
+                if (p->diag && isfinite(v)) {
+                    float a=fabsf(v); if (a>diag_input_peak) diag_input_peak=a;
+                    if (a>0.00001f) diag_mask|=1u<<target;
+                }
+            } else {
+                int16_t v; memcpy(&v,(const char *)data+from*2,2);
+                v=(int16_t)((float)v*gain); memcpy(converted+to*2,&v,2);
+                if (p->diag) {
+                    float a=fabsf((float)v/32768.0f);
+                    if (a>diag_input_peak) diag_input_peak=a;
+                    if (a>0.00001f) diag_mask|=1u<<target;
+                }
+            }
         }
         if (p->downmix) bytes=downmix_stereo(converted,(size_t)p->frames,p->is_float);
+        if (p->diag) {
+            size_t output_samples=(size_t)p->frames*(size_t)(p->downmix ? 2 : p->channels);
+            if (p->downmix) {
+                for (size_t i=0;i<output_samples;++i) {
+                    float a;
+                    if (p->is_float) { float v; memcpy(&v,converted+i*4,4); a=isfinite(v) ? fabsf(v) : 0.0f; }
+                    else { int16_t v; memcpy(&v,converted+i*2,2); a=fabsf((float)v/32768.0f); }
+                    if (a>diag_output_peak) diag_output_peak=a;
+                }
+            } else diag_output_peak=diag_input_peak;
+            ++p->diag_blocks;
+            if (diag_output_peak>0.00001f) ++p->diag_nonzero_blocks;
+            if (diag_input_peak>p->diag_peak_input) p->diag_peak_input=diag_input_peak;
+            if (diag_output_peak>p->diag_peak_output) p->diag_peak_output=diag_output_peak;
+            p->diag_input_mask|=diag_mask;
+            uint64_t diag_now=now_ns();
+            if (!p->diag_start_ns) p->diag_start_ns=diag_now;
+            else if (diag_now-p->diag_start_ns>=UINT64_C(1000000000)) {
+                snprintf(diag_line,sizeof(diag_line),
+                    "AUDIOOUT-HB: port=%d type=%d blocks=%llu nonzero=%llu in_peak=%.7f out_peak=%.7f mask_sdl=0x%02x downmix=%d\n",
+                    (int)(p-ports),p->type,(unsigned long long)p->diag_blocks,
+                    (unsigned long long)p->diag_nonzero_blocks,
+                    p->diag_peak_input,p->diag_peak_output,p->diag_input_mask,p->downmix);
+                p->diag_start_ns=diag_now; p->diag_blocks=p->diag_nonzero_blocks=0;
+                p->diag_peak_input=p->diag_peak_output=0.0f; p->diag_input_mask=0;
+            }
+        }
         if (p->dump) fwrite(converted,1,bytes,p->dump);
         if (p->stats) {
             uint64_t now=now_ns();
@@ -246,6 +311,7 @@ static int32_t output_port(int32_t handle, const void *data, int pace) {
     }
     p->last_output_us=now_ns()/1000;
     pthread_mutex_unlock(&p->lock);
+    if (diag_line[0]) fputs(diag_line,stdout);
     return data ? (int32_t)samples : 0;
 }
 static ABI int32_t audio_output(int32_t handle, const void *data) { return output_port(handle,data,1); }

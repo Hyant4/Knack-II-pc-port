@@ -1245,7 +1245,7 @@ static void test_18_more_than_16_voices_fairness(void) {
         pthread_cond_destroy(&ctx.cond_done);
     }
 
-    /* Part C: Explicit testing of 33, 64, and 128 voices (Safe-fail verification) */
+    /* Part C: 33, 64, 128 voices must keep audible master and advance excess FIFOs. */
     uint32_t counts[3]={33,64,128};
     for (int c=0;c<3;++c) {
         uint32_t num_voices=counts[c];
@@ -1274,36 +1274,37 @@ static void test_18_more_than_16_voices_fairness(void) {
             {buf1,sizeof(buf1),0x18,8}
         };
 
-        int safe_fail_triggered=0;
+        int non_silent_committed=0;
         for (int attempt=0;attempt<20;++attempt) {
             assert(!ngs2_render(sys,renders,2));
-            /* Must safe-fail: silence */
-            assert(buf0[0]==0.0f);
-
             pthread_mutex_lock(&ngs2_lock);
             Ngs2System *s_obj=ngs2_system_locked(sys);
-            if (s_obj->render_limit_exceeded>=1) {
-                safe_fail_triggered=1;
+            if (s_obj->grains_consumed==32) {
+                assert(s_obj->render_limit_exceeded>=1);
+                assert(s_obj->virtualized_grains==num_voices-32);
                 Ngs2Rack *rack_obj=ngs2_rack_locked(rack);
                 assert(rack_obj!=NULL);
                 for (uint32_t i=0;i<num_voices;++i) {
                     assert(rack_obj->voices[i].atrac9!=NULL);
-                    assert(rack_obj->voices[i].atrac9->pcm_count==1);
+                    assert(rack_obj->voices[i].atrac9->pcm_count==0);
                 }
-                pthread_mutex_unlock(&ngs2_lock);
-                break;
+                non_silent_committed=1;
             }
             pthread_mutex_unlock(&ngs2_lock);
+            if (non_silent_committed) {
+                assert(buf0[0]>0.0f);
+                break;
+            }
 #ifdef _WIN32
             Sleep(2);
 #else
             usleep(2000);
 #endif
         }
-        assert(safe_fail_triggered);
+        assert(non_silent_committed);
         assert(!ngs2_system_destroy(sys,NULL));
     }
-    puts("  -> PASS (Concurrent renders & 33/64/128 safe-fail verified)");
+    puts("  -> PASS (Concurrent renders & 33/64/128 bounded mix/virtualization verified)");
 }
 
 /* 19. Continuidade PCM ATRAC9 preservada */

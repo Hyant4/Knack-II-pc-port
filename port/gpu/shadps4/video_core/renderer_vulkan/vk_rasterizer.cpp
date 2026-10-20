@@ -9,7 +9,9 @@
 #include <optional>
 #include <dlfcn.h>
 #endif
+#include <cerrno>
 #include <cmath>
+#include <cstring>
 #include <unordered_set>
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
@@ -46,6 +48,566 @@
 
 namespace Vulkan {
 
+namespace {
+
+constexpr u64 KnackDetachedGeometryShader = 0x8943ac2c;
+constexpr u64 KnackSmallGeometryVertexShader = 0x6e383eb8;
+
+// Opt-in occlusion probe for Knack's detached/dynamic geometry. A trigger records a short
+// window only. The original query says whether the real draw produced samples after fragment,
+// depth and stencil tests. The relaxed query repeats the draw with color writes disabled and
+// depth, stencil, culling and rasterizer-discard disabled; it changes no pixels and separates
+// visibility tests from geometry/clip output.
+class KnackContributionProbe {
+public:
+    struct Token {
+        u32 original;
+        u32 relaxed;
+        bool has_relaxed;
+    };
+
+    static std::unique_ptr<KnackContributionProbe> Create(const Instance& instance) {
+        const char* trigger = std::getenv("TLG_KNACK_CONTRIB_TRIGGER");
+        if (!trigger || !trigger[0]) {
+            return {};
+        }
+        return std::unique_ptr<KnackContributionProbe>(
+            new KnackContributionProbe(instance, trigger));
+    }
+
+    KnackContributionProbe(const Instance& instance, const char* trigger_)
+        : device{instance.GetDevice()}, trigger{trigger_},
+          relaxed_supported{instance.IsDynamicColorWriteMaskSupported()} {
+        const char* shader = std::getenv("TLG_KNACK_CONTRIB_GS");
+        if (shader && std::strcmp(shader, "any") == 0) {
+            target_shader = 0;
+        } else if (shader && shader[0]) {
+            target_shader = std::strtoull(shader, nullptr, 0);
+        }
+        if (const char* frames = std::getenv("TLG_KNACK_CONTRIB_FRAMES")) {
+            capture_frames = std::clamp<u32>(std::strtoul(frames, nullptr, 10), 1, 64);
+        }
+        if (const char* draws = std::getenv("TLG_KNACK_CONTRIB_MAX_DRAWS")) {
+            max_draws = std::clamp<u32>(std::strtoul(draws, nullptr, 10), 1,
+                                        QueriesPerSlice / (relaxed_supported ? 2 : 1));
+        }
+        const vk::QueryPoolCreateInfo info = {
+            .queryType = vk::QueryType::eOcclusion,
+            .queryCount = NumSlices * QueriesPerSlice,
+        };
+        pool = Check<"create Knack contribution query pool">(device.createQueryPoolUnique(info));
+        device.resetQueryPool(*pool, 0, NumSlices * QueriesPerSlice);
+        for (auto& slice_entries : entries) {
+            slice_entries.reserve(QueriesPerSlice);
+        }
+        std::printf("KNACK-PX: Armed relaxed=%u target=%s trigger=%s\n", u32(relaxed_supported),
+                    target_shader ? fmt::format("{:08x}", target_shader).c_str() : "any", trigger);
+    }
+
+    bool Matches(u64 shader) const {
+        return target_shader == 0 || shader == target_shader;
+    }
+
+    std::optional<Token> Allocate(u64 ps, u32 instances) {
+        if (!recording || draw_index >= max_draws) {
+            return std::nullopt;
+        }
+        const u32 need = relaxed_supported ? 2 : 1;
+        if (used[slice] + need > QueriesPerSlice) {
+            Fail("query_capacity");
+            return std::nullopt;
+        }
+        const u32 draw = draw_index++;
+        const u32 original = slice * QueriesPerSlice + used[slice]++;
+        entries[slice].push_back({ps, instances, draw, false});
+        u32 relaxed = 0;
+        if (relaxed_supported) {
+            relaxed = slice * QueriesPerSlice + used[slice]++;
+            entries[slice].push_back({ps, instances, draw, true});
+        }
+        ++matching_draws;
+        submitted_queries += need;
+        if (!matching_reported) {
+            matching_reported = true;
+            std::printf("KNACK-PX: Matching draws found frame=%llu target=%s\n",
+                        static_cast<unsigned long long>(frame),
+                        target_shader ? fmt::format("{:08x}", target_shader).c_str() : "any");
+        }
+        return Token{original, relaxed, relaxed_supported};
+    }
+
+    vk::QueryPool Pool() const {
+        return *pool;
+    }
+
+    void BeginFrame() {
+        const u64 next_frame = frame + 1;
+        if (recording) {
+            if (used[slice]) {
+                pending[slice] = true;
+                frame_ids[slice] = frame;
+                std::printf("KNACK-PX: Queries submitted frame=%llu queries=%u\n",
+                            static_cast<unsigned long long>(frame), used[slice]);
+            }
+            if (remaining) {
+                --remaining;
+            }
+            recording = remaining != 0;
+            if (!recording) {
+                completing = true;
+            }
+        }
+
+        slice = (slice + 1) % NumSlices;
+        if (pending[slice]) {
+            Collect(slice);
+        }
+        if (used[slice]) {
+            device.resetQueryPool(*pool, slice * QueriesPerSlice, used[slice]);
+        }
+        used[slice] = 0;
+        entries[slice].clear();
+        pending[slice] = false;
+
+        CompleteIfReady();
+        if (!recording && !completing) {
+            CheckTrigger(next_frame);
+        }
+        frame = next_frame;
+        draw_index = 0;
+    }
+
+private:
+    struct Entry {
+        u64 ps;
+        u32 instances;
+        u32 draw;
+        bool relaxed;
+    };
+
+    KnackContributionProbe(const KnackContributionProbe&) = delete;
+    KnackContributionProbe& operator=(const KnackContributionProbe&) = delete;
+
+    void CheckTrigger(u64 next_frame) {
+        std::error_code error;
+        if (!std::filesystem::exists(trigger, error)) {
+            if (error) {
+                Fail(fmt::format("trigger_stat:{}", error.message()));
+            }
+            return;
+        }
+        std::printf("KNACK-PX: Trigger detected frame=%llu path=%s\n",
+                    static_cast<unsigned long long>(next_frame), trigger);
+        if (std::remove(trigger) != 0) {
+            Fail(fmt::format("trigger_remove:{}", std::strerror(errno)));
+            return;
+        }
+        remaining = capture_frames;
+        recording = true;
+        failed = false;
+        matching_reported = false;
+        matching_draws = submitted_queries = collected_queries = collected_frames = 0;
+        std::printf("KNACK-PX: Capture started frame=%llu frames=%u target=%s\n",
+                    static_cast<unsigned long long>(next_frame), capture_frames,
+                    target_shader ? fmt::format("{:08x}", target_shader).c_str() : "any");
+    }
+
+    void Fail(const std::string& reason) {
+        if (!failed) {
+            failed = true;
+            failure_reason = reason;
+            std::printf("KNACK-PX: Capture failed reason=%s\n", reason.c_str());
+        }
+    }
+
+    void CompleteIfReady() {
+        if (!completing || std::ranges::any_of(pending, [](bool value) { return value; })) {
+            return;
+        }
+        completing = false;
+        if (matching_draws == 0) {
+            Fail("no_matching_draws");
+            return;
+        }
+        if (collected_queries != submitted_queries) {
+            Fail(fmt::format("incomplete_results:{}/{}", collected_queries, submitted_queries));
+            return;
+        }
+        if (failed) {
+            return;
+        }
+        std::printf("KNACK-PX: Capture completed frames=%llu matching_draws=%llu queries=%llu\n",
+                    static_cast<unsigned long long>(collected_frames),
+                    static_cast<unsigned long long>(matching_draws),
+                    static_cast<unsigned long long>(collected_queries));
+        std::fflush(stdout);
+    }
+
+    void Collect(u32 which) {
+        const u32 count = used[which];
+        std::vector<u64> samples(count);
+        const auto result = device.getQueryPoolResults(
+            *pool, which * QueriesPerSlice, count, count * sizeof(u64), samples.data(), sizeof(u64),
+            vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+        if (result != vk::Result::eSuccess) {
+            Fail(fmt::format("query_results:{}", vk::to_string(result)));
+            return;
+        }
+        collected_queries += count;
+        ++collected_frames;
+        std::printf("KNACK-PX: Results collected frame=%llu queries=%u\n",
+                    static_cast<unsigned long long>(frame_ids[which]), count);
+        for (u32 i = 0; i < count; ++i) {
+            const auto& entry = entries[which][i];
+            std::printf("KNACK-PX: draw=%u mode=%c ps=%08llx inst=%u samples=%llu\n", entry.draw,
+                        entry.relaxed ? 'R' : 'O', static_cast<unsigned long long>(entry.ps),
+                        entry.instances, static_cast<unsigned long long>(samples[i]));
+        }
+        std::fflush(stdout);
+    }
+
+    static constexpr u32 NumSlices = 4;
+    static constexpr u32 QueriesPerSlice = 512;
+
+    vk::Device device;
+    const char* trigger;
+    bool relaxed_supported = false;
+    u64 target_shader = KnackDetachedGeometryShader;
+    u32 capture_frames = 16;
+    u32 max_draws = 256;
+    vk::UniqueQueryPool pool;
+    u32 slice = 0;
+    u32 remaining = 0;
+    u32 draw_index = 0;
+    bool recording = false;
+    bool completing = false;
+    bool failed = false;
+    bool matching_reported = false;
+    u64 frame = 0;
+    u64 matching_draws = 0;
+    u64 submitted_queries = 0;
+    u64 collected_queries = 0;
+    u64 collected_frames = 0;
+    std::string failure_reason;
+    std::array<std::vector<Entry>, NumSlices> entries;
+    std::array<u32, NumSlices> used{};
+    std::array<bool, NumSlices> pending{};
+    std::array<u64, NumSlices> frame_ids{};
+};
+
+std::unique_ptr<KnackContributionProbe> knack_contribution_probe;
+
+bool KnackSmallSyncEnabled() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_KNACK_SMALL_SYNC");
+        return value && value[0] == '1';
+    }();
+    return enabled;
+}
+
+std::atomic<bool> knack_small_sync_pending{true};
+
+// Opt-in visual locator for deferred/G-buffer draws. It repeats matching draws inside a small
+// scissor with all color, depth and stencil writes disabled, then uses an occlusion query to say
+// which exact pipelines rasterized visible samples in that screen region. Original draws and all
+// five G-buffer attachments stay untouched.
+class KnackVisualProbe {
+public:
+    struct Token {
+        u32 query;
+    };
+
+    static std::unique_ptr<KnackVisualProbe> Create(const Instance& instance) {
+        const char* trigger = std::getenv("TLG_KNACK_VIS_TRIGGER");
+        if (!trigger || !trigger[0]) {
+            return {};
+        }
+        const char* roi_text = std::getenv("TLG_KNACK_VIS_ROI");
+        s32 x = 0;
+        s32 y = 0;
+        u32 width = 0;
+        u32 height = 0;
+        if (!roi_text || std::sscanf(roi_text, "%d,%d,%u,%u", &x, &y, &width, &height) != 4 ||
+            width == 0 || height == 0) {
+            std::printf("KNACK-VIS: Capture failed reason=invalid_roi expected=x,y,width,height\n");
+            return {};
+        }
+        if (!instance.IsDynamicColorWriteMaskSupported()) {
+            std::printf("KNACK-VIS: Capture failed reason=dynamic_color_write_mask_unsupported\n");
+            return {};
+        }
+        return std::unique_ptr<KnackVisualProbe>(
+            new KnackVisualProbe(instance, trigger, vk::Rect2D{{x, y}, {width, height}}));
+    }
+
+    bool Matches(AmdGpu::PrimitiveType primitive, u32 render_targets) const {
+        return u32(primitive) == target_primitive && render_targets == target_render_targets;
+    }
+
+    std::optional<Token> Allocate(u64 pipeline, u64 vs, u64 gs, u64 ps,
+                                  AmdGpu::PrimitiveType primitive, u32 render_targets,
+                                  u32 indices, u32 instances) {
+        if (!recording) {
+            return std::nullopt;
+        }
+        const u32 candidate = candidate_index++;
+        if (candidate < first_draw || candidate - first_draw >= max_draws) {
+            return std::nullopt;
+        }
+        if (used[slice] == QueriesPerSlice) {
+            Fail("query_capacity");
+            return std::nullopt;
+        }
+        const u32 query = slice * QueriesPerSlice + used[slice]++;
+        entries[slice].push_back({pipeline, vs, gs, ps, u32(primitive), render_targets, indices,
+                                  instances, candidate});
+        ++matching_draws;
+        ++submitted_queries;
+        if (!matching_reported) {
+            matching_reported = true;
+            std::printf("KNACK-VIS: Matching draws found frame=%llu prim=%u rts=%u\n",
+                        static_cast<unsigned long long>(frame), target_primitive,
+                        target_render_targets);
+        }
+        return Token{query};
+    }
+
+    vk::QueryPool Pool() const {
+        return *pool;
+    }
+
+    Scissors ClipScissors(const Scissors& original) const {
+        Scissors clipped = original;
+        const s64 roi_x0 = roi.offset.x;
+        const s64 roi_y0 = roi.offset.y;
+        const s64 roi_x1 = roi_x0 + roi.extent.width;
+        const s64 roi_y1 = roi_y0 + roi.extent.height;
+        for (auto& scissor : clipped) {
+            const s64 x0 = std::max<s64>(scissor.offset.x, roi_x0);
+            const s64 y0 = std::max<s64>(scissor.offset.y, roi_y0);
+            const s64 x1 = std::min<s64>(s64(scissor.offset.x) + scissor.extent.width, roi_x1);
+            const s64 y1 = std::min<s64>(s64(scissor.offset.y) + scissor.extent.height, roi_y1);
+            scissor.offset = {s32(x0), s32(y0)};
+            scissor.extent = {u32(std::max<s64>(x1 - x0, 0)),
+                              u32(std::max<s64>(y1 - y0, 0))};
+        }
+        return clipped;
+    }
+
+    void BeginFrame() {
+        const u64 next_frame = frame + 1;
+        if (recording) {
+            if (used[slice]) {
+                pending[slice] = true;
+                frame_ids[slice] = frame;
+                std::printf("KNACK-VIS: Queries submitted frame=%llu queries=%u\n",
+                            static_cast<unsigned long long>(frame), used[slice]);
+            }
+            if (remaining) {
+                --remaining;
+            }
+            recording = remaining != 0;
+            if (!recording) {
+                completing = true;
+            }
+        }
+
+        slice = (slice + 1) % NumSlices;
+        if (pending[slice]) {
+            Collect(slice);
+        }
+        if (used[slice]) {
+            device.resetQueryPool(*pool, slice * QueriesPerSlice, used[slice]);
+        }
+        used[slice] = 0;
+        entries[slice].clear();
+        pending[slice] = false;
+
+        CompleteIfReady();
+        if (!recording && !completing) {
+            CheckTrigger(next_frame);
+        }
+        frame = next_frame;
+        candidate_index = 0;
+    }
+
+private:
+    struct Entry {
+        u64 pipeline;
+        u64 vs;
+        u64 gs;
+        u64 ps;
+        u32 primitive;
+        u32 render_targets;
+        u32 indices;
+        u32 instances;
+        u32 draw;
+    };
+
+    KnackVisualProbe(const Instance& instance, const char* trigger_, vk::Rect2D roi_)
+        : device{instance.GetDevice()}, trigger{trigger_}, roi{roi_} {
+        if (const char* primitive = std::getenv("TLG_KNACK_VIS_PRIM")) {
+            target_primitive = std::strtoul(primitive, nullptr, 0);
+        }
+        if (const char* targets = std::getenv("TLG_KNACK_VIS_RTS")) {
+            target_render_targets = std::strtoul(targets, nullptr, 0);
+        }
+        if (const char* frames = std::getenv("TLG_KNACK_VIS_FRAMES")) {
+            capture_frames = std::clamp<u32>(std::strtoul(frames, nullptr, 10), 1, 4);
+        }
+        if (const char* first = std::getenv("TLG_KNACK_VIS_FIRST_DRAW")) {
+            first_draw = std::strtoul(first, nullptr, 10);
+        }
+        if (const char* draws = std::getenv("TLG_KNACK_VIS_MAX_DRAWS")) {
+            max_draws = std::clamp<u32>(std::strtoul(draws, nullptr, 10), 1, QueriesPerSlice);
+        }
+        const vk::QueryPoolCreateInfo info = {
+            .queryType = vk::QueryType::eOcclusion,
+            .queryCount = NumSlices * QueriesPerSlice,
+        };
+        pool = Check<"create Knack visual query pool">(device.createQueryPoolUnique(info));
+        device.resetQueryPool(*pool, 0, NumSlices * QueriesPerSlice);
+        for (auto& slice_entries : entries) {
+            slice_entries.reserve(QueriesPerSlice);
+        }
+        std::printf("KNACK-VIS: Armed prim=%u rts=%u roi=%d,%d,%u,%u first=%u max=%u trigger=%s\n",
+                    target_primitive, target_render_targets, roi.offset.x, roi.offset.y,
+                    roi.extent.width, roi.extent.height, first_draw, max_draws, trigger);
+    }
+
+    void CheckTrigger(u64 next_frame) {
+        std::error_code error;
+        if (!std::filesystem::exists(trigger, error)) {
+            if (error) {
+                Fail(fmt::format("trigger_stat:{}", error.message()));
+            }
+            return;
+        }
+        // Optional request contents replace the ROI for this capture. Plain "visual" keeps the
+        // armed ROI. This permits several object probes in one gameplay session.
+        if (FILE* request = std::fopen(trigger, "r")) {
+            s32 x = 0;
+            s32 y = 0;
+            u32 width = 0;
+            u32 height = 0;
+            if (std::fscanf(request, "%d,%d,%u,%u", &x, &y, &width, &height) == 4 && width &&
+                height) {
+                roi = {{x, y}, {width, height}};
+            }
+            std::fclose(request);
+        }
+        std::printf("KNACK-VIS: Trigger detected frame=%llu path=%s\n",
+                    static_cast<unsigned long long>(next_frame), trigger);
+        if (std::remove(trigger) != 0) {
+            Fail(fmt::format("trigger_remove:{}", std::strerror(errno)));
+            return;
+        }
+        remaining = capture_frames;
+        recording = true;
+        failed = false;
+        matching_reported = false;
+        matching_draws = submitted_queries = collected_queries = collected_frames = visible_draws =
+            0;
+        std::printf("KNACK-VIS: Capture started frame=%llu frames=%u prim=%u rts=%u roi=%d,%d,%u,%u\n",
+                    static_cast<unsigned long long>(next_frame), capture_frames, target_primitive,
+                    target_render_targets, roi.offset.x, roi.offset.y, roi.extent.width,
+                    roi.extent.height);
+    }
+
+    void Fail(const std::string& reason) {
+        if (!failed) {
+            failed = true;
+            std::printf("KNACK-VIS: Capture failed reason=%s\n", reason.c_str());
+        }
+    }
+
+    void CompleteIfReady() {
+        if (!completing || std::ranges::any_of(pending, [](bool value) { return value; })) {
+            return;
+        }
+        completing = false;
+        if (matching_draws == 0) {
+            Fail("no_matching_draws");
+            return;
+        }
+        if (collected_queries != submitted_queries) {
+            Fail(fmt::format("incomplete_results:{}/{}", collected_queries, submitted_queries));
+            return;
+        }
+        if (failed) {
+            return;
+        }
+        std::printf("KNACK-VIS: Capture completed frames=%llu matching_draws=%llu visible_draws=%llu queries=%llu\n",
+                    static_cast<unsigned long long>(collected_frames),
+                    static_cast<unsigned long long>(matching_draws),
+                    static_cast<unsigned long long>(visible_draws),
+                    static_cast<unsigned long long>(collected_queries));
+        std::fflush(stdout);
+    }
+
+    void Collect(u32 which) {
+        const u32 count = used[which];
+        std::vector<u64> samples(count);
+        const auto result = device.getQueryPoolResults(
+            *pool, which * QueriesPerSlice, count, count * sizeof(u64), samples.data(), sizeof(u64),
+            vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+        if (result != vk::Result::eSuccess) {
+            Fail(fmt::format("query_results:{}", vk::to_string(result)));
+            return;
+        }
+        collected_queries += count;
+        ++collected_frames;
+        std::printf("KNACK-VIS: Results collected frame=%llu queries=%u\n",
+                    static_cast<unsigned long long>(frame_ids[which]), count);
+        for (u32 i = 0; i < count; ++i) {
+            const auto& entry = entries[which][i];
+            visible_draws += samples[i] != 0;
+            std::printf("KNACK-VIS: draw=%u pipe=%016llx vs=%08llx gs=%08llx ps=%08llx prim=%u rts=%u idx=%u inst=%u samples=%llu\n",
+                        entry.draw, static_cast<unsigned long long>(entry.pipeline),
+                        static_cast<unsigned long long>(entry.vs),
+                        static_cast<unsigned long long>(entry.gs),
+                        static_cast<unsigned long long>(entry.ps), entry.primitive,
+                        entry.render_targets, entry.indices, entry.instances,
+                        static_cast<unsigned long long>(samples[i]));
+        }
+        std::fflush(stdout);
+    }
+
+    static constexpr u32 NumSlices = 4;
+    static constexpr u32 QueriesPerSlice = 2048;
+
+    vk::Device device;
+    const char* trigger;
+    vk::Rect2D roi;
+    u32 target_primitive = u32(AmdGpu::PrimitiveType::TriangleList);
+    u32 target_render_targets = 5;
+    u32 capture_frames = 1;
+    u32 first_draw = 0;
+    u32 max_draws = 1024;
+    vk::UniqueQueryPool pool;
+    u32 slice = 0;
+    u32 remaining = 0;
+    u32 candidate_index = 0;
+    bool recording = false;
+    bool completing = false;
+    bool failed = false;
+    bool matching_reported = false;
+    u64 frame = 0;
+    u64 matching_draws = 0;
+    u64 submitted_queries = 0;
+    u64 collected_queries = 0;
+    u64 collected_frames = 0;
+    u64 visible_draws = 0;
+    std::array<std::vector<Entry>, NumSlices> entries;
+    std::array<u32, NumSlices> used{};
+    std::array<bool, NumSlices> pending{};
+    std::array<u64, NumSlices> frame_ids{};
+};
+
+std::unique_ptr<KnackVisualProbe> knack_visual_probe;
+
+} // namespace
+
 static Shader::PushData MakeUserData(const AmdGpu::Regs& regs) {
     // TODO(roamic): Add support for multiple viewports and geometry shaders when ViewportIndex
     // is encountered and implemented in the recompiler.
@@ -81,6 +643,8 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
     memory->SetRasterizer(this);
 
     GpuProfiler::Init(instance, scheduler);
+    knack_contribution_probe = KnackContributionProbe::Create(instance);
+    knack_visual_probe = KnackVisualProbe::Create(instance);
     FrameRecord::Attach(instance, scheduler);
     if (DrawPipeWanted()) {
         constant_ring = std::make_unique<ConstantRing>(instance, scheduler);
@@ -95,7 +659,10 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
     });
 }
 
-Rasterizer::~Rasterizer() = default;
+Rasterizer::~Rasterizer() {
+    knack_contribution_probe.reset();
+    knack_visual_probe.reset();
+}
 
 inline const AmdGpu::Regs& Rasterizer::Regs() const {
     return stage_regs ? *stage_regs : liverpool->regs;
@@ -1074,8 +1641,9 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     const auto& regs = Regs();
     // tlg: the pass copying a finished frame to a display buffer; the previous draw's
     // target is that frame.
-    if (camera_motion->Enabled() && regs.color_buffers[0] &&
-        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
+    const bool display_pass = regs.color_buffers[0] &&
+                              FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address());
+    if (camera_motion->Enabled() && display_pass) {
         scene_started = false;
         camera_motion->OnDisplayPass(cb_descs[0].first);
         if (upscaler->OnFrameStart()) {
@@ -1219,6 +1787,17 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         }
     }
     pipeline->BindResources(set_writes, push_data);
+    // Controlled A/B only: once per guest SubmitDone, submit and wait for uploads recorded before
+    // the first Knack-small draw. This is not a fix and does not add a global barrier. A positive
+    // result would implicate upload visibility but would not identify the missing dependency.
+    const bool knack_small_draw =
+        pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash == KnackSmallGeometryVertexShader;
+    if (knack_small_draw && KnackSmallSyncEnabled() &&
+        knack_small_sync_pending.exchange(false, std::memory_order_relaxed)) [[unlikely]] {
+        scheduler.Finish();
+        std::printf("KNACK-SYNC: target wait completed vs=%08llx\n",
+                    static_cast<unsigned long long>(KnackSmallGeometryVertexShader));
+    }
     // tlg: jitter geometry drawn with the scene depth, not full-screen passes (a shifted
     // full-screen quad leaves an edge column unwritten).
     draw_jitter = {};
@@ -1243,6 +1822,45 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     const u32 num_instances = regs.num_instances.NumInstances();
     const u32 first_vertex = vertex_offset;
     const u32 first_instance = instance_offset;
+    const auto* gs_info = pipeline->GetStages()[u32(Shader::SwStage::Geometry)];
+    const auto* ps_info = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+    const auto& graphics_key = pipeline->GetGraphicsKey();
+    const u32 num_colors = graphics_key.num_color_attachments;
+    const auto contribution = knack_contribution_probe &&
+                                      knack_contribution_probe->Matches(gs_info ? gs_info->pgm_hash
+                                                                                : 0)
+                                  ? knack_contribution_probe->Allocate(
+                                        ps_info ? ps_info->pgm_hash : 0, num_instances)
+                                  : std::nullopt;
+    const vk::QueryPool contribution_pool =
+        contribution ? knack_contribution_probe->Pool() : vk::QueryPool{};
+    const bool ps_side_effects =
+        ps_info &&
+        (std::ranges::any_of(ps_info->buffers, [](const auto& desc) { return desc.is_written; }) ||
+         std::ranges::any_of(ps_info->images, [](const auto& desc) { return desc.is_written; }));
+    const u64 pipeline_hash = XXH3_64bits(&graphics_key, sizeof(graphics_key));
+    const auto visual = knack_visual_probe && !ps_side_effects &&
+                                knack_visual_probe->Matches(regs.primitive_type, num_colors)
+                            ? knack_visual_probe->Allocate(
+                                  pipeline_hash, vs_info.pgm_hash,
+                                  gs_info ? gs_info->pgm_hash : 0,
+                                  ps_info ? ps_info->pgm_hash : 0, regs.primitive_type, num_colors,
+                                  num_indices, num_instances)
+                            : std::nullopt;
+    const vk::QueryPool visual_pool = visual ? knack_visual_probe->Pool() : vk::QueryPool{};
+    const auto& dynamic_state = scheduler.GetDynamicState();
+    const Scissors original_scissors = dynamic_state.scissors;
+    const Scissors visual_scissors =
+        visual ? knack_visual_probe->ClipScissors(original_scissors) : Scissors{};
+    const bool depth_write = dynamic_state.depth_write_enabled;
+    const u32 stencil_front_write_mask = dynamic_state.stencil_front_write_mask;
+    const u32 stencil_back_write_mask = dynamic_state.stencil_back_write_mask;
+    const auto depth_stencil = GetEffectiveDepthStencilState(regs);
+    const auto cull_mode = LiverpoolToVK::IsPrimitiveCulled(regs.primitive_type)
+                               ? LiverpoolToVK::CullMode(regs.polygon_control.CullingMode())
+                               : vk::CullModeFlagBits::eNone;
+    const bool rasterizer_discard = regs.clipper_control.dx_rasterization_kill;
+    const auto write_masks = graphics_key.write_masks;
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
         const auto draw = [&] {
             if (is_indexed) {
@@ -1253,19 +1871,65 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
             }
         };
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
+        if (contribution) {
+            cmdbuf.beginQuery(contribution_pool, contribution->original, {});
+        }
         draw();
+        if (contribution) {
+            cmdbuf.endQuery(contribution_pool, contribution->original);
+        }
         if (square) [[unlikely]] {
             cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, square);
             draw();
         }
+        if (contribution && contribution->has_relaxed) [[unlikely]] {
+            const std::array<vk::ColorComponentFlags, AmdGpu::NUM_COLOR_BUFFERS> no_writes{};
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{no_writes.data(), num_colors});
+            cmdbuf.setDepthTestEnable(false);
+            cmdbuf.setStencilTestEnable(false);
+            cmdbuf.setCullMode(vk::CullModeFlagBits::eNone);
+            cmdbuf.setRasterizerDiscardEnable(false);
+            cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
+            cmdbuf.beginQuery(contribution_pool, contribution->relaxed, {});
+            draw();
+            cmdbuf.endQuery(contribution_pool, contribution->relaxed);
+            cmdbuf.setDepthTestEnable(depth_stencil.depth_test_enable);
+            cmdbuf.setStencilTestEnable(depth_stencil.stencil_test_enable);
+            cmdbuf.setCullMode(cull_mode);
+            cmdbuf.setRasterizerDiscardEnable(rasterizer_discard);
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{write_masks.data(), num_colors});
+        }
+        if (visual) [[unlikely]] {
+            const std::array<vk::ColorComponentFlags, AmdGpu::NUM_COLOR_BUFFERS> no_writes{};
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{no_writes.data(), num_colors});
+            cmdbuf.setDepthWriteEnable(false);
+            cmdbuf.setStencilWriteMask(vk::StencilFaceFlagBits::eFrontAndBack, 0);
+            cmdbuf.setScissorWithCount(visual_scissors);
+            cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
+            cmdbuf.beginQuery(visual_pool, visual->query, {});
+            draw();
+            cmdbuf.endQuery(visual_pool, visual->query);
+            cmdbuf.setScissorWithCount(original_scissors);
+            cmdbuf.setStencilWriteMask(vk::StencilFaceFlagBits::eFront,
+                                       stencil_front_write_mask);
+            cmdbuf.setStencilWriteMask(vk::StencilFaceFlagBits::eBack,
+                                       stencil_back_write_mask);
+            cmdbuf.setDepthWriteEnable(depth_write);
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{write_masks.data(), num_colors});
+        }
     });
     if (FrameCapture::Active()) {
-        const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
-        FrameCapture::Draw(vs_info.pgm_hash, ps ? ps->pgm_hash : 0, num_indices, num_instances);
+        FrameCapture::Draw(vs_info.pgm_hash, ps_info ? ps_info->pgm_hash : 0, num_indices,
+                           num_instances);
         if (const auto& bc = regs.blend_control[0]; bc.enable && regs.color_buffers[0]) {
             char note[128];
             std::snprintf(note, sizeof(note), "\n  blend ps %08x idx %u: src %u dst %u func %u z %u%u",
-                          u32(ps ? ps->pgm_hash : 0), num_indices, u32(bc.color_src_factor),
+                          u32(ps_info ? ps_info->pgm_hash : 0), num_indices,
+                          u32(bc.color_src_factor),
                           u32(bc.color_dst_factor), u32(bc.color_func),
                           u32(regs.depth_control.depth_enable),
                           u32(regs.depth_control.depth_write_enable));
@@ -1711,6 +2375,13 @@ std::string RecordWords(const T& value) {
 // Indexed by Shader::SwStage.
 constexpr std::array<const char*, Shader::MaxStageTypes> RecordStageNames = {"ps", "hs", "ds",
                                                                             "vs", "gs", "cs"};
+bool RecordVerifyDetachedUploads() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_FRAME_RECORD_VERIFY_UPLOAD");
+        return value && value[0] == '1';
+    }();
+    return enabled;
+}
 } // namespace
 
 void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw* prepared,
@@ -1720,6 +2391,13 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
         return;
     }
     const auto add = [](const std::string& text) { FrameRecord::Append(text); };
+    const auto stages = pipeline->GetStages();
+    const bool verify_uploads =
+        RecordVerifyDetachedUploads() &&
+        std::ranges::any_of(stages, [](const Shader::Info* info) {
+            return info && (info->pgm_hash == KnackDetachedGeometryShader ||
+                            info->pgm_hash == KnackSmallGeometryVertexShader);
+        });
     // The copies end the render pass; a draw that clears its targets and continues the pass
     // in progress would clear them again when it begins a new one.
     bool gpu_ok = FrameRecord::GpuCopiesAvailable();
@@ -1736,26 +2414,46 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
     }
     // Memory the GPU wrote is read from the GPU's copy (the guest copy may be stale or
     // read-protected); anything else from guest memory, which the cache mirrors.
-    const auto memory_input = [&](const std::string& key, VAddr address, u64 size) {
+    const auto memory_input = [&](const std::string& key, VAddr address, u64 size,
+                                  const vk::DescriptorBufferInfo* bound = nullptr,
+                                  u64 bound_adjust = 0) {
         add(fmt::format(" {}={:#x}+{}:", key, address, size));
         if (address == 0 || size == 0) {
             add("null");
             return;
         }
         size = memory->ClampRangeSize(address, size);
-        if (gpu_ok && size && size <= std::numeric_limits<u32>::max() &&
-            buffer_cache.IsRegionGpuModified(address, size)) {
-            const auto [buffer, offset] = buffer_cache.ObtainBuffer(address, u32(size), false);
-            FrameRecord::GpuHash("", buffer->Handle(), offset, size);
+        const bool gpu_modified = buffer_cache.IsRegionGpuModified(address, size);
+        if (gpu_ok && size && size <= std::numeric_limits<u32>::max() && gpu_modified) {
+            if (bound && bound->buffer) {
+                FrameRecord::GpuHash("", bound->buffer, bound->offset + bound_adjust, size);
+            } else {
+                const auto [buffer, offset] = buffer_cache.ObtainBuffer(address, u32(size), false);
+                FrameRecord::GpuHash("", buffer->Handle(), offset, size);
+            }
         } else {
             add(FrameRecord::GuestHash(address, size));
+        }
+        // For Knack's detached/dynamic geometry, compare guest bytes with the exact Vulkan
+        // descriptor already bound for this draw. Re-obtaining a small buffer would verify a
+        // new stream-buffer copy instead of the one consumed by the draw.
+        if (verify_uploads && gpu_ok && !gpu_modified && bound && bound->buffer && size) {
+            if (size <= 1_KB) {
+                add(fmt::format(" {}.cw={}", key, FrameRecord::GuestWords(address, size)));
+                FrameRecord::GpuWords(fmt::format(" {}.gw=", key), bound->buffer,
+                                      bound->offset + bound_adjust, size);
+            } else {
+                FrameRecord::GpuHash(fmt::format(" {}.gpu=", key), bound->buffer,
+                                     bound->offset + bound_adjust, size);
+            }
         }
     };
 
     const auto* saved_prepared = bind_prepared;
     bind_prepared = prepared;
     const auto& regs = Regs();
-    for (const Shader::Info* info : pipeline->GetStages()) {
+    u32 buffer_info_index = 0;
+    for (const Shader::Info* info : stages) {
         if (!info) {
             continue;
         }
@@ -1779,12 +2477,20 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
         const PreparedStage* ps = FindPreparedStage(*info);
         for (u32 i = 0; i < info->buffers.size(); ++i) {
             const auto& desc = info->buffers[i];
+            const vk::DescriptorBufferInfo* bound =
+                buffer_info_index < buffer_infos.size() ? &buffer_infos[buffer_info_index] : nullptr;
+            ++buffer_info_index;
             if (desc.IsSpecial()) {
                 continue;
             }
             const auto sharp = ps ? ps->buffer_sharps[i] : desc.GetSharp(*info);
+            u64 bound_adjust = 0;
+            if (bound && bound->buffer && bound->buffer != buffer_cache.GetStreamBuffer().Handle() &&
+                (!constant_ring || bound->buffer != constant_ring->Handle())) {
+                bound_adjust = sharp.base_address % instance.StorageMinAlignment();
+            }
             memory_input(fmt::format("{}.b{}{}", name, i, desc.is_written ? "w" : ""),
-                         sharp.base_address, sharp.GetSize());
+                         sharp.base_address, sharp.GetSize(), bound, bound_adjust);
         }
         for (u32 i = 0; i < info->images.size(); ++i) {
             const auto& desc = info->images[i];
@@ -1800,6 +2506,19 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
                             u32(t.height) + 1, u32(t.depth) + 1,
                             magic_enum::enum_name(t.GetType()), u32(t.base_level),
                             u32(t.last_level)));
+            if (verify_uploads && !desc.is_written) {
+                const VideoCore::ImageInfo texture_info{t, desc};
+                const auto image_id = texture_cache.FindImageFromRange(
+                    texture_info.guest_address, texture_info.guest_size, false);
+                if (image_id) {
+                    const auto& image = texture_cache.GetImage(image_id);
+                    add(fmt::format(":ih={:016x}:uid={}:alias={}:flags={:x}:size={}", image.hash,
+                                    image.image_uid, image.alias_generation, u32(image.flags),
+                                    image.info.guest_size));
+                } else {
+                    add(":ih=missing");
+                }
+            }
         }
         for (u32 i = 0; i < info->samplers.size(); ++i) {
             const auto ss = ps ? ps->sampler_sharps[i] : info->samplers[i].GetSharp(*info);
@@ -1814,6 +2533,8 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
         }
     } else {
         const auto* graphics = static_cast<const GraphicsPipeline*>(pipeline);
+        const auto& key = graphics->GetGraphicsKey();
+        add(fmt::format(" rs={} ds={}", u32(key.num_samples), u32(key.depth_samples)));
         const auto& vs = graphics->GetStage(Shader::SwStage::Vertex);
         if (const auto& fetch = graphics->GetFetchShader()) {
             for (u32 i = 0; i < fetch->attributes.size(); ++i) {
@@ -1841,18 +2562,22 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
             if (!cb_descs[cb].first) {
                 add("null");
             } else {
-                const auto& image = texture_cache.GetImage(cb_descs[cb].first).info;
-                add(fmt::format("{:#x}:{}:{}x{}", image.guest_address,
-                                vk::to_string(image.pixel_format), image.size.width,
-                                image.size.height));
+                const auto& image = texture_cache.GetImage(cb_descs[cb].first);
+                add(fmt::format("{:#x}:{}:{}x{}", image.info.guest_address,
+                                vk::to_string(image.info.pixel_format), image.info.size.width,
+                                image.info.size.height));
+                add(fmt::format(" rt{}s={}.{}.{}.{}", cb, u32(key.color_samples[cb]),
+                                image.info.num_samples, image.info.guest_samples,
+                                image.backing->num_samples));
             }
             add(fmt::format(" bl{}={}", cb, RecordWords(regs.blend_control[cb])));
         }
         if (db_desc.first) {
-            const auto& image = texture_cache.GetImage(db_desc.first).info;
-            add(fmt::format(" z={:#x}:{}:{}x{}", image.guest_address,
-                            vk::to_string(image.pixel_format), image.size.width,
-                            image.size.height));
+            const auto& image = texture_cache.GetImage(db_desc.first);
+            add(fmt::format(" z={:#x}:{}:{}x{} zs={}.{}.{}.{}", image.info.guest_address,
+                            vk::to_string(image.info.pixel_format), image.info.size.width,
+                            image.info.size.height, u32(key.depth_samples), image.info.num_samples,
+                            image.info.guest_samples, image.backing->num_samples));
         }
         add(fmt::format(" cm={} csm={} cc={} dc={} st={} sref={}.{} drc={} pc={} bc={}",
                         RecordWords(regs.color_target_mask), RecordWords(regs.color_shader_mask),
@@ -1983,6 +2708,16 @@ void NoteHugeBind(VAddr base, u64 size) {
 
 void Rasterizer::OnSubmit() {
     DrainDrawPipe();
+    knack_small_sync_pending.store(true, std::memory_order_relaxed);
+    // SubmitDone is the reliable renderer boundary even with camera motion and the upscaler off.
+    // Polling here also guarantees prior query commands reached the scheduler before their slice
+    // is marked pending. The normal path pays only this opt-in null check.
+    if (knack_contribution_probe) {
+        knack_contribution_probe->BeginFrame();
+    }
+    if (knack_visual_probe) {
+        knack_visual_probe->BeginFrame();
+    }
     if (fault_process_pending) {
         fault_process_pending = false;
         buffer_cache.ProcessFaultBuffer();

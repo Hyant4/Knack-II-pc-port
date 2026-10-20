@@ -71,6 +71,29 @@ class KnackTests(unittest.TestCase):
         self.assertNotIn('GOW3_FPS', env)
         self.assertEqual(env['KNACK2_PROFILE'], 'CUSA08014-01.01')
 
+    def test_toggle_file_only_external_override_reaches_child(self):
+        toggle_file = self.root / 'toggle mask with spaces.txt'
+        toggle_file.write_text('68719476736\n')
+        absolute_path = str(toggle_file.resolve())
+        blocked = {'TLG_PATCHES': 'unsafe', 'TLG_DRAW_PIPE': 'override',
+                   'TLG_PAD_FILE': 'unrelated.txt', 'ISS_FORCE_PATCHES': '1',
+                   'GR2_CUSTOM': '1', 'GOW3_FPS': '240', 'BB_CUSTOM': '1'}
+        with patch.dict(os.environ, {'TLG_TOGGLE_FILE': absolute_path, **blocked}):
+            env = run.runtime_environment(self.root)
+            self.assertEqual(env['TLG_TOGGLE_FILE'], absolute_path)
+            for name in blocked:
+                self.assertNotIn(name, env)
+            self.assertEqual(env['TLG_UPSCALER'], 'off')
+
+            log = self.root / 'toggle-child.log'
+            code = ('import os; print(os.environ.get("TLG_TOGGLE_FILE", "")); '
+                    'print(os.environ.get("TLG_PATCHES", "filtered"))')
+            self.assertEqual(run.run_child([sys.executable, '-c', code], env, log, 5), 0)
+            self.assertEqual(log.read_text().splitlines(), [absolute_path, 'filtered'])
+
+            del os.environ['TLG_TOGGLE_FILE']
+            self.assertNotIn('TLG_TOGGLE_FILE', run.runtime_environment(self.root))
+
     def test_empty_toolchain_variable_uses_default(self):
         with patch.dict(os.environ, {'MSYS2_ROOT': ''}):
             env = run.runtime_environment(self.root)
