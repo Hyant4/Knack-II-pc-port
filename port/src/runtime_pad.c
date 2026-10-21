@@ -28,7 +28,7 @@
 #define ERR_INVALID_HANDLE ((int32_t)0x80920003)
 #define ERR_ALREADY_OPENED ((int32_t)0x80920004)
 #define ERR_NOT_INITIALIZED ((int32_t)0x80920005)
-#define PAD_HANDLE 1
+#define PAD_PLAYERS 2
 
 enum {
     BTN_L3=0x2, BTN_R3=0x4, BTN_OPTIONS=0x8, BTN_UP=0x10, BTN_RIGHT=0x20, BTN_DOWN=0x40, BTN_LEFT=0x80,
@@ -66,10 +66,36 @@ _Static_assert(__builtin_offsetof(PadData,timestamp)==80,"OrbisPadData timestamp
 _Static_assert(sizeof(ControllerInfo)==28,"OrbisPadControllerInformation layout");
 
 static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
-static int initialized, opened, sdl_ready;
-static SDL_Gamepad *gamepad;
-static size_t reads;
-static uint8_t connected_count;
+static int initialized, sdl_ready;
+typedef struct { float w, x, y, z; } Quat;
+typedef struct { int side; uint64_t pressed, released; } PadClick;
+typedef struct { int active; uint64_t pressed, released; } PadTwo;
+typedef struct {
+    Quat q; float roll, pitch, yaw, aim_pitch; uint64_t last_us;
+    int sensors, warned, mode, toggle_held;
+} PadMotion;
+typedef struct {
+    int opened;
+    int32_t user;
+    SDL_JoystickID device_id;
+    SDL_Gamepad *gamepad;
+    uint8_t connected_count;
+    size_t reads;
+    PadClick click;
+    PadTwo two;
+    PadMotion motion;
+    int swipe_active, hold_after_capture, motion_state;
+} PlayerPad;
+static PlayerPad players[PAD_PLAYERS];
+static const PadMotion neutral_motion={.q={1,0,0,0},.sensors=-1};
+/* Device changes must not inherit another controller's staged touch or orientation. */
+static void reset_player_input(PlayerPad *p) {
+    p->click=(PadClick){.side=-1};
+    p->two=(PadTwo){0};
+    p->motion=neutral_motion;
+    p->swipe_active=p->hold_after_capture=0;
+    p->motion_state=-1;
+}
 
 static uint64_t now_us(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return (uint64_t)t.tv_sec*1000000u+(uint64_t)t.tv_nsec/1000u; }
 /* TLG_STICK_DEADZONE (0..0.5, default 0.10): stick values inside it read as centered, the rest
@@ -99,8 +125,7 @@ static uint16_t touch_axis(float v, int max) {
  * that comes and goes with the button. The side is chosen when the click starts and kept: the
  * right source with L1 held is a left click (photo mode on pads without a touchpad). */
 enum { CLICK_LEAD_US=50000, CLICK_HOLD_US=50000, CLICK_TAIL_US=100000 };
-static struct { int side; uint64_t pressed, released; } click={-1,0,0};
-static void play_click(PadData *d) {
+static void play_click(PlayerPad *p, PadData *d) {
     const uint64_t now=d->timestamp;
     uint32_t sources=d->buttons & (CLICK_LEFT|CLICK_RIGHT);
     d->buttons&=~(CLICK_LEFT|CLICK_RIGHT);
@@ -109,16 +134,16 @@ static void play_click(PadData *d) {
         sources|=CLICK_LEFT;
     }
     const int side=(sources & CLICK_LEFT) ? 0 : (sources & CLICK_RIGHT) ? !(d->buttons & BTN_L1) : -1;
-    if (side>=0 && (click.side<0 || click.released)) { click.side=side; click.pressed=now; click.released=0; }
-    else if (side<0 && click.side>=0 && !click.released) click.released=now;
-    if (click.side<0) return;
-    const uint64_t down=click.pressed+CLICK_LEAD_US;
+    if (side>=0 && (p->click.side<0 || p->click.released)) { p->click.side=side; p->click.pressed=now; p->click.released=0; }
+    else if (side<0 && p->click.side>=0 && !p->click.released) p->click.released=now;
+    if (p->click.side<0) return;
+    const uint64_t down=p->click.pressed+CLICK_LEAD_US;
     uint64_t up=down+CLICK_HOLD_US;
-    if (!click.released) up=UINT64_MAX;
-    else if (click.released>up) up=click.released;
-    if (now>=up && now-up>=CLICK_TAIL_US) { click.side=-1; return; }
+    if (!p->click.released) up=UINT64_MAX;
+    else if (p->click.released>up) up=p->click.released;
+    if (now>=up && now-up>=CLICK_TAIL_US) { p->click.side=-1; return; }
     if (d->touch_count<2) {
-        d->touches[d->touch_count]=(PadTouch){.x=click.side ? 1440 : 480,.y=471,.id=d->touch_count};
+        d->touches[d->touch_count]=(PadTouch){.x=p->click.side ? 1440 : 480,.y=471,.id=d->touch_count};
         ++d->touch_count;
     }
     if (now>=down && now<up) d->buttons|=BTN_TOUCHPAD;
@@ -128,71 +153,113 @@ static void play_click(PadData *d) {
  * without a touchpad: View/Select + R1, or both click sources together (keyboard Tab + Backspace,
  * scripted touchpad_left + touchpad_right). The fingers land CLICK_LEAD_US before the button and
  * stay while held; R1 is hidden from the game meanwhile. Returns 1 while it owns the touchpad. */
-static struct { int active; uint64_t pressed, released; } two={0,0,0};
-static int play_two_finger(PadData *d) {
+static int play_two_finger(PlayerPad *p, PadData *d) {
     const uint64_t now=d->timestamp;
     const uint32_t b=d->buttons;
     const int held=((b & CLICK_LEFT) && (b & CLICK_RIGHT)) || ((b & CLICK_RIGHT) && (b & BTN_R1));
-    if (held && (!two.active || two.released)) { two.active=1; two.pressed=now; two.released=0; click.side=-1; }
-    else if (!held && two.active && !two.released) two.released=now;
-    if (!two.active) return 0;
-    if (two.released && now-two.released>=CLICK_TAIL_US) { two.active=0; return 0; }
+    if (held && (!p->two.active || p->two.released)) { p->two.active=1; p->two.pressed=now; p->two.released=0; p->click.side=-1; }
+    else if (!held && p->two.active && !p->two.released) p->two.released=now;
+    if (!p->two.active) return 0;
+    if (p->two.released && now-p->two.released>=CLICK_TAIL_US) { p->two.active=0; return 0; }
     d->buttons&=~(uint32_t)(CLICK_LEFT|CLICK_RIGHT|BTN_R1);
     d->touch_count=0;
     d->touches[d->touch_count]=(PadTouch){.x=120,.y=471,.id=20}; ++d->touch_count;
     d->touches[d->touch_count]=(PadTouch){.x=1800,.y=471,.id=21}; ++d->touch_count;
-    if (!two.released && now>=two.pressed+CLICK_LEAD_US) d->buttons|=BTN_TOUCHPAD;
+    if (!p->two.released && now>=p->two.pressed+CLICK_LEAD_US) d->buttons|=BTN_TOUCHPAD;
     return 1;
 }
 
-/* Opens the first gamepad SDL knows about; called under lock. */
-/* Every connected controller is open; the game reads the one used last (a press or a stick
- * past half way), so a second controller lying on the desk never takes over. */
+/* SDL references belong to this pool; PlayerPad pointers are non-owning bindings.
+ * Keep the original pool size and activity rule for single-user sessions. A real
+ * second UserService login, not an open handle, selects independent bindings.
+ * SDL event pumping remains with the window thread. All pool/binding work is locked. */
 #define MAX_GAMEPADS 8
 static SDL_Gamepad *gamepads[MAX_GAMEPADS];
+static int cooperative_users;
+static uint8_t total_connections;
+static int pad_users(int32_t *first, int32_t *second);
 static int gamepad_active(SDL_Gamepad *g) {
     for (int b=0;b<SDL_GAMEPAD_BUTTON_COUNT;++b) if (SDL_GetGamepadButton(g,(SDL_GamepadButton)b)) return 1;
     for (int a=0;a<SDL_GAMEPAD_AXIS_COUNT;++a) if (abs(SDL_GetGamepadAxis(g,(SDL_GamepadAxis)a))>16000) return 1;
     return 0;
 }
-static SDL_Gamepad *current_gamepad(void) {
+static void bind_gamepad(PlayerPad *p, SDL_Gamepad *g) {
+    if (p->gamepad==g) return;
+    if (p->gamepad && SDL_GamepadConnected(p->gamepad)) SDL_RumbleGamepad(p->gamepad,0,0,0);
+    p->gamepad=g; p->device_id=g ? SDL_GetGamepadID(g) : 0;
+    reset_player_input(p);
+    if (g && ++p->connected_count==0) p->connected_count=1;
+}
+static void refresh_gamepads(void) {
     static uint64_t last_scan;
+    static int scanned;
     if (!sdl_ready) sdl_ready = SDL_WasInit(SDL_INIT_GAMEPAD) ? 1 : SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
-    if (sdl_ready<0) { if (runtime_verbose()) { static int once; if (!once++) printf("Verbose: SDL gamepad subsystem failed to start (%s)\n",SDL_GetError()); } return NULL; }
-    for (int i=0;i<MAX_GAMEPADS;++i)
-        if (gamepads[i] && !SDL_GamepadConnected(gamepads[i])) {
-            if (gamepads[i]==gamepad) gamepad=NULL;
-            if (runtime_verbose()) printf("Verbose: gamepad disconnected: %s (slot %d)\n",SDL_GetGamepadName(gamepads[i]),i);
-            SDL_CloseGamepad(gamepads[i]); gamepads[i]=NULL;
+    if (sdl_ready<0) {
+        if (runtime_verbose()) { static int once; if (!once++) printf("Verbose: SDL gamepad subsystem failed to start (%s)\n",SDL_GetError()); }
+        return;
+    }
+    /* Read-only provider calls do not consume LOGIN. Lock order is Pad -> services;
+     * the current UserService provider never calls Pad while holding its mutex.
+     * An unavailable snapshot must not turn an established two-user session into P1. */
+    int32_t first=-1, second=-1;
+    if (pad_users(&first,&second)) cooperative_users=second!=-1;
+    if (!cooperative_users) bind_gamepad(&players[1],NULL);
+    int changed=0;
+    for (int i=0;i<MAX_GAMEPADS;++i) {
+        SDL_Gamepad *g=gamepads[i];
+        if (g && !SDL_GamepadConnected(g)) {
+            for (int player=0;player<PAD_PLAYERS;++player)
+                if (players[player].gamepad==g) bind_gamepad(&players[player],NULL);
+            SDL_CloseGamepad(g); gamepads[i]=NULL;
+            changed=1;
         }
+    }
     const uint64_t now=now_us();
-    if (now-last_scan>1000000 || !gamepad) {
-        last_scan=now;
+    if (!scanned || changed || !players[0].gamepad || now-last_scan>=1000000) {
+        last_scan=now; scanned=1;
         int count=0;
         SDL_JoystickID *ids=SDL_GetGamepads(&count);
         for (int c=0;ids && c<count;++c) {
-            int open=0, slot=-1;
+            int opened=0, slot=-1;
             for (int i=0;i<MAX_GAMEPADS;++i) {
-                if (gamepads[i] && SDL_GetGamepadID(gamepads[i])==ids[c]) open=1;
+                if (gamepads[i] && SDL_GetGamepadID(gamepads[i])==ids[c]) opened=1;
                 if (!gamepads[i] && slot<0) slot=i;
             }
-            if (open || slot<0) continue;
-            gamepads[slot]=SDL_OpenGamepad(ids[c]);
-            if (gamepads[slot]) {
-                ++connected_count; printf("Runtime: gamepad connected: %s\n",SDL_GetGamepadName(gamepads[slot]));
-                if (runtime_verbose()) printf("Verbose: gamepad slot %d: id %u, type %s, %d connected\n",slot,(unsigned)ids[c],
-                                              SDL_GetGamepadStringForType(SDL_GetGamepadType(gamepads[slot])),(int)connected_count);
-            } else if (runtime_verbose()) printf("Verbose: gamepad id %u could not be opened (%s)\n",(unsigned)ids[c],SDL_GetError());
+            if (opened || slot<0) continue;
+            SDL_Gamepad *g=SDL_OpenGamepad(ids[c]);
+            if (!g) {
+                if (runtime_verbose()) printf("Verbose: gamepad id %u could not be opened (%s)\n",(unsigned)ids[c],SDL_GetError());
+                continue;
+            }
+            gamepads[slot]=g;
+            if (++total_connections==0) total_connections=1;
+            printf("Runtime: gamepad connected: %s (id %u)\n",SDL_GetGamepadName(g),(unsigned)ids[c]);
         }
         SDL_free(ids);
     }
-    for (int i=0;i<MAX_GAMEPADS;++i)
-        if (gamepads[i] && gamepads[i]!=gamepad && (!gamepad || gamepad_active(gamepads[i]))) {
-            if (gamepad) printf("Runtime: gamepad in use: %s\n",SDL_GetGamepadName(gamepads[i]));
-            gamepad=gamepads[i];
-            break;
+    if (!cooperative_users) {
+        /* Exact baseline selection rule: first available if absent, otherwise the
+         * first other device with a button or an axis past half way. Never merge. */
+        for (int i=0;i<MAX_GAMEPADS;++i)
+            if (gamepads[i] && gamepads[i]!=players[0].gamepad &&
+                (!players[0].gamepad || gamepad_active(gamepads[i]))) {
+                bind_gamepad(&players[0],gamepads[i]);
+                break;
+            }
+        players[0].connected_count=total_connections; /* legacy attachment count */
+    } else {
+        /* Never promote a surviving P2. Only unbound devices fill vacant slots. */
+        for (int player=0;player<PAD_PLAYERS;++player) {
+            if (players[player].gamepad) continue;
+            for (int i=0;i<MAX_GAMEPADS;++i) {
+                SDL_Gamepad *g=gamepads[i];
+                if (!g) continue;
+                int bound=0;
+                for (int other=0;other<PAD_PLAYERS;++other) if (players[other].gamepad==g) bound=1;
+                if (!bound) { bind_gamepad(&players[player],g); break; }
+            }
         }
-    return gamepad;
+    }
 }
 /* Button sources: a host button or key and the PS4 button it presses. The defaults below can be
  * changed per PS4 button with TLG_PAD_MAP (gamepad) and TLG_KEY_MAP (keyboard), e.g.
@@ -333,8 +400,6 @@ static void load_button_maps(void) {
  *   A notice on screen tells the mode; leaving it puts the controller upright again.
  * TLG_MOTION=off disables real sensors (simulation still works). */
 static int injected_motion; /* TLG_PAD_FILE tokens: 1 tilt_right (T), 2 tilt_left (G), 4 shake (Y) */
-typedef struct { float w, x, y, z; } Quat;
-static struct { Quat q; float roll, pitch, yaw, aim_pitch; uint64_t last_us; int sensors, warned, mode, toggle_held; } motion={{1,0,0,0},0,0,0,0,0,-1,0,0,0};
 static Quat quat_mul(Quat a, Quat b) {
     return (Quat){a.w*b.w-a.x*b.x-a.y*b.y-a.z*b.z, a.w*b.x+a.x*b.w+a.y*b.z-a.z*b.y,
                   a.w*b.y-a.x*b.z+a.y*b.w+a.z*b.x, a.w*b.z+a.x*b.y-a.y*b.x+a.z*b.w};
@@ -365,16 +430,17 @@ static float aim_curve(float v) {
     const float t=fminf((a-dead)/(1.f-dead),1.f);
     return v<0 ? -t*t : t*t;
 }
-static void sample_motion(PadData *d, SDL_Gamepad *g, const bool *k) {
+static void sample_motion(PlayerPad *p, PadData *d, SDL_Gamepad *g, const bool *k) {
+    const int scripted_motion=p==&players[0] ? injected_motion : 0;
     const uint64_t now=now_us();
-    float dt=motion.last_us ? (float)(now-motion.last_us)*1e-6f : 0.f;
+    float dt=p->motion.last_us ? (float)(now-p->motion.last_us)*1e-6f : 0.f;
     if (dt>0.1f) dt=0.1f;
-    motion.last_us=now;
-    if (motion.sensors<0) { const char *e=getenv("TLG_MOTION"); motion.sensors=!(e && !strcmp(e,"off")); }
+    p->motion.last_us=now;
+    if (p->motion.sensors<0) { const char *e=getenv("TLG_MOTION"); p->motion.sensors=!(e && !strcmp(e,"off")); }
     /* Real sensors. */
     float gyro[3]={0,0,0}, accel[3]={0,0,0};
     int real=0;
-    if (g && motion.sensors && SDL_GamepadHasSensor(g,SDL_SENSOR_GYRO) && SDL_GamepadHasSensor(g,SDL_SENSOR_ACCEL)) {
+    if (g && p->motion.sensors && SDL_GamepadHasSensor(g,SDL_SENSOR_GYRO) && SDL_GamepadHasSensor(g,SDL_SENSOR_ACCEL)) {
         if (!SDL_GamepadSensorEnabled(g,SDL_SENSOR_GYRO)) {
             SDL_SetGamepadSensorEnabled(g,SDL_SENSOR_GYRO,true);
             SDL_SetGamepadSensorEnabled(g,SDL_SENSOR_ACCEL,true);
@@ -385,35 +451,35 @@ static void sample_motion(PadData *d, SDL_Gamepad *g, const bool *k) {
     /* Simulated tilt: target roll/pitch from keys or the modifier + right stick. */
     float roll=0, pitch=0;
     int shake=0, simulated=0;
-    if ((k && k[SDL_SCANCODE_T]) || (injected_motion & 1)) { roll=1.5708f; simulated=1; }
-    if ((k && k[SDL_SCANCODE_G]) || (injected_motion & 2)) { roll=-1.5708f; simulated=1; }
-    if ((k && k[SDL_SCANCODE_Y]) || (injected_motion & 4)) { shake=1; simulated=1; }
+    if ((k && k[SDL_SCANCODE_T]) || (scripted_motion & 1)) { roll=1.5708f; simulated=1; }
+    if ((k && k[SDL_SCANCODE_G]) || (scripted_motion & 2)) { roll=-1.5708f; simulated=1; }
+    if ((k && k[SDL_SCANCODE_Y]) || (scripted_motion & 4)) { shake=1; simulated=1; }
     /* Keyboard: while T or G holds the can on its side, the arrow keys point it (they leave the
      * camera alone meanwhile, see read_pad). */
     const int key_can=k && (k[SDL_SCANCODE_T] || k[SDL_SCANCODE_G]);
     if (key_can) {
         const float speed=0.6f*tlggpu_sensor_aim_scale();
-        motion.yaw-=(float)(k[SDL_SCANCODE_RIGHT]-k[SDL_SCANCODE_LEFT])*speed*dt;
-        motion.aim_pitch+=(float)(k[SDL_SCANCODE_UP]-k[SDL_SCANCODE_DOWN])*speed*dt;
-        motion.yaw=fminf(fmaxf(motion.yaw,-1.4f),1.4f);
-        motion.aim_pitch=fminf(fmaxf(motion.aim_pitch,-1.2f),1.2f);
+        p->motion.yaw-=(float)(k[SDL_SCANCODE_RIGHT]-k[SDL_SCANCODE_LEFT])*speed*dt;
+        p->motion.aim_pitch+=(float)(k[SDL_SCANCODE_UP]-k[SDL_SCANCODE_DOWN])*speed*dt;
+        p->motion.yaw=fminf(fmaxf(p->motion.yaw,-1.4f),1.4f);
+        p->motion.aim_pitch=fminf(fmaxf(p->motion.aim_pitch,-1.2f),1.2f);
     }
     if (g) {
         const int sticks=SDL_GetGamepadButton(g,SDL_GAMEPAD_BUTTON_LEFT_STICK) && SDL_GetGamepadButton(g,SDL_GAMEPAD_BUTTON_RIGHT_STICK);
         const int toggle=sticks || (motion_button()>=0 && SDL_GetGamepadButton(g,(SDL_GamepadButton)motion_button()));
-        if (toggle && !motion.toggle_held) {
-            motion.mode=!motion.mode;
+        if (toggle && !p->motion.toggle_held) {
+            p->motion.mode=!p->motion.mode;
             const char *lang=getenv("TLG_UI_LANG");
             const int pt=!(lang && !strncmp(lang,"en",2));
-            tlggpu_overlay_notice(motion.mode ? (pt ? "Modo sensor LIGADO (lata de spray): X sacode, R2 pinta, analógico esquerdo mira"
+            tlggpu_overlay_notice(p->motion.mode ? (pt ? "Modo sensor LIGADO (lata de spray): X sacode, R2 pinta, analógico esquerdo mira"
                                                     : "Sensor mode ON (spray can): cross shakes, R2 sprays, left stick aims")
                                               : (pt ? "Modo sensor desligado" : "Sensor mode off"), 3.0f);
-            printf("Runtime: sensor mode %s\n",motion.mode ? "on" : "off");
-            if (motion.mode) tlggpu_graffiti_guide(0); /* the steps, the first time only */
+            printf("Runtime: sensor mode %s\n",p->motion.mode ? "on" : "off");
+            if (p->motion.mode) tlggpu_graffiti_guide(0); /* the steps, the first time only */
         }
-        motion.toggle_held=toggle;
+        p->motion.toggle_held=toggle;
         if (sticks) d->buttons&=~(uint32_t)(BTN_L3|BTN_R3);
-        if (motion.mode) {
+        if (p->motion.mode) {
             roll=1.5708f; /* on its side, like a spray can */
             if (SDL_GetGamepadButton(g,SDL_GAMEPAD_BUTTON_SOUTH)) shake=1;
             /* Either stick points the can while it is held (a rate, so the aim stays where it was
@@ -427,10 +493,10 @@ static void sample_motion(PadData *d, SDL_Gamepad *g, const bool *k) {
             if (fabsf(rx)>fabsf(sx)) sx=rx;
             if (fabsf(ry)>fabsf(sy)) sy=ry;
             const float speed=1.2f*tlggpu_sensor_aim_scale(); /* the menu's Controls tab */
-            motion.yaw-=aim_curve(sx)*speed*dt;
-            motion.aim_pitch-=aim_curve(sy)*speed*dt;
-            motion.yaw=fminf(fmaxf(motion.yaw,-1.4f),1.4f);
-            motion.aim_pitch=fminf(fmaxf(motion.aim_pitch,-1.2f),1.2f);
+            p->motion.yaw-=aim_curve(sx)*speed*dt;
+            p->motion.aim_pitch-=aim_curve(sy)*speed*dt;
+            p->motion.yaw=fminf(fmaxf(p->motion.yaw,-1.4f),1.4f);
+            p->motion.aim_pitch=fminf(fmaxf(p->motion.aim_pitch,-1.2f),1.2f);
             d->buttons&=~(uint32_t)BTN_CROSS;
             d->left_x=d->left_y=128;
             d->right_x=d->right_y=128;
@@ -440,32 +506,32 @@ static void sample_motion(PadData *d, SDL_Gamepad *g, const bool *k) {
     if (real && !simulated) {
         /* Integrate the gyro, then pull slowly toward the measured gravity (complementary filter). */
         Quat w={0,gyro[0]*dt*0.5f,gyro[1]*dt*0.5f,gyro[2]*dt*0.5f};
-        const Quat dq=quat_mul(motion.q,w);
-        motion.q=quat_norm((Quat){motion.q.w+dq.w,motion.q.x+dq.x,motion.q.y+dq.y,motion.q.z+dq.z});
+        const Quat dq=quat_mul(p->motion.q,w);
+        p->motion.q=quat_norm((Quat){p->motion.q.w+dq.w,p->motion.q.x+dq.x,p->motion.q.y+dq.y,p->motion.q.z+dq.z});
         float a[3]={accel[0]/9.80665f,accel[1]/9.80665f,accel[2]/9.80665f}, e[3];
-        gravity_of(motion.q,e);
+        gravity_of(p->motion.q,e);
         float n=sqrtf(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]);
         if (n>0.5f && n<1.5f) { /* error axis = measured x estimated, applied as a small rotation */
             float c[3]={a[1]*e[2]-a[2]*e[1],a[2]*e[0]-a[0]*e[2],a[0]*e[1]-a[1]*e[0]}, gain=0.02f;
             Quat fix={1,c[0]*gain/n,c[1]*gain/n,c[2]*gain/n};
-            motion.q=quat_norm(quat_mul(motion.q,fix));
+            p->motion.q=quat_norm(quat_mul(p->motion.q,fix));
         }
         for (int i=0;i<3;++i) { d->acceleration[i]=a[i]; d->angular_velocity[i]=gyro[i]; }
     } else {
         /* Ease toward the target so the game sees a turning motion, not a jump. */
         const float rate=dt>0 ? 1.f-expf(-dt*12.f) : 1.f;
-        const Quat old=motion.q;
-        motion.roll+=(roll-motion.roll)*rate; motion.pitch+=(pitch-motion.pitch)*rate;
-        if (!motion.mode && !key_can) { motion.yaw-=motion.yaw*rate; motion.aim_pitch-=motion.aim_pitch*rate; } /* back to centre */
-        const float up=motion.pitch+motion.aim_pitch;
-        Quat qr={cosf(motion.roll*0.5f),0,0,sinf(-motion.roll*0.5f)}; /* roll about z (toward player) */
+        const Quat old=p->motion.q;
+        p->motion.roll+=(roll-p->motion.roll)*rate; p->motion.pitch+=(pitch-p->motion.pitch)*rate;
+        if (!p->motion.mode && !key_can) { p->motion.yaw-=p->motion.yaw*rate; p->motion.aim_pitch-=p->motion.aim_pitch*rate; } /* back to centre */
+        const float up=p->motion.pitch+p->motion.aim_pitch;
+        Quat qr={cosf(p->motion.roll*0.5f),0,0,sinf(-p->motion.roll*0.5f)}; /* roll about z (toward player) */
         Quat qp={cosf(up*0.5f),sinf(up*0.5f),0,0};                   /* pitch about x */
-        Quat qy={cosf(motion.yaw*0.5f),0,sinf(motion.yaw*0.5f),0};   /* turn about y (up) */
-        motion.q=quat_norm(quat_mul(qy,quat_mul(qp,qr)));
-        float gv[3]; gravity_of(motion.q,gv);
+        Quat qy={cosf(p->motion.yaw*0.5f),0,sinf(p->motion.yaw*0.5f),0};   /* turn about y (up) */
+        p->motion.q=quat_norm(quat_mul(qy,quat_mul(qp,qr)));
+        float gv[3]; gravity_of(p->motion.q,gv);
         for (int i=0;i<3;++i) d->acceleration[i]=gv[i];
         if (dt>0) { /* the gyro's rate, in the controller's frame: the turn old^-1 * q since the last sample */
-            const Quat dq=quat_mul((Quat){old.w,-old.x,-old.y,-old.z},motion.q);
+            const Quat dq=quat_mul((Quat){old.w,-old.x,-old.y,-old.z},p->motion.q);
             const float sign=dq.w<0 ? -2.f : 2.f;
             d->angular_velocity[0]=sign*dq.x/dt; d->angular_velocity[1]=sign*dq.y/dt; d->angular_velocity[2]=sign*dq.z/dt;
         }
@@ -477,15 +543,14 @@ static void sample_motion(PadData *d, SDL_Gamepad *g, const bool *k) {
             const float side[3]={gv[1],-gv[0],0.f};
             for (int i=0;i<3;++i) d->angular_velocity[i]+=6.f*c*side[i];
         }
-        if (simulated && !motion.warned) { motion.warned=1; puts("Runtime: simulated controller tilt/shake in use"); }
+        if (simulated && !p->motion.warned) { p->motion.warned=1; puts("Runtime: simulated controller tilt/shake in use"); }
     }
-    d->orientation[0]=motion.q.x; d->orientation[1]=motion.q.y; d->orientation[2]=motion.q.z; d->orientation[3]=motion.q.w;
+    d->orientation[0]=p->motion.q.x; d->orientation[1]=p->motion.q.y; d->orientation[2]=p->motion.q.z; d->orientation[3]=p->motion.q.w;
 }
 /* Touchpad swipes for controllers without a touchpad ("Open Door": swipe right): hold View/
  * Select/- (gamepad) or Tab (keyboard) and push the right stick (arrow keys): a finger moves
  * from the middle of the pad toward that side. A quick tap without moving still clicks. */
-static struct { int active; } swipe;
-static void apply_swipe(PadData *d, SDL_Gamepad *g, const bool *k) {
+static void apply_swipe(PlayerPad *p, PadData *d, SDL_Gamepad *g, const bool *k) {
     float x=0, y=0;
     int held=0;
     if (g && SDL_GetGamepadButton(g,SDL_GAMEPAD_BUTTON_BACK)) {
@@ -500,9 +565,9 @@ static void apply_swipe(PadData *d, SDL_Gamepad *g, const bool *k) {
         if (k[SDL_SCANCODE_UP]) y=-1;
         if (k[SDL_SCANCODE_DOWN]) y=1;
     }
-    if (!held) { swipe.active=0; return; }
-    if (!swipe.active && x*x+y*y<0.09f) return; /* not moved yet: still a click */
-    if (!swipe.active) { swipe.active=1; click.side=-1; }
+    if (!held) { p->swipe_active=0; return; }
+    if (!p->swipe_active && x*x+y*y<0.09f) return; /* not moved yet: still a click */
+    if (!p->swipe_active) { p->swipe_active=1; p->click.side=-1; }
     d->buttons&=~(uint32_t)(CLICK_LEFT|CLICK_RIGHT|BTN_TOUCHPAD);
     d->right_x=d->right_y=128;
     if (d->touch_count<2) {
@@ -561,7 +626,7 @@ static MouseStick mouse_stick;
 static uint64_t mouse_last_us;
 static struct { int pending; uint64_t until, next; } wheel[4];
 static size_t mouse_samples;
-static uint32_t sample_mouse(PadData *d, bool aiming_can, const bool *k) {
+static uint32_t sample_mouse(PlayerPad *player, PadData *d, bool aiming_can, const bool *k) {
     TlgGpuMouse m;
     tlggpu_mouse_take(&m);
     TlgGpuInputSettings in;
@@ -633,10 +698,10 @@ static uint32_t sample_mouse(PadData *d, bool aiming_can, const bool *k) {
         /* Sensor mode / T / G (the graffiti spray can): the mouse points the can, like the arrow
          * keys and the sticks do there (sample_motion), and leaves the camera alone. */
         const float k=0.0006f*in.sensitivity*tlggpu_sensor_aim_scale();
-        motion.yaw-=m.dx*k;
-        motion.aim_pitch+=(in.invert_y ? m.dy : -m.dy)*k;
-        motion.yaw=fminf(fmaxf(motion.yaw,-1.4f),1.4f);
-        motion.aim_pitch=fminf(fmaxf(motion.aim_pitch,-1.2f),1.2f);
+        player->motion.yaw-=m.dx*k;
+        player->motion.aim_pitch+=(in.invert_y ? m.dy : -m.dy)*k;
+        player->motion.yaw=fminf(fmaxf(player->motion.yaw,-1.4f),1.4f);
+        player->motion.aim_pitch=fminf(fmaxf(player->motion.aim_pitch,-1.2f),1.2f);
         memset(&mouse_stick,0,sizeof(mouse_stick));
     } else mouse_stick_update(&mouse_stick,&p,m.dx,m.dy,dt);
     const uint8_t base_x=d->right_x, base_y=d->right_y;
@@ -686,15 +751,18 @@ static void apply_mouse_touch(PadData *d) {
 static void key_axis(uint8_t *axis, bool negative, bool positive) {
     if (negative || positive) *axis=(uint8_t)(128-(negative ? 128 : 0)+(positive ? 127 : 0));
 }
-static void sample_host(PadData *d) {
+static void sample_host(PlayerPad *p, PadData *d) {
     memset(d,0,sizeof(*d));
     d->left_x=d->left_y=d->right_x=d->right_y=128;
     d->orientation[3]=1.0f;
-    d->connected=1; d->connected_count=connected_count ? connected_count : 1;
+    refresh_gamepads();
+    SDL_Gamepad *g=p->gamepad;
+    const int primary=p==&players[0];
+    d->connected=(uint8_t)(primary || g!=NULL); /* P1 retains keyboard fallback. */
+    d->connected_count=p->connected_count ? p->connected_count : (primary ? 1 : 0);
     d->timestamp=now_us();
-    SDL_Gamepad *g=current_gamepad();
     if (tlggpu_overlay_captures_input()) return; /* settings menu open: neutral input */
-    const bool *k=SDL_WasInit(SDL_INIT_VIDEO) ? SDL_GetKeyboardState(NULL) : NULL;
+    const bool *k=primary && SDL_WasInit(SDL_INIT_VIDEO) ? SDL_GetKeyboardState(NULL) : NULL;
     load_button_maps();
     if (g) {
         for (size_t i=0;i<pad_map.count;++i)
@@ -719,11 +787,13 @@ static void sample_host(PadData *d) {
             }
         }
     }
-    sample_motion(d,g,k);
+    if (!d->connected) return;
+    sample_motion(p,d,g,k);
+    if (!primary) { apply_swipe(p,d,g,NULL); return; }
     /* The keyboard works with or without a gamepad: its buttons add to the pad's, and a stick
      * follows the keys only while one of them is held. */
     if (!k) return;
-    const uint32_t mouse=sample_mouse(d,motion.mode || k[SDL_SCANCODE_T] || k[SDL_SCANCODE_G],k); /* adds to the right stick */
+    const uint32_t mouse=sample_mouse(p,d,p->motion.mode || k[SDL_SCANCODE_T] || k[SDL_SCANCODE_G],k); /* adds to the right stick */
     for (size_t i=0;i<key_map.count;++i) {
         const int source=key_map.entries[i].source;
         const bool down=source>=MOUSE_SOURCE ? source<MOUSE_SOURCE_END && (mouse>>(source-MOUSE_SOURCE) & 1)
@@ -737,7 +807,7 @@ static void sample_host(PadData *d) {
     key_axis(&d->right_x,k[SDL_SCANCODE_LEFT],k[SDL_SCANCODE_RIGHT]);
     key_axis(&d->right_y,k[SDL_SCANCODE_UP],k[SDL_SCANCODE_DOWN]);
     if (k[SDL_SCANCODE_T] || k[SDL_SCANCODE_G]) d->right_x=d->right_y=128; /* the arrows point the can */
-    apply_swipe(d,g,k);
+    apply_swipe(p,d,g,k);
     apply_mouse_touch(d);
 }
 
@@ -856,94 +926,161 @@ static void replay_sample(PadData *d) {
 }
 /* After the menu or the text dialog closes, buttons still held (the Cross that accepted a
  * name) stay hidden until released: the game would take them as a new press. */
-static int hold_after_capture;
-static void sample(PadData *d) {
-    sample_host(d);
-    if (tlggpu_overlay_captures_input()) { hold_after_capture=1; click.side=-1; return; }
-    record_sample(d); /* the click sources as they are: a replay plays them again */
-    read_inject();
-    replay_sample(d);
-    d->buttons|=injected.buttons;
-    if (injected.buttons & BTN_L2) d->l2=255;
-    if (injected.buttons & BTN_R2) d->r2=255;
-    uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
-    for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
-    if (!play_two_finger(d)) play_click(d);
-    if (hold_after_capture) {
+static void sample(PlayerPad *p, PadData *d) {
+    sample_host(p,d);
+    if (tlggpu_overlay_captures_input()) { p->hold_after_capture=1; p->click.side=-1; return; }
+    if (!d->connected) return;
+    /* Recording, replay, pad-file injection and all mouse state are P1-only. */
+    if (p==&players[0]) {
+        record_sample(d); /* the click sources as they are: a replay plays them again */
+        read_inject();
+        replay_sample(d);
+        d->buttons|=injected.buttons;
+        if (injected.buttons & BTN_L2) d->l2=255;
+        if (injected.buttons & BTN_R2) d->r2=255;
+        uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
+        for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
+    }
+    if (!play_two_finger(p,d)) play_click(p,d);
+    if (p->hold_after_capture) {
         if (d->buttons) d->buttons=0;
-        else hold_after_capture=0;
+        else p->hold_after_capture=0;
     }
 }
 
-static ABI int32_t pad_init(void) { pthread_mutex_lock(&lock); initialized=1; pthread_mutex_unlock(&lock); return 0; }
+/* User IDs come from UserService, never from a player/handle number. The current
+ * single-user provider exposes only P1; enabling a second login is a separate task.
+ * Call the existing provider through its ABI, without consuming its event queue. */
+static int pad_users(int32_t *first, int32_t *second) {
+    typedef int32_t (ABI *GetInitial)(int32_t *);
+    typedef int32_t (ABI *GetList)(int32_t *);
+    GetInitial initial=(GetInitial)runtime_services_resolve("CdWp0oHWGr0#libSceUserService");
+    GetList list=(GetList)runtime_services_resolve("fPhymKNvK-A#libSceUserService");
+    int32_t ids[4]={-1,-1,-1,-1};
+    if (!initial || !list || initial(first)!=0 || list(ids)!=0 || *first==-1) return 0;
+    int first_logged=0;
+    *second=-1;
+    for (int i=0;i<4;++i) {
+        if (ids[i]==*first) first_logged=1;
+        else if (ids[i]!=-1 && *second==-1) *second=ids[i];
+    }
+    return first_logged;
+}
+static int user_player(int32_t user, int *cooperative) {
+    int32_t first=-1, second=-1;
+    if (!pad_users(&first,&second) || user==-1) return -1;
+    *cooperative=second!=-1;
+    if (user==first) return 0;
+    return user==second ? 1 : -1;
+}
+/* All handle checks and mutations share the existing pad mutex. */
+static PlayerPad *player_handle(int32_t handle) {
+    return handle>=1 && handle<=PAD_PLAYERS && players[handle-1].opened ? &players[handle-1] : NULL;
+}
+static ABI int32_t pad_init(void) {
+    pthread_mutex_lock(&lock);
+    if (!initialized) {
+        for (int i=0;i<PAD_PLAYERS;++i) { players[i].user=-1; reset_player_input(&players[i]); }
+        initialized=1;
+    }
+    pthread_mutex_unlock(&lock);
+    return 0;
+}
 static ABI int32_t pad_open(int32_t user, int32_t type, int32_t index, const void *param) {
     (void)param;
-    if (!initialized) return ERR_NOT_INITIALIZED;
-    if (user!=1) return ERR_INVALID_ARG;
-    if (type!=0 && type!=2) return ERR_INVALID_ARG; /* standard / special port */
-    if (index) return ERR_INVALID_ARG;
     pthread_mutex_lock(&lock);
-    int already=opened; opened=1;
+    if (!initialized) { pthread_mutex_unlock(&lock); return ERR_NOT_INITIALIZED; }
     pthread_mutex_unlock(&lock);
-    if (already) { if (runtime_verbose()) puts("Verbose: scePadOpen refused: already open"); return ERR_ALREADY_OPENED; }
-    puts("Runtime: pad opened for user 1 (SDL gamepad or keyboard)");
-    return PAD_HANDLE;
+    if ((type!=0 && type!=2) || index) return ERR_INVALID_ARG;
+    int cooperative=0;
+    const int slot=user_player(user,&cooperative);
+    if (slot<0) return ERR_INVALID_ARG;
+    pthread_mutex_lock(&lock);
+    PlayerPad *p=&players[slot];
+    if (p->opened) { pthread_mutex_unlock(&lock); return ERR_ALREADY_OPENED; }
+    reset_player_input(p);
+    cooperative_users=cooperative; /* Preserve this validated mode even if the next query fails. */
+    p->opened=1; p->user=user;
+    pthread_mutex_unlock(&lock);
+    printf("Runtime: pad opened for user %d (P%d)\n",user,slot+1);
+    return slot+1;
 }
 static ABI int32_t pad_close(int32_t handle) {
-    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    if (runtime_verbose()) puts("Verbose: scePadClose");
-    opened=0; return 0;
+    pthread_mutex_lock(&lock);
+    PlayerPad *p=player_handle(handle);
+    if (!p) { pthread_mutex_unlock(&lock); return ERR_INVALID_HANDLE; }
+    if (p->gamepad) SDL_RumbleGamepad(p->gamepad,0,0,0);
+    p->opened=0; p->user=-1;
+    reset_player_input(p);
+    /* Keep physical bindings: closing one user's handle cannot move the other. */
+    pthread_mutex_unlock(&lock);
+    return 0;
 }
 static ABI int32_t pad_read_state(int32_t handle, PadData *data) {
-    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    if (!data) return ERR_INVALID_ARG;
     pthread_mutex_lock(&lock);
-    sample(data); ++reads;
+    PlayerPad *p=player_handle(handle);
+    if (!p) { pthread_mutex_unlock(&lock); return ERR_INVALID_HANDLE; }
+    if (!data) { pthread_mutex_unlock(&lock); return ERR_INVALID_ARG; }
+    sample(p,data); ++p->reads;
     pthread_mutex_unlock(&lock);
     return 0;
 }
 /* Buffered read: the port samples once per call, so one entry is returned. */
 static ABI int32_t pad_read(int32_t handle, PadData *data, int32_t count) {
-    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    if (!data || count<1 || count>64) return ERR_INVALID_ARG;
-    pad_read_state(handle,data);
-    return 1;
+    if (count<1 || count>64) {
+        pthread_mutex_lock(&lock);
+        const int valid=player_handle(handle)!=NULL;
+        pthread_mutex_unlock(&lock);
+        return valid ? ERR_INVALID_ARG : ERR_INVALID_HANDLE;
+    }
+    const int32_t result=pad_read_state(handle,data);
+    return result<0 ? result : 1;
 }
 static ABI int32_t pad_info(int32_t handle, ControllerInfo *info) {
-    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    if (!info) return ERR_INVALID_ARG;
+    pthread_mutex_lock(&lock);
+    PlayerPad *p=player_handle(handle);
+    if (!p) { pthread_mutex_unlock(&lock); return ERR_INVALID_HANDLE; }
+    if (!info) { pthread_mutex_unlock(&lock); return ERR_INVALID_ARG; }
+    refresh_gamepads();
     memset(info,0,sizeof(*info));
     info->pixel_density=44.86f; info->resolution_x=1920; info->resolution_y=943;
     info->dead_zone_left=info->dead_zone_right=2;
-    info->connection_type=0; info->connected=1; info->device_class=0;
-    pthread_mutex_lock(&lock);
-    current_gamepad();
-    info->connected_count=connected_count ? connected_count : 1;
+    info->connection_type=0; info->connected=(uint8_t)(p==&players[0] || p->gamepad);
+    info->connected_count=p->connected_count ? p->connected_count : (p==&players[0] ? 1 : 0);
     pthread_mutex_unlock(&lock);
     return 0;
 }
 static ABI int32_t pad_vibration(int32_t handle, const uint8_t *param) {
-    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    if (!param) return ERR_INVALID_ARG;
     pthread_mutex_lock(&lock);
-    SDL_Gamepad *g=current_gamepad();
-    if (g) SDL_RumbleGamepad(g,(uint16_t)(param[0]*257),(uint16_t)(param[1]*257),1000);
+    PlayerPad *p=player_handle(handle);
+    if (!p) { pthread_mutex_unlock(&lock); return ERR_INVALID_HANDLE; }
+    if (!param) { pthread_mutex_unlock(&lock); return ERR_INVALID_ARG; }
+    refresh_gamepads();
+    if (p->gamepad) SDL_RumbleGamepad(p->gamepad,(uint16_t)(param[0]*257),(uint16_t)(param[1]*257),1000);
     pthread_mutex_unlock(&lock);
     return 0;
 }
-static ABI int32_t pad_ok_handle(int32_t handle) { return handle==PAD_HANDLE && opened ? 0 : ERR_INVALID_HANDLE; }
-static ABI int32_t pad_ok_handle_flag(int32_t handle, uint8_t flag) { (void)flag; return pad_ok_handle(handle); }
-/* Logged when it changes: if a game turns the sensor on only for its motion scenes (inFAMOUS's
- * graffiti?), the graffiti guide can open right then. */
-static ABI int32_t pad_motion_state(int32_t handle, uint8_t enable) {
-    static int last=-1;
-    if (last!=(int)enable) { last=enable; printf("Runtime: scePadSetMotionSensorState(%d)\n",(int)enable); }
-    return pad_ok_handle(handle);
+static ABI int32_t pad_ok_handle(int32_t handle) {
+    pthread_mutex_lock(&lock);
+    const int valid=player_handle(handle)!=NULL;
+    pthread_mutex_unlock(&lock);
+    return valid ? 0 : ERR_INVALID_HANDLE;
 }
-
+static ABI int32_t pad_ok_handle_flag(int32_t handle, uint8_t flag) { (void)flag; return pad_ok_handle(handle); }
+static ABI int32_t pad_motion_state(int32_t handle, uint8_t enable) {
+    pthread_mutex_lock(&lock);
+    PlayerPad *p=player_handle(handle);
+    if (!p) { pthread_mutex_unlock(&lock); return ERR_INVALID_HANDLE; }
+    if (p->motion_state!=(int)enable) {
+        p->motion_state=enable;
+        printf("Runtime: scePadSetMotionSensorState(P%d, %d)\n",handle,(int)enable);
+    }
+    pthread_mutex_unlock(&lock);
+    return 0;
+}
 static ABI int32_t pad_light_bar(int32_t handle, const uint8_t *rgb) {
-    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    (void)rgb; return 0;
+    (void)rgb;
+    return pad_ok_handle(handle);
 }
 static const RuntimeExport exports[]={
     {"scePadSetLightBar",pad_light_bar}, {"scePadResetLightBar",pad_ok_handle},
@@ -956,8 +1093,14 @@ static const RuntimeExport exports[]={
 };
 uintptr_t runtime_pad_resolve(const char *name) { return RUNTIME_LOOKUP(exports,name); }
 void runtime_pad_report(void) {
-    printf("Runtime: pad reads=%zu (mouse captured in %zu), gamepad=%s\n",reads,mouse_samples,
-           gamepad ? SDL_GetGamepadName(gamepad) : "none");
+    pthread_mutex_lock(&lock);
+    for (int i=0;i<PAD_PLAYERS;++i) {
+        const PlayerPad *p=&players[i];
+        printf("Runtime: P%d pad reads=%zu user=%d id=%u gamepad=%s\n",i+1,p->reads,p->user,
+               (unsigned)p->device_id,p->gamepad ? SDL_GetGamepadName(p->gamepad) : "none");
+    }
+    printf("Runtime: mouse captured in %zu P1 samples\n",mouse_samples);
+    pthread_mutex_unlock(&lock);
 }
 
 /* probe --gamepad: runs before any game state exists, so it uses its own SDL gamepad and leaves

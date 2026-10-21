@@ -1,5 +1,6 @@
-/* System services for an offline, single-user console:
- *   - one local user (id 1) who is logged in but not signed in to PSN;
+/* System services for an offline console:
+ *   - one local user (id 1) by default; an explicit second local session is optional;
+ *   - local users are logged in but not signed in to PSN;
  *   - network cable unplugged: NetCtl disconnected, sockets unavailable;
  *   - common dialogs complete immediately (no UI is drawn yet);
  *   - the whole package is installed (PlayGo reports every chunk local).
@@ -46,33 +47,104 @@ static int new_id(void) { pthread_mutex_lock(&lock); int id=next_id++; pthread_m
 static void note(const char *what) { printf("Runtime: %s\n",what); }
 
 /* ---- UserService ---- */
-static int login_event_pending=1;
-static ABI int32_t user_initialize(const void *params) { (void)params; note("UserService initialized (user 1 logged in)"); return 0; }
+/* Host-owned local registry. IDs are opaque guest int32_t values, not pad handles.
+ * TLG_LOCAL_USERS=2 requires TLG_LOCAL_P2_USER_ID: decimal 1..INT32_MAX, except USER_ID.
+ * Missing/empty/"1" mode preserves the original single-user session; other modes fail.
+ * Configuration is frozen on the first valid-pointer UserService query or initialize.
+ * Terminate remains a no-op: no logout contract exists here. Reinitializing never
+ * duplicates LOGIN events, and physical controller attachment is independent of login. */
+static struct {
+    int configured, error;
+    int32_t ids[2];
+    unsigned count, next_login;
+} local_users;
+/* Called only under the existing services lock. No file, pad, PSN or save access. */
+static int user_prepare_locked(void) {
+    if (local_users.configured) return local_users.error;
+    local_users.configured=1;
+    local_users.ids[0]=USER_ID; local_users.ids[1]=-1; local_users.count=1;
+    const char *mode=getenv("TLG_LOCAL_USERS");
+    if (!mode || !*mode || !strcmp(mode,"1")) return 0;
+    const char *value=getenv("TLG_LOCAL_P2_USER_ID");
+    if (strcmp(mode,"2") || !value || !*value) goto invalid;
+    uint32_t id=0;
+    for (const char *c=value; *c; ++c) {
+        if (*c<'0' || *c>'9') goto invalid;
+        const uint32_t digit=(uint32_t)(*c-'0');
+        if (id>((uint32_t)INT32_MAX-digit)/10) goto invalid;
+        id=id*10+digit;
+    }
+    if (!id || id==(uint32_t)USER_ID) goto invalid;
+    local_users.ids[1]=(int32_t)id; local_users.count=2;
+    return 0;
+invalid:
+    /* Fail explicitly; do not invent an ID or silently enable a partial session. */
+    local_users.error=USER_INVALID_ARGUMENT;
+    fputs("Runtime: invalid local UserService configuration: use TLG_LOCAL_USERS=1 or "
+          "TLG_LOCAL_USERS=2 with a distinct positive decimal TLG_LOCAL_P2_USER_ID\n",stderr);
+    return local_users.error;
+}
+static ABI int32_t user_initialize(const void *params) {
+    (void)params;
+    pthread_mutex_lock(&lock);
+    const int32_t result=user_prepare_locked();
+    const unsigned count=local_users.count;
+    pthread_mutex_unlock(&lock);
+    if (!result) {
+        if (count==1) note("UserService initialized (user 1 logged in)");
+        else note("UserService initialized (two local users logged in)");
+    }
+    return result;
+}
 static ABI int32_t user_initialize2(int32_t priority) {
     /* The host provider has no service thread; scheduling stays with Windows. */
     (void)priority;
     return user_initialize(NULL);
 }
 static ABI int32_t user_terminate(void) { return 0; }
-static ABI int32_t user_initial(int32_t *id) { if (!id) return USER_INVALID_ARGUMENT; *id=USER_ID; return 0; }
+static ABI int32_t user_initial(int32_t *id) {
+    if (!id) return USER_INVALID_ARGUMENT;
+    pthread_mutex_lock(&lock);
+    const int32_t result=user_prepare_locked();
+    if (!result) *id=USER_ID;
+    pthread_mutex_unlock(&lock);
+    return result;
+}
 static ABI int32_t user_list(int32_t *ids) {
     if (!ids) return USER_INVALID_ARGUMENT;
-    ids[0]=USER_ID; ids[1]=ids[2]=ids[3]=-1; return 0;
+    pthread_mutex_lock(&lock);
+    const int32_t result=user_prepare_locked();
+    if (!result) {
+        ids[0]=USER_ID; ids[1]=local_users.ids[1]; ids[2]=ids[3]=-1;
+    }
+    pthread_mutex_unlock(&lock);
+    return result;
 }
 static ABI int32_t user_name(int32_t id,char *name,uint64_t size) {
-    if (id!=USER_ID || !name) return USER_INVALID_ARGUMENT;
+    if (!name) return USER_INVALID_ARGUMENT;
+    pthread_mutex_lock(&lock);
+    const int32_t result=user_prepare_locked();
+    const int secondary=local_users.count==2 && id==local_users.ids[1];
+    pthread_mutex_unlock(&lock);
+    if (result) return result;
+    if (id!=USER_ID && !secondary) return USER_INVALID_ARGUMENT;
     const char *value=getenv("TLG_USER_NAME") ? getenv("TLG_USER_NAME") : "Hunter";
+    /* P1 keeps its original name contract. P2 always has a different local label. */
+    if (secondary) value=strcmp(value,"Player 2") ? "Player 2" : "Local Player 2";
     if (strlen(value)+1>size) return (int32_t)0x8096000a; /* BUFFER_TOO_SHORT */
     strcpy(name,value); return 0;
 }
 static ABI int32_t user_event(int32_t *event) {
     if (!event) return USER_INVALID_ARGUMENT;
     pthread_mutex_lock(&lock);
-    int pending=login_event_pending; login_event_pending=0;
+    int32_t result=user_prepare_locked();
+    if (!result) {
+        if (local_users.next_login<local_users.count) {
+            event[0]=0; event[1]=local_users.ids[local_users.next_login++]; /* LOGIN */
+        } else result=USER_NO_EVENT;
+    }
     pthread_mutex_unlock(&lock);
-    if (!pending) return USER_NO_EVENT;
-    event[0]=0; event[1]=USER_ID; /* LOGIN */
-    return 0;
+    return result;
 }
 
 /* ---- SystemService ---- */

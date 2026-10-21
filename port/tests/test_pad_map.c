@@ -2,12 +2,16 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include "../src/runtime_pad.c"
+#include "pad_test_users.h"
 
 /* The GPU library (not linked here): the mouse and the input settings. */
 void tlggpu_mouse_take(TlgGpuMouse *mouse) { memset(mouse,0,sizeof(*mouse)); }
 void tlggpu_mouse_pad_hud(int a, float x, float y, int t, int c) { (void)a; (void)x; (void)y; (void)t; (void)c; }
 void tlggpu_input_settings(TlgGpuInputSettings *settings) { memset(settings,0,sizeof(*settings)); }
 int tlggpu_overlay_captures_input(void) { return 0; }
+void tlggpu_overlay_notice(const char *text, float seconds) { (void)text; (void)seconds; }
+void tlggpu_graffiti_guide(int force) { (void)force; }
+float tlggpu_sensor_aim_scale(void) { return 1.0f; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;

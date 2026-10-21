@@ -1,5 +1,44 @@
 # HANDOFF_ASTRA.md
 
+## COOP-07 — revisão e preparação da integração — 21/10/2026 — Codex
+
+Revisão solicitada pelo proprietário após confirmar dois Knacks em gameplay e controles
+físicos independentes. A saída 124 anterior foi atribuída ao prazo de 180 segundos do runner.
+Branch local `experiment/gpu-small-sync-prebind-20261020`, HEAD `21dadbbda62f`;
+`main` consultada em `a421dc87f67d`. Nenhum merge, commit, push ou jogo nesta etapa.
+
+Pad/UserService locais são idênticos aos candidatos COOP-01.1/COOP-02 e aos fontes do build
+COOP-05 usado no teste. Os dez testes associados têm o mesmo conteúdo dos candidatos;
+cinco diferem apenas em LF/CRLF. COOP-03/04 já estão aplicados no worktree: não reaplicar.
+Hash do executável funcional COOP-05 conferido contra artifact.json. Nenhum fonte de produto
+foi alterado nesta revisão; somente esta seção de handoff foi acrescentada.
+
+Foram revistos roteamento, handles, pool SDL, desconexão/reconexão, rumble, touch/motion,
+ordem Pad→services, padrão P1, filtro do ambiente e LoadExec. Nenhuma correção indispensável
+foi identificada no delta COOP. SaveDataMemory possui estado global compartilhado e ignora
+usuários nas operações de I/O; seus sete imports diretos não aparecem em eboot/game e não
+há marcador de inicialização no log cooperativo. Uso dinâmico não foi excluído nem testado.
+O diálogo de texto host aceita qualquer gamepad e perde o usuário do ImeParam; isso é uma
+falha estática preexistente, sem import direto ImeDialog ou abertura observada nessa sessão.
+SaveData e GPU/shim permaneceram somente leitura. SAVE-GATE-02 não foi iniciado.
+
+Área de revisão: `C:\Users\dartv\Documents\Codex\COOP-07-review-20261021-152315\`.
+Patch COOP isolado para main preparado, sem Core/GPU/áudio/launcher ou exceção independente
+TLG_TOGGLE_FILE. O filtro próprio de main foi preservado. Quatro testes focados do runner
+preparado passaram, com guest/preparação/filhos simulados; campanhas anteriores foram
+reutilizadas após conferir identidade dos fontes. Não houve compilação nem nova campanha SDL.
+Checks de aplicação do patch sobre cópia de main e reversão do delta local são somente leitura.
+
+Veredito: READY TO INTEGRATE para COOP via CLI opt-in, P2 desativado por padrão e saída
+descartável isolada obrigatória. Não certifica saves independentes de P2, diálogos gerais,
+campanha completa ou estabilidade além da amostra. Correções dessas dependências exigem
+tarefas próprias, com evidência e autorização; nenhum bloqueio GPU-PHY foi liberado.
+Relatório, lista dos 14 arquivos de código/testes mais este handoff, patches e hashes ficam
+na área externa. Esta preparação não autoriza executar merge nem publicar mudanças.
+
+---
+
+
 > Atualização de 17/10/2026: **cenário inicial do Chapter 1-1 restaurado**, com
 > iluminação, geometria, movimento e pausa verificados. A seção 6 registra as duas
 > causas gráficas corrigidas, testes e capturas em execução normal.

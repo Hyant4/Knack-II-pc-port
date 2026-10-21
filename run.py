@@ -87,7 +87,30 @@ def read_exec_request(path, profile):
     return guest[6:], args
 
 
-def runtime_environment(out, *, pad_file=None, capture_dir=None):
+def p2_user_id(value):
+    if not value or any(c not in '0123456789' for c in value):
+        raise argparse.ArgumentTypeError('P2 ID must contain decimal digits only')
+    # Bound conversion before int() so arbitrarily long arguments fail predictably.
+    digits = value.lstrip('0') or '0'
+    if len(digits) > 10 or not 2 <= int(digits) <= 2147483647:
+        raise argparse.ArgumentTypeError('P2 ID must be between 2 and 2147483647')
+    return int(digits)
+
+
+def local_user_environment(local_users, second_user):
+    if type(local_users) is not int or local_users not in (1, 2):
+        raise ValueError('--local-users must be 1 or 2')
+    if local_users == 1:
+        if second_user is not None:
+            raise ValueError('--p2-user-id requires --local-users 2')
+        return {}
+    if type(second_user) is not int or not 2 <= second_user <= 2147483647:
+        raise ValueError('--local-users 2 requires a P2 ID between 2 and 2147483647')
+    return {'TLG_LOCAL_USERS': '2', 'TLG_LOCAL_P2_USER_ID': str(second_user)}
+
+
+def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None):
+    users = local_user_environment(local_users, second_user)
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
     toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
@@ -98,6 +121,7 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None):
     env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
                TLG_CONFIG=str(out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
+    env.update(users)  # Only validated CLI values may enable a second local user.
     if pad_file is not None:
         pad_file = Path(pad_file).resolve()
         if not pad_file.is_file():
@@ -134,13 +158,48 @@ def main(argv=None):
     mode.add_argument('--analyze', action='store_true')
     mode.add_argument('--check-imports', action='store_true')
     parser.add_argument('--timeout', type=int, default=180, help='maximum seconds for the entire guest session')
-    parser.add_argument('--out', type=Path, default=ROOT / 'out/knack2')
+    parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
+    parser.add_argument('--local-users', type=int, choices=(1, 2), default=1)
+    parser.add_argument('--p2-user-id', type=p2_user_id, help='explicit local P2 ID, required with --local-users 2')
     parser.add_argument('--pad-file', type=Path, help='explicit scePad button input file for diagnostics')
     parser.add_argument('--capture-dir', type=Path, help='write capture.request here to dump the next presented frame')
     args = parser.parse_args(argv)
     if args.timeout < 1:
         parser.error('--timeout must be positive')
-    game, out = args.game_dir.resolve(), args.out.resolve()
+    # Validate the complete launch configuration before reading/preparing the dump or writing anything.
+    try:
+        local_user_environment(args.local_users, args.p2_user_id)
+        if args.local_users == 2 and args.out is None:
+            raise ValueError('--local-users 2 requires --out with a fresh isolated directory')
+        game = args.game_dir.resolve()
+        out = (args.out if args.out is not None else ROOT / 'out/knack2').resolve()
+        if out.exists() and not out.is_dir():
+            raise ValueError('--out must name a directory')
+        if args.pad_file is not None:
+            args.pad_file = args.pad_file.resolve()
+            if not args.pad_file.is_file():
+                raise ValueError('--pad-file must name an existing input file')
+        if args.capture_dir is not None:
+            args.capture_dir = args.capture_dir.resolve()
+            if args.capture_dir.exists() and not args.capture_dir.is_dir():
+                raise ValueError('--capture-dir must name a directory')
+        for directory in (out, args.capture_dir):
+            if directory is not None:
+                for parent in directory.parents:
+                    if parent.exists() and not parent.is_dir():
+                        raise ValueError(f'output parent is not a directory: {parent}')
+        if args.local_users == 2:
+            for protected in ((ROOT / 'out/knack2').resolve(), (PORT / 'user').resolve(), game):
+                if out.is_relative_to(protected) or protected.is_relative_to(out):
+                    raise ValueError('--out overlaps existing game or normal user data')
+            if out.exists() and any(out.iterdir()):
+                raise ValueError('P2 test requires an empty output directory; never reuse saves')
+            if args.capture_dir is not None and not args.capture_dir.is_relative_to(out):
+                raise ValueError('P2 --capture-dir must stay inside --out')
+            if len(str(out / 'user').encode('utf-8')) >= 512:
+                raise ValueError('P2 user path exceeds the runtime limit of 511 UTF-8 bytes')
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
     profile = json.loads((ROOT / 'profiles/CUSA08014-01.01.json').read_text())
     validate_game(game, profile)
     out.mkdir(parents=True, exist_ok=True)
@@ -151,7 +210,8 @@ def main(argv=None):
     probe = PORT / 'out/tlg-probe.exe'
     if not probe.is_file():
         raise ValueError('Build the runtime first: .\\build.ps1')
-    env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir)
+    env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
+                              local_users=args.local_users, second_user=args.p2_user_id)
     user = out / 'user'
     user.mkdir(exist_ok=True)
     if not args.check_imports:
@@ -161,6 +221,7 @@ def main(argv=None):
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
     report = {'profile': 'CUSA08014-01.01', 'mode': 'imports' if args.check_imports else 'run',
+              'local_users': args.local_users, 'p2_user_id': args.p2_user_id,
               'visual_verified': False, 'stages': []}
     deadline = time.monotonic() + args.timeout
     executable, guest_args = profile['entry'], []
