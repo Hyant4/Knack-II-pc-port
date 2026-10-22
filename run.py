@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Prepare and supervise Knack 2's original executables on Windows."""
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import struct
 import subprocess
 import sys
@@ -15,9 +17,13 @@ import time
 ROOT = Path(__file__).resolve().parent
 PORT = ROOT / 'port'
 sys.path.insert(0, str(PORT / 'scripts'))
+sys.path.insert(0, str(ROOT))
 import prepare
 import link_modules
 import content_profile
+from port.launcher.knack2.languages import BY_CODE, discover_languages, language_environment
+from port.launcher.knack2.identity import game_identity_environment, runtime_path
+from port.launcher.knack2.storage import user_data_lock
 
 
 def digest(path):
@@ -109,8 +115,14 @@ def local_user_environment(local_users, second_user):
     return {'TLG_LOCAL_USERS': '2', 'TLG_LOCAL_P2_USER_ID': str(second_user)}
 
 
-def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None):
+def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None,
+                        config_file=None, language=None):
     users = local_user_environment(local_users, second_user)
+    locale = language_environment(language)
+    if config_file is not None:
+        config_file = Path(config_file).resolve()
+        if not config_file.is_file():
+            raise ValueError('--config must name an existing INI file')
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
     toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
@@ -119,9 +131,11 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
     if system_font.is_file():
         env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
     env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
-               TLG_CONFIG=str(out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
+               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
     env.update(users)  # Only validated CLI values may enable a second local user.
+    env.update(locale)  # Inherited TLG_LANGUAGE remains filtered; only explicit CLI values survive.
+    env.update(game_identity_environment(ROOT))  # Fixed local identity, never inherited from another port.
     if pad_file is not None:
         pad_file = Path(pad_file).resolve()
         if not pad_file.is_file():
@@ -152,20 +166,29 @@ def run_child(command, env, log, seconds):
 
 
 def main(argv=None):
+    with ExitStack() as lifetime:
+        return _main(argv, lifetime)
+
+
+def _main(argv, lifetime):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--game-dir', type=Path, required=True)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--analyze', action='store_true')
     mode.add_argument('--check-imports', action='store_true')
-    parser.add_argument('--timeout', type=int, default=180, help='maximum seconds for the entire guest session')
+    parser.add_argument('--timeout', type=int, default=180,
+                        help='maximum seconds for the entire guest session; 0 disables the time limit')
     parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
+    parser.add_argument('--config', type=Path, help='explicit runtime INI; defaults to OUT/knack2.ini')
+    parser.add_argument('--user-data', type=Path, help='explicit persistent user profile, separate from session output')
+    parser.add_argument('--language', choices=tuple(BY_CODE), help='explicit language installed in the dump')
     parser.add_argument('--local-users', type=int, choices=(1, 2), default=1)
     parser.add_argument('--p2-user-id', type=p2_user_id, help='explicit local P2 ID, required with --local-users 2')
     parser.add_argument('--pad-file', type=Path, help='explicit scePad button input file for diagnostics')
     parser.add_argument('--capture-dir', type=Path, help='write capture.request here to dump the next presented frame')
     args = parser.parse_args(argv)
-    if args.timeout < 1:
-        parser.error('--timeout must be positive')
+    if args.timeout < 0:
+        parser.error('--timeout must be non-negative (0 means unlimited)')
     # Validate the complete launch configuration before reading/preparing the dump or writing anything.
     try:
         local_user_environment(args.local_users, args.p2_user_id)
@@ -173,8 +196,22 @@ def main(argv=None):
             raise ValueError('--local-users 2 requires --out with a fresh isolated directory')
         game = args.game_dir.resolve()
         out = (args.out if args.out is not None else ROOT / 'out/knack2').resolve()
+        user = args.user_data.resolve() if args.user_data is not None else out / 'user'
+        if args.user_data is not None:
+            for protected in (game, out, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
+                if user.is_relative_to(protected) or protected.is_relative_to(user):
+                    raise ValueError('--user-data overlaps dump, session output or habitual user data')
+            if len(str(user).encode('utf-8')) >= 512:
+                raise ValueError('user path exceeds the runtime limit of 511 UTF-8 bytes')
+            for directory in (user, *user.parents):
+                if directory.exists() and not directory.is_dir():
+                    raise ValueError('--user-data must name a directory with directory parents')
         if out.exists() and not out.is_dir():
             raise ValueError('--out must name a directory')
+        if args.config is not None:
+            args.config = args.config.resolve()
+            if not args.config.is_file():
+                raise ValueError('--config must name an existing INI file')
         if args.pad_file is not None:
             args.pad_file = args.pad_file.resolve()
             if not args.pad_file.is_file():
@@ -202,18 +239,22 @@ def main(argv=None):
         parser.error(str(error))
     profile = json.loads((ROOT / 'profiles/CUSA08014-01.01.json').read_text())
     validate_game(game, profile)
+    if args.language is not None and args.language not in discover_languages(game):
+        raise ValueError('--language is not installed in this dump')
+    if args.user_data is not None and not args.analyze:
+        lifetime.enter_context(user_data_lock(user))
     out.mkdir(parents=True, exist_ok=True)
     images = {name: prepare_image(game, profile, name, out) for name in profile['executables']}
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
         return 0
-    probe = PORT / 'out/tlg-probe.exe'
+    probe = runtime_path(PORT)
     if not probe.is_file():
         raise ValueError('Build the runtime first: .\\build.ps1')
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
-                              local_users=args.local_users, second_user=args.p2_user_id)
-    user = out / 'user'
-    user.mkdir(exist_ok=True)
+                              local_users=args.local_users, second_user=args.p2_user_id,
+                              config_file=args.config, language=args.language)
+    user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
         for folder in images.values():
             subprocess.run([sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
@@ -221,15 +262,17 @@ def main(argv=None):
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
     report = {'profile': 'CUSA08014-01.01', 'mode': 'imports' if args.check_imports else 'run',
-              'local_users': args.local_users, 'p2_user_id': args.p2_user_id,
+              'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
+              'user_data': str(user),
               'visual_verified': False, 'stages': []}
-    deadline = time.monotonic() + args.timeout
+    deadline = time.monotonic() + args.timeout if args.timeout else None
     executable, guest_args = profile['entry'], []
     status = 0
     try:
         for stage in range(8):
             folder = images[executable]
-            remaining = max(1, int(deadline - time.monotonic()))
+            # Pass zero explicitly: omitting the guest flag would select its own default.
+            remaining = max(1, int(deadline - time.monotonic())) if deadline is not None else 0
             command = [str(probe), str(folder / 'boot-linked.bin'), '--app0', str(game), '--user', str(user),
                        '--content-profile', str(folder / 'content.bin'), '--timeout', str(remaining),
                        '--guest-executable', '/app0/' + executable]
@@ -246,7 +289,7 @@ def main(argv=None):
                 request = Path(temporary) / 'request.bin'
                 child_env = {**env, 'KNACK2_EXEC_REQUEST': str(request)}
                 print(f'Starting {executable}; log: {log}', flush=True)
-                code = run_child(command, child_env, log, remaining + 5)
+                code = run_child(command, child_env, log, remaining + 5 if deadline is not None else None)
                 report['stages'].append({'executable': executable, 'arguments': guest_args, 'exit_code': code,
                                          'log': log.name})
                 print(f'{executable}: exit {code}', flush=True)
@@ -258,7 +301,7 @@ def main(argv=None):
                     return status
                 if code == 75:
                     executable, guest_args = read_exec_request(request, profile)
-                    if time.monotonic() >= deadline:
+                    if deadline is not None and time.monotonic() >= deadline:
                         return 124
                     continue
                 return code
@@ -269,6 +312,10 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    # Windows launcher sends CTRL_BREAK to this process group. Raise instead of
+    # terminating immediately, allowing run_child() to reap the guest and write evidence.
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, signal.default_int_handler)
     try:
         sys.exit(main())
     except (OSError, ValueError, KeyError, struct.error, subprocess.CalledProcessError) as error:

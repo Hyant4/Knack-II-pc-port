@@ -1,4 +1,32 @@
-# Knack 2 para Windows — primeiro boot visual
+# Knack II para PC
+
+Port experimental independente para **Knack II — CUSA08014, versão 01.01**.
+Executa os binários originais do proprietário por meio do runtime e tradução gráfica
+para Vulkan. Não é uma reimplementação do jogo; não inclui dump, firmware ou saves.
+
+O launcher Knack II possui visual inspirado na franquia, seleção de jogadores e idiomas.
+O fluxo de execução usa o supervisor [run.py](run.py). A identidade pública do runtime
+Windows é `knack2-runtime.exe`; builds diagnósticos `tlg-probe.exe` continuam aceitos.
+O ícone da aplicação utiliza a imagem original `sce_sys/icon0.png` do dump local do
+proprietário, convertida apenas para os formatos do Windows e SDL. Essa arte fica
+fora do Git e não acompanha os fontes. Não implica vínculo oficial com a Sony.
+
+Saves do launcher ficam em `%LOCALAPPDATA%\KnackII-PC`, com perfis persistentes
+separados para P1 e cooperativo. Não dependem da pasta da worktree ou dos logs.
+
+**Estado local de 21/10/2026:** o proprietário confirmou gameplay cooperativo com dois
+personagens e controles independentes, além dos recursos gráficos. A recuperação do
+perfil de áudio e a seleção de idioma foram preparadas em área isolada; sua confirmação
+auditiva e visual dentro do jogo permanece pendente. A entrega de identidade altera
+somente recursos e metadados do executável pré-compilado, mantendo seu código e ABI.
+Ela não substitui a etapa de integração dos fontes de áudio à main.
+
+Consulte [identidade e execução local](docs/KNACK_IDENTITY.md) para abrir o launcher,
+entender a proveniência do binário e os limites desta entrega. Não use instruções dos
+launchers legados para iniciar Knack II. O [README herdado](README.upstream.md) está
+preservado como registro histórico e fonte dos créditos.
+
+## Validação histórica de boot e gameplay
 
 Runtime experimental para **CUSA08014 / 01.01**, derivado de `iss_pc`: executa o código x86-64 original e traduz gráficos para Vulkan. O perfil confere os hashes dos dois executáveis em [profiles/CUSA08014-01.01.json](profiles/CUSA08014-01.01.json).
 
@@ -116,10 +144,18 @@ Os três testes passaram: invalidação de limpezas por escritas sobrepostas, de
 ## Bases e créditos
 
 - Base principal: [HayatoG/iss_pc — d65fa53](https://github.com/HayatoG/iss_pc/tree/d65fa53a1e7cfe71c8eb402b1e6526fa835ef5df). README original preservado integralmente em [README.upstream.md](README.upstream.md); créditos e histórico mantidos.
+- Herança do runtime e infraestrutura: [The Last Guardian — HayatoG/tlg_pc](https://github.com/HayatoG/tlg_pc) e [Gravity Rush 2 — HayatoG/gr2_pc](https://github.com/HayatoG/gr2_pc), conforme os créditos da base `iss_pc`.
 - Referência Windows/diagnóstico: [FelipePrado0/gow3_pc — 1436e7e](https://github.com/FelipePrado0/gow3_pc/tree/1436e7e79807de8e832fc1b6da2f8f20a4293172).
 - Referência gráfica: [deadinside28/bloodborne_pc — 3c57da4](https://github.com/deadinside28/bloodborne_pc/tree/3c57da4198ad62039f63f33bfd205b9916518acf). Nenhuma correção adicional desta referência foi importada nesta etapa SaveData.
+- Núcleo gráfico e compilador de shaders: [shadPS4](https://github.com/shadps4-emu/shadPS4). Forks e backports herdados incluem [shadPS4-Infamous-FixBuild](https://github.com/rayhlancaner-png/shadPS4-Infamous-FixBuild), [ShadowOfTheColossus-PC / AjncSystem](https://github.com/AjncSystem/ShadowOfTheColossus-PC), Pink-shadPS4, variantes de Bloodborne de Mrsuss60 e 0xCydral e [T3CHNOLOG1C/CTR](https://github.com/T3CHNOLOG1C/CTR). Autores, hashes e escopo de cada importação estão preservados em [VENDOR.txt](port/gpu/VENDOR.txt) e [EXPERIMENTAL_FIXES.md](docs/EXPERIMENTAL_FIXES.md); não são apresentados como trabalho original de Knack II.
+- Decodificação e serviços de suporte: [LibAtrac9 / Thealexbarney](https://github.com/Thealexbarney/LibAtrac9), [FFmpeg](https://ffmpeg.org), [SDL3](https://libsdl.org), [FreeType](https://freetype.org) e demais dependências creditadas nos respectivos diretórios. Cada componente conserva sua própria licença.
 - Contratos ABI SaveData: [shadPS4 — e6c79a5](https://github.com/shadps4-emu/shadPS4/tree/e6c79a5fe0ea2f3d03fcb9c5c50cf61af063f3f5/src/core/libraries/save_data). A implementação de backup em diretórios é local.
 
 Licenças preservadas em [port/LICENSE](port/LICENSE), [port/gpu/shadps4/LICENSE](port/gpu/shadps4/LICENSE) e nas dependências. Os novos arquivos usam SPDX GPL-2.0-or-later quando aplicável. Não incluir dump, saves, imagens preparadas ou recursos proprietários em distribuições.
+
+Knack e Knack II pertencem aos respectivos titulares, incluindo Sony Interactive
+Entertainment. Este projeto comunitário não é produto oficial nem tem afiliação
+com a Sony ou os criadores do jogo. Identidade própria não apaga autoria, licenças
+ou a origem do código utilizado.
 
 Estado técnico, capturas locais, avisos e fronteira para a próxima etapa: [HANDOFF_ASTRA.md](HANDOFF_ASTRA.md).

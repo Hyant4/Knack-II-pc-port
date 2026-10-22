@@ -1,4 +1,9 @@
-# inFAMOUS Second Son on Windows
+# Windows packaging — inherited reference
+
+Current Knack II launcher and identity instructions are in
+[`docs/KNACK_IDENTITY.md`](../../../docs/KNACK_IDENTITY.md). This document describes
+the inherited inFAMOUS packaging; it is retained for provenance, not as the Knack
+II player entrypoint. Global installer replacement remains a separate task.
 
 The port builds and runs natively on 64-bit Windows 10 (1903+) / 11 with the same sources as
 on Linux. Players: see `README-player.md` (it ships in the package, pt-BR and en).

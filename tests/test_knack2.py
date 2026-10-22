@@ -104,7 +104,7 @@ class KnackTests(unittest.TestCase):
         parent_file = self.root / 'not-a-directory'
         parent_file.write_bytes(b'unchanged')
         invalid = [['--local-users', '2'], ['--p2-user-id', '4099'], ['--local-users', '3'],
-                   ['--timeout', '0'], ['--pad-file', str(self.root / 'absent')],
+                   ['--timeout', '-1'], ['--pad-file', str(self.root / 'absent')],
                    ['--out', str(parent_file / 'child')],
                    ['--capture-dir', str(parent_file / 'frames')]]
         for value in ['0', '1', '-1', '+2', '2.0', '2x', ' 2', '2 ', '٢', '2147483648', '9' * 5000]:

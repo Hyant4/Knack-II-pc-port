@@ -1,5 +1,256 @@
 # HANDOFF_ASTRA.md
 
+## BRAND-01 e savedata fixo ? 21/10/2026 ? Codex
+
+Escopo confirmado pelo propriet?rio: identidade vis?vel e documenta??o; ?cone
+original de Knack, sem arte gerada; savedata fixo com perfis P1 e cooperativo
+separados. Commit e push autorizados ao final na branch de trabalho, sem merge
+na main. Nova worktree externa BRAND-01, branch
+`feature/knack2-branding-20261021`, baseline main
+`a31cec40a2bd4a1492191b56249757a56085b8ca`, com a entrega F3B.2 preservada como
+base. As outras worktrees n?o foram editadas.
+
+?cone usa `sce_sys/icon0.png` original do dump local. Convers?o t?cnica ICO
+16/24/32/48/64/128 e BMP 256, sem redesenho. Arquivos ficam em
+`%LOCALAPPDATA%/KnackII-PC/identity`, fora do Git. A c?pia vetorial usada antes
+como ?cone foi retirada desta entrega e arquivada fora do checkout. Componentes
+visuais F3B permanecem. Launcher recebe identidade Windows pr?pria; run.py
+repassa nome, AppUserModelID e BMP ap?s o filtro de ambiente.
+
+Runtime preferido: `port/out/knack2-runtime.exe`, com fallback para o nome
+interno legado. Fonte COOP-05 / B2-F2C, SHA-256
+`3db2a9d1240a20e7de1815ddf0946c34277808543f1969c076b533239d252d65`.
+C?pia com ?cone original e metadados Knack:
+`a73cd77cbc018cf19441207d45ed84fb8744f5615797f9d88c381989af4a44ea`.
+Ferramenta branding.py s? publica uma nova c?pia ap?s conferir se??es PE,
+RVAs, diret?rios do loader, s?mbolos COFF, recursos alheios e capacidades do
+manifesto. API Windows inicialmente deslocou se??es e removeu s?mbolos em
+prot?tipos; arquivos foram rejeitados e nunca executados. Reserva de recursos
+e preserva??o do overlay mant?m o contrato original. A tentativa com ICO 256
+original excedeu o espa?o e tamb?m foi rejeitada; ICO at? 128 cabe sem mover RVAs.
+
+Savedata: raiz padr?o `%LOCALAPPDATA%/KnackII-PC`, independente da worktree.
+`profiles/single/user` e `profiles/coop/user` seguem para o runtime por
+`run.py --user-data`. A op??o ? expl?cita; CLI sem ela preserva OUT/user.
+Valida??o rejeita sobreposi??o com dump, sa?da e dados habituais antes de
+prepara??o/escritas. Bloqueio do sistema operacional cobre a sess?o inteira,
+incluindo LoadExec, e impede uso concorrente do perfil. P1=1, P2=4099 opt-in,
+logs/sa?da P2 novos por execu??o e timeout ilimitado da UI permanecem.
+Mudan?a do perfil cooperativo descart?vel para persistente foi expressamente
+confirmada pelo propriet?rio nesta tarefa; nenhuma l?gica SaveData foi editada.
+
+Migra??o local copiou savedata e savedata-backups de P1 F3B.2 e coop F3B real,
+sem mover ou sobrescrever originais. 106 arquivos conferidos por SHA-256 nas
+origens, backups e destinos. Backup inicial em
+`%LOCALAPPDATA%/KnackII-PC/migration-backups/20261021-224453`.
+Manifesto externo savedata-migration.json; nenhum save ou recurso do dump no Git.
+
+Alterados nesta etapa: README principal, port/README, port/UPSTREAM,
+port/packaging/windows/README, tlg-probe.rc/manifest, run.py,
+launcher/knack2/identity.py, branding.py, storage.py, runner.py, ui/app.py,
+ui/real.py, ui/README, testes identity/storage/unlimited/F3B e este handoff.
+Criado docs/KNACK_IDENTITY.md. A integra??o inclui tamb?m os fontes/testes
+F3B/F3B.1/F3B.2 necess?rios, que ainda n?o estavam commitados no baseline main.
+Lista final exata acompanha o diff e o commit da branch.
+
+Verifica??o final: 42 testes focados passaram em 7,514 s, sem falhas ou skips.
+Cobrem recursos PE/metadados reais, identidade Windows, imagem original BMP,
+P1/P2, perfis persistentes, bloqueio e libera??o ap?s erro, LoadExec, filtro,
+idiomas, timeout zero/positivo e Encerrar. Dados de testes s?o sint?ticos;
+artefatos PE s?o lidos como dados, nunca executados. windres compilou o recurso
+com e sem ?cone local; para define com caminho citado, LLVM exige
+`--use-temp-file`. N?o houve recompila??o do Core ou execu??o do jogo.
+699 arquivos protegidos conferem com o baseline da nova worktree. 76 arquivos
+preexistentes sujos/n?o rastreados da worktree original conferem com o manifesto
+anterior; HEADs das demais worktrees preservados. git diff --check passou.
+
+Cr?ditos ampliados no README com bases iss_pc, tlg_pc, gr2_pc, gow3_pc,
+Bloodborne, shadPS4 e forks, al?m das bibliotecas. Licen?as, nomes internos,
+subm?dulos e hist?ria permanecem. Limite: fontes C desta branch ainda n?o
+incorporam a linha de ?udio do runtime pr?-compilado. N?o declarar nova
+compila??o do Core ou teste de audibilidade/gameplay nesta etapa.
+Atalho e ABRIR_KNACK.ps1 externos apontam para esta worktree e conferem o hash
+do runtime. Main n?o foi atualizada; nenhuma publica??o de release autorizada.
+
+---
+
+
+## F3B.2 — recuperação do perfil de áudio e idiomas do dump — 21/10/2026 — Codex
+
+Pedido atual do proprietário autoriza implementar a recuperação do áudio existente
+e a troca de idioma. Preferência confirmada: todos os idiomas disponíveis no dump.
+Nova branch `feature/knack2-audio-language-20261021`, worktree externa
+`C:\Users\dartv\Documents\Codex\F3B2-audio-language-20261021\worktree`, baseada em
+main `a31cec40a2bd4a1492191b56249757a56085b8ca` mais o patch F3B.1 aprovado.
+Nenhuma worktree anterior, save ou binário funcional foi sobrescrito.
+
+Último pacote de áudio localizado: Downloads `knack2_B2F2C_zero_matrix_package.zip`.
+Patch byte-idêntico ao arquivo preservado no checkout de desenvolvimento. B2-F2C
+já está no COOP-05; usado o artefato pré-compilado, verificado por SHA-256
+`3db2a9d1240a20e7de1815ddf0946c34277808543f1969c076b533239d252d65`, copiado apenas
+para port/out da nova worktree. Perfil e 13 scripts de preparação conferem com
+o manifesto COOP-05. Manifesto de origem preservado na pasta externa.
+
+INI de sessão passa a incluir `ngs2_atrac9_hle=1`, `ngs2_render_mix=1`,
+`ngs2_audio_diag=1`, `ngs2_b2f2a_stable_cohort=0` e
+`ngs2_b2f2c_zero_matrix_bypass=1`. Campos gráficos continuam validados por F1;
+opt-ins internos são constantes no cabeçalho de cada INI novo. Sem mudança de
+codec, mixer, vozes, limites, sincronização ou prioridades. B2-F2D não foi aplicado.
+
+Dump real inspecionado somente leitura: `data/lang/pta`, `ena`, `esa`, `fre`,
+1043 arquivos por pasta. Seletor conjunto oferece pt-BR, en-US, es-419 e fr-FR.
+UI muda imediatamente com catálogos locais; preferência persiste ao salvar.
+Após validação, opções se restringem aos assets presentes. Idioma ausente impede
+o lançamento. CLI `--language` valida escolha antes de efeitos e repassa
+TLG_LANGUAGE explicitamente após o filtro; ambos os estágios LoadExec preservam
+o idioma, registrado em session.json. Sem CLI explícita, ambiente herdado continua
+filtrado e o runtime mantém o padrão anterior. IDs conferidos no OpenOrbis público.
+Nenhuma alteração em runtime_services.c; reutilizado o contrato já existente.
+
+Idioma aparece em seção própria; Jogadores e sessão mantém somente P1/P2. Salvar
+fica fixo no rodapé das configurações. Visual, ícones, RCAS, P1 padrão, P2=4099,
+saída nova e execução ilimitada preservados. Logs/erros externos não são traduzidos.
+
+Arquivos adicionais: `port/launcher/knack2/languages.py`, `ui/i18n.py`,
+`tests/test_knack2_languages.py`. Alterados: supervisor run.py, runner, validator,
+ui/backend.py, ui/real.py, ui/app.py, Main.qml, LogPanel.qml, OptionSwitch.qml,
+KnackIcon.qml, README da UI, testes F3B/ilimitado e este handoff. Diff e manifestos
+exatos ficam na pasta externa. Script externo ABRIR_F3B2 verifica o runtime por hash.
+
+33 testes focados passaram em 8,014 s, sem skips. Provas incluem INI de áudio,
+quatro idiomas pela UI e pelo supervisor/LoadExec, filtro, assets ausentes,
+persistência, P2 isolado, prazo zero/positivo e parada de filho Python ilimitado.
+Capturas das quatro traduções e tamanho mínimo conferidas com subprocessos proibidos.
+Falhas iniciais de importação fora da raiz e botão Salvar abaixo da área visível
+foram corrigidas e verificadas novamente. Nenhum jogo ou build foi executado.
+
+Limite de integração: fontes C/C++ continuam os de main; o runtime reutilizado tem
+origem COOP-05 / branch de áudio. Essa proveniência é intencional e explícita.
+Não declarar esta árvore pronta para reconstruir/integrar o áudio à main sem
+uma tarefa específica de fontes do Core. Não foi modificado nenhum fonte protegido,
+shader, GPU/Vulkan, Pad, UserService, áudio C, kernel, SaveData ou submódulo.
+Confirmação de áudio audível e menus/vozes em cada idioma permanece pendente.
+Sem commit, merge ou push.
+
+---
+
+## F3B.1 — simplificação de jogadores e execução ilimitada — 21/10/2026 — Codex
+
+Escopo autorizado pelo proprietário: simplificar o launcher no worktree F3B isolado,
+mantendo visual, P1 padrão, isolamento cooperativo e encerramento controlado.
+Branch `feature/knack2-launcher-f3b-20261021`, HEAD/main inicial
+`a31cec40a2bd4a1492191b56249757a56085b8ca`. Todas as alterações F3B e de visual
+anteriores foram preservadas. Backup e evidências em
+`C:\Users\dartv\Documents\Codex\F3B-20261021-180000\f3b1-20261021\`.
+
+Campos editáveis de ID P2 e duração removidos, incluindo seus avisos e setters.
+Selecionar dois jogadores usa a constante interna P2=4099. P1 permanece 1; somente
+a pasta, INI e tokens de correlação usam UUID, nunca os IDs dos usuários. Seleção P2
+continua explícita e cada execução recebe saída isolada nova. Texto da seção orienta
+a conectar dois controles. As demais telas, ilustrações e ícones permanecem intactos.
+
+Launcher chama o runner oficial com `--timeout 0`. Supervisor aceita zero, não cria
+deadline e usa `process.wait(timeout=None)` em cada estágio; passa `--timeout 0` ao
+probe explicitamente, inclusive depois de LoadExec. `probe.c` foi lido: no Windows
+o timeout é ignorado, e no caminho POSIX `alarm(0)` desativa o watchdog. Nenhuma mudança
+de Core necessária. Fonte de subprocess do Python instalado confirma espera INFINITE
+quando timeout é None. Encerramento por usuário mantém SIGBREAK e recolhimento do filho.
+
+CLI continua com padrão 180 s e valores positivos mantêm a lógica anterior de prazo
+compartilhado e retorno 124 ao expirar. Negativos são rejeitados antes de efeitos.
+Validação CLI de IDs, filtro de ambiente, SaveData e LoadExec preservados. Removida
+a interpretação automática de exit 124 como prazo atingido na UI, que agora é ilimitada.
+
+Arquivos: `run.py`, `port/launcher/knack2/runner.py`, `ui/real.py`, `ui/Main.qml`,
+`ui/README.md`, `tests/test_knack2.py`, `tests/test_knack2_runner.py`,
+`tests/test_knack2_f3b.py`, novo `tests/test_knack2_unlimited.py` e este handoff.
+27 testes focados passaram em 7,849 s, sem skips. Cobrem P1, P2 automático, saída
+nova, runner oficial, LoadExec com espera ilimitada apesar de relógio arbitrário,
+propagação de zero ao guest, prazos positivos/default, timeout real de filho Python,
+parada SIGBREAK de filho Python ilimitado e regressões de UI/RCAS. Capturas da seção
+simplificada em 1180×810 e 980×700 conferidas, com subprocessos proibidos na captura.
+
+Nenhum jogo, compilação, campanha extensa, save real, commit, merge ou push.
+Pad, UserService, GPU/Vulkan, áudio, SaveData, kernel e submódulos não modificados.
+Teste real pela interface segue pendente; evidência COOP-06 anterior não foi repetida.
+
+---
+
+## F3B — visual inspirado em Knack e ícones locais — 21/10/2026 — Codex
+
+Pedido adicional do proprietário: adicionar ícones e design inspirado no personagem
+e na franquia. Implementado na mesma branch/worktree F3B isolada, sobre main
+`a31cec40a2bd4a1492191b56249757a56085b8ca`, preservando as alterações funcionais anteriores.
+
+Ilustração vetorial original de Knack com corpo facetado, punhos grandes, crista
+âmbar, olhos e núcleo ciano. Ícones locais para navegação, ações, seções, avisos e
+painéis; emblema SVG aplicado ao ícone da janela. A composição usa pedra azul,
+âmbar e cobre. Sem downloads, fontes de ícones, assets extraídos ou animação contínua.
+As três telas e seus contratos permanecem; em 980×700 o destaque reduz a altura
+para manter Jogar visível sem rolar.
+
+Arquivos desta extensão: `ui/Main.qml`, `ui/Relic.qml`, `ui/ActionButton.qml`,
+`ui/LogPanel.qml`, `ui/app.py`, `ui/KnackIcon.qml` (novo), `ui/Knack.svg` (novo),
+`ui/README.md` e este handoff. Backend, runner, run.py, Core, saves e submódulos
+não alterados por esta extensão. A mudança em app.py aplica somente QIcon local.
+
+Seis verificações focadas existentes passaram: botões Jogar/Encerrar em demonstração,
+widgets de configuração e salvamento, RCAS, logs/clipboard, três telas/tamanho mínimo
+e UI P2 com erro real de um pequeno supervisor Python. SVG rasterizado pelo Qt e
+capturas 1180×810 / 980×700 conferidos. Nenhum jogo iniciado nem compilação executada.
+Evidências, diff visual e patch completo atualizado na área externa
+`C:\Users\dartv\Documents\Codex\F3B-20261021-180000\visual-20261021\`.
+
+Launcher global e empacotamento permanecem fora desta extensão. Sem commit, merge ou push.
+
+---
+
+## F3B — integração real do launcher Knack II — 21/10/2026 — Codex
+
+Implementação autorizada em `feature/knack2-launcher-f3b-20261021`, worktree externo
+`C:\Users\dartv\Documents\Codex\F3B-20261021-180000\worktree`, sobre main
+`a31cec40a2bd4a1492191b56249757a56085b8ca`. F1/F2.1/F3A existentes e não versionados
+foram copiados da branch de desenvolvimento, sem alterá-la. O layout, componentes,
+três telas, demonstração e correção RCAS de F3A foram preservados.
+
+Arquivos importados: `port/launcher/knack2/` (16 arquivos F1/F2.1/F3A) e três testes
+`test_knack2_launcher.py`, `test_knack2_runner.py`, `test_knack2_ui.py`.
+Novo: `ui/real.py` e `tests/test_knack2_f3b.py`. Alterados nessa cópia: `runner.py`,
+`__main__.py`, `ui/backend.py`, `ui/app.py`, `ui/Main.qml`, `ui/LogPanel.qml`, `ui/README.md`, testes
+runner/UI, além deste handoff e `run.py`. Manifesto exato e patches ficam na área externa.
+
+Jogar usa exclusivamente `run.py`. Instalação exige validador F1 real e nova validação
+do supervisor. Configurações existentes do runtime recebem INI por lançamento via
+nova opção explícita `--config`, validada antes de escrita/preparação. Sem opção,
+comportamento CLI anterior permanece. Filtro de ambiente de main preservado integralmente.
+LoadExec conserva INI e configuração COOP. P1 padrão; P2 exige seleção e ID decimal
+válido e usa saída nova `coop-UUID`, sem ler saves habituais. Dados P1 também são próprios
+da área F3B. Não se afirma persistência independente de SaveDataMemory para P2.
+
+Início/parada são executados fora da thread Qt. Fechar aguarda encerramento; falha
+preserva ownership e opção de tentar novamente. SIGBREAK do supervisor usa o handler
+Python que permite ao `run_child()` recolher o guest. Escalada Windows termina árvore
+do supervisor. Logs de eboot/game mantêm origem separada; último trecho do estágio
+anterior é drenado antes da troca. Token descarta callbacks de sessões anteriores.
+
+26 verificações focadas passaram: 11 F3B, cinco F3A/dependências, seis F2.1 e quatro
+COOP do supervisor. Evidências incluem erro real de processo Python, encerramento de
+filho Python, validação SFO/hash com dados sintéticos e duas etapas LoadExec simuladas.
+Capturas offscreen de Início, Configurações e Logs inspecionadas. Nenhum teste executou
+o jogo, inicializou GPU ou usou saves reais. Não houve nova compilação nem campanha SDL.
+
+Runtime COOP-08 reutilizado em `port/out/tlg-probe.exe`, SHA-256
+`d079db05b1681ebb4ef725e0cf4b85127026276f8bc817c148a86073c5953ef6`.
+504 fontes C/C++/GPU de main conferem com manifesto de construção COOP-08.
+Essa checagem não equivale a gameplay F3B: execução real pela UI segue pendente.
+
+Pad, UserService, SaveData, GPU/Vulkan, shaders, kernel, áudio, submódulos e launcher
+global não foram modificados. Worktree original, suas alterações GPU/COOP e quatro
+outras worktrees preservados. Sem commit, merge, push ou alterações em saves.
+BRAND-01 e qualquer correção das dependências de SaveData/diálogos permanecem fora do escopo.
+
+---
+
 ## COOP-07 — revisão e preparação da integração — 21/10/2026 — Codex
 
 Revisão solicitada pelo proprietário após confirmar dois Knacks em gameplay e controles
