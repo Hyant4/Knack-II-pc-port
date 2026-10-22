@@ -1,5 +1,11 @@
 # Origem do código
 
+O projeto atual é o port experimental de **Knack II CUSA08014 01.01**, derivado
+diretamente de HayatoG/iss_pc. Os parágrafos abaixo preservam a genealogia herdada
+do runtime, incluindo a etapa The Last Guardian; não descrevem o jogo alvo atual.
+Créditos completos e referências de cada camada estão no [README principal](../README.md#bases-e-créditos)
+e em [gpu/VENDOR.txt](gpu/VENDOR.txt). Renomear a apresentação não altera essas autorias.
+
 Este diretório começou como cópia de **[FelipePrado0/gow3_pc](https://github.com/FelipePrado0/gow3_pc)**
 no commit `9a6d17cdb54109b88f9296c0643d6384b62a1aaf` (2026-10-12). Esse projeto é fork de
 Supermedo/bloodborne_pc, que por sua vez deriva de [deadinside28/bloodborne_pc](https://github.com/deadinside28/bloodborne_pc).

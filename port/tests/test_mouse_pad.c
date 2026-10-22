@@ -5,6 +5,10 @@
 #include <assert.h>
 #include <unistd.h>
 #include "../src/runtime_pad.c"
+#include "pad_test_users.h"
+#ifdef _WIN32
+#define setenv(name, value, overwrite) _putenv_s(name, value)
+#endif
 
 static TlgGpuMouse fake;
 static TlgGpuInputSettings settings;
@@ -121,6 +125,7 @@ int main(void) {
     /* Middle: a finger without a click, however long. */
     hold(X1|MIDDLE); d=move(0,0,1);
     assert(d.touch_count==1);
+    assert(hud_y>=0 && hud_y<=1);
     usleep(100000);
     d=move(0,0,1);
     assert(d.touch_count==1 && !(d.buttons & BTN_TOUCHPAD) && !(d.buttons & BTN_R3));

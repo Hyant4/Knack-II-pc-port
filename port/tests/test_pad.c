@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include "../src/runtime_pad.c"
+#include "pad_test_users.h"
 #ifdef _WIN32
 #define setenv(name, value, overwrite) _putenv_s(name, value)
 #endif
@@ -175,7 +176,7 @@ int main(void) {
     assert(SDL_SetJoystickVirtualButton(joystick,SDL_GAMEPAD_BUTTON_TOUCHPAD,true));
     pump();
     data=read_pad();
-    assert(gamepad && data.touch_count==2 && (data.buttons & BTN_TOUCHPAD));
+    assert(players[0].gamepad && data.touch_count==2 && (data.buttons & BTN_TOUCHPAD));
     assert(data.touches[0].x==1439 && data.touches[0].y==471 && data.touches[0].id==0);
     assert(data.touches[1].x==480 && data.touches[1].y==942 && data.touches[1].id==1);
     capture=1;
@@ -225,8 +226,10 @@ int main(void) {
     data=read_pad();
     assert(data.buttons==0 && data.touch_count==0);
     SDL_CloseJoystick(joystick);
-    if (gamepad) SDL_CloseGamepad(gamepad);
-    gamepad=NULL;
+    for (int i=0;i<PAD_PLAYERS;++i) {
+        if (players[i].gamepad) SDL_CloseGamepad(players[i].gamepad);
+        players[i].gamepad=NULL;
+    }
     assert(SDL_DetachVirtualJoystick(id));
     SDL_Quit();
     unlink(path);
