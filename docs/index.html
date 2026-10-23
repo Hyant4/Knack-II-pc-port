@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10151b">
+  <meta name="description" content="Knack II (Knack 2) unofficial PC port for Windows. Download the experimental alpha v0.10, with Vulkan graphics and local co-op. Requires your own PS4 game dump.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://hyant4.github.io/Knack-II-pc-port/">
+  <title>Knack II PC Port (Knack 2) — Unofficial Windows Alpha Download</title>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Knack II PC Port — Unofficial Windows Alpha">
+  <meta property="og:description" content="Experimental fan-made Knack II PC port. Windows x64, Vulkan, local co-op. Bring your own PS4 game dump.">
+  <meta property="og:url" content="https://hyant4.github.io/Knack-II-pc-port/">
+  <meta property="og:image" content="https://hyant4.github.io/Knack-II-pc-port/screenshots/knack-ii-combat.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Knack II PC Port (Unofficial)","description":"Experimental, unofficial Windows PC port for Knack II; requires the user's own PlayStation 4 game dump.","operatingSystem":"Windows 64-bit","softwareVersion":"0.10 alpha","applicationCategory":"GameApplication","url":"https://hyant4.github.io/Knack-II-pc-port/","downloadUrl":"https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10","isAccessibleForFree":true}
+  </script>
+  <style>
+    :root{color-scheme:dark;--bg:#10151b;--panel:#192129;--line:#39444e;--text:#f3f6f8;--muted:#c1cbd2;--accent:#f3bd72;--focus:#91cef5}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.62 system-ui,-apple-system,"Segoe UI",sans-serif}
+    a{color:var(--accent);text-underline-offset:3px}a:focus-visible{outline:3px solid var(--focus);outline-offset:4px;border-radius:3px}p{max-width:78ch}
+    .wrap{max-width:1100px;margin:0 auto;padding:0 24px}header{border-bottom:1px solid var(--line)}nav{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:18px 0}nav a{white-space:nowrap}nav strong{letter-spacing:.06em}
+    .navlinks{display:flex;gap:20px;flex-wrap:wrap}.hero{padding:66px 0 52px}.eyebrow{text-transform:uppercase;color:var(--accent);letter-spacing:.15em;font-size:.82rem;font-weight:700}
+    h1,h2,h3{line-height:1.17}h1{font-size:clamp(2.6rem,6vw,5.1rem);max-width:900px;margin:12px 0 20px}h2{font-size:clamp(1.65rem,4vw,2.25rem);margin:0 0 22px}h3{margin:0 0 10px;font-size:1.1rem}
+    .lead{font-size:1.23rem;color:var(--muted);max-width:760px}.actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:29px}
+    .button{display:inline-block;background:var(--accent);color:#161a20;text-decoration:none;padding:13px 19px;border-radius:8px;font-weight:750}.button.secondary{background:transparent;color:var(--text);border:1px solid var(--line)}
+    .notice{border:1px solid #ae8555;border-left:5px solid var(--accent);border-radius:8px;padding:14px 20px;background:#29241e;margin-top:34px;max-width:850px}
+    .section{padding:54px 0;border-top:1px solid var(--line)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .tile{padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:10px}.tile p{margin:0;color:var(--muted)}
+    .shots{display:grid;grid-template-columns:1fr 1fr;gap:16px}.shots figure{margin:0}.shots img{width:100%;height:auto;display:block;border-radius:10px;border:1px solid var(--line)}figcaption{color:var(--muted);font-size:.89rem;margin:7px 0}
+    .steps{padding-left:24px}.steps li{margin:13px 0;padding-left:6px}.small{color:var(--muted);font-size:.94rem}.lang{display:inline-block;margin-bottom:20px;color:var(--accent)}
+    footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);font-size:.92rem}
+    @media(max-width:690px){.hero{padding:43px 0}.section{padding:39px 0}.grid,.shots{grid-template-columns:1fr}.wrap{padding:0 18px}.navlinks{gap:13px}h1{font-size:2.55rem}}
+  </style>
+</head>
+<body>
+  <header><nav class="wrap" aria-label="Main navigation"><strong>KNACK II · PC PORT</strong><div class="navlinks"><a href="#download">Download</a><a href="#screenshots">Screenshots</a><a href="#status">Status</a><a href="#portugues" lang="pt-BR">Português</a><a href="https://github.com/Hyant4/Knack-II-pc-port">GitHub</a></div></nav></header>
+  <main>
+    <section class="hero wrap"><div class="eyebrow">Unofficial community project · Windows x64 · Alpha v0.10</div>
+      <h1>Knack II on PC.<br>Experimental Windows port.</h1>
+      <p class="lead">An independent <strong>Knack II (Knack 2) PC port</strong> featuring Vulkan rendering, a Windows launcher, and local two-player co-op. Released as an early alpha, not a finished commercial PC game.</p>
+      <div class="actions"><a class="button" href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10">Get Windows alpha v0.10 →</a><a class="button secondary" href="#download">Requirements &amp; setup</a></div>
+      <div class="notice" role="note"><strong>You must supply your own legally obtained Knack II PS4 game dump</strong> (CUSA08014, version 01.01). The download does not contain the game, firmware, saves, or extracted game assets.</div>
+    </section>
+    <section id="screenshots" class="section"><div class="wrap"><h2>Early-game screenshots</h2><div class="shots">
+      <figure><img src="screenshots/knack-ii-title-screen.png" width="1024" height="576" loading="lazy" alt="Knack II title screen captured from the experimental Windows port"><figcaption>Title screen in the port</figcaption></figure>
+      <figure><img src="screenshots/knack-ii-combat.png" width="1024" height="576" loading="lazy" alt="Knack II early combat captured from the experimental Windows port"><figcaption>Early combat gameplay</figcaption></figure>
+    </div></div></section>
+    <section id="status" class="section"><div class="wrap"><h2>What works — and what is not verified</h2><div class="grid">
+      <article class="tile"><h3>Initial gameplay</h3><p>Boot, menus, movement, and early combat have been tested.</p></article>
+      <article class="tile"><h3>Local co-op</h3><p>Two-player local co-op has been tested in the opening section; two controllers are required.</p></article>
+      <article class="tile"><h3>Experimental stability</h3><p>The full campaign is not validated. Graphics bugs, crashes, and Vulkan device loss may occur.</p></article>
+    </div><p class="small">These statements reflect the scope recorded in the public alpha v0.10 release notes, not comprehensive game certification. <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10">Read the detailed release notes.</a></p></div></section>
+    <section id="download" class="section"><div class="wrap"><h2>Download and install on Windows</h2>
+      <p>Requirements: recent <strong>64-bit Windows</strong>, Vulkan-compatible GPU with updated drivers, and your own <strong>Knack II CUSA08014 v01.01</strong> PS4 dump. The Windows ZIP includes its needed runtime dependencies; separate installation of Python, Qt, or MSYS2 is not required.</p>
+      <ol class="steps"><li>Open the <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10">GitHub alpha release</a> and get the <strong>Windows x64 ZIP</strong> (not the sources ZIP).</li>
+      <li>Extract the complete archive and open <code>Knack II.exe</code>.</li>
+      <li>Select your game folder containing <code>eboot.bin</code>, <code>game.elf</code>, <code>sce_sys</code>, and <code>sce_module</code>, then validate it.</li>
+      <li>Configure language, video settings, and one or two players, then select Play.</li></ol>
+      <p class="small">For file checksums, release provenance, and troubleshooting, see the <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10">release assets</a> and the <a href="https://github.com/Hyant4/Knack-II-pc-port/blob/main/README.md">README</a>.</p>
+    </div></section>
+    <section id="portugues" class="section" lang="pt-BR"><div class="wrap">
+      <span class="lang">Português do Brasil</span><h2>Knack II para PC — port independente</h2>
+      <p>Versão <strong>alpha experimental para Windows 64 bits</strong>, com gráficos Vulkan, launcher e cooperativo local para dois controles. O começo do jogo foi testado, mas <strong>a campanha completa não foi validada</strong>. Ainda podem ocorrer erros gráficos, travamentos e falhas do Vulkan.</p>
+      <p>É necessário ter seu próprio dump de Knack II, código <strong>CUSA08014</strong>, versão <strong>01.01</strong>. O jogo não acompanha o download.</p>
+      <ol class="steps"><li><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10">Baixe o ZIP do Windows na versão alpha v0.10</a>.</li><li>Extraia todos os arquivos e abra <code>Knack II.exe</code>.</li><li>Escolha e valide a pasta do seu jogo.</li><li>Configure idioma, gráficos e jogadores; clique em Jogar.</li></ol>
+      <p>Veja o <a href="https://github.com/Hyant4/Knack-II-pc-port/blob/main/README.pt-BR.md">guia completo em português</a> e as notas da release antes de instalar.</p>
+    </div></section>
+  </main>
+  <footer><div class="wrap">Independent, unofficial project. Not affiliated with or endorsed by Sony Interactive Entertainment. Knack II and its assets belong to their respective rights holders. <a href="https://github.com/Hyant4/Knack-II-pc-port/blob/main/docs/CREDITS.md">Credits and licenses</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port">Source code</a></div></footer>
+</body>
+</html>
