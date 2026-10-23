@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hyant4.github.io/Knack-II-pc-port/sitemap.xml
