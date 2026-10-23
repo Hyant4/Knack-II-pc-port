@@ -37,7 +37,11 @@ Abrir o launcher não inicia automaticamente o jogo. O caminho é lembrado; a va
 
 O runtime Windows é `port/out/knack2-runtime.exe`. Builds de diagnóstico também podem usar o nome `tlg-probe.exe`. O launcher compilado utiliza o supervisor auxiliar em `port/out/knack-launcher-supervisor/`.
 
-**Clonar os fontes não fornece esses executáveis.** Esta documentação não anuncia uma release binária de Knack II. Downloads dos projetos de origem executam seus respectivos jogos, não este perfil.
+**[Baixar alpha Windows x64 — audio-clock09](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-2026.10.22-audio-clock09).** Extraia `Knack-II-Windows-x64-audio-clock09.zip` e abra `Knack II.exe`. O pacote inclui as DLLs necessárias; não exige instalar Python, Qt ou MSYS2 para jogar. Forneça seu próprio dump suportado e mantenha o driver Vulkan atualizado.
+
+Essa distribuição preserva o código executável da compilação local testada, remove ícones extraídos do jogo do launcher e informações de debug do runtime. Cinco verificações de empacotamento passaram sem iniciar o jogo. É uma **alpha experimental**, com os limites de gameplay e gráficos descritos acima.
+
+**Clonar os fontes não fornece esses executáveis.** Os fontes correspondentes às alterações locais estão no ZIP `Knack-II-sources-audio-clock09.zip` anexado à mesma release, com os submódulos expandidos. Os arquivos automáticos “Source code” do GitHub refletem a tag de documentação e não substituem esse snapshot. Downloads dos projetos de origem executam seus respectivos jogos, não este perfil.
 
 Detalhes de controles, idiomas, logs e empacotamento: [guia do launcher Windows](docs/LAUNCHER_WINDOWS.md).
 

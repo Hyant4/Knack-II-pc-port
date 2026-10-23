@@ -2,6 +2,8 @@
 
 ## Abrir e jogar
 
+O pacote [alpha Windows audio-clock09](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-2026.10.22-audio-clock09) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
+
 Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 
 ```powershell
@@ -79,7 +81,7 @@ do projeto, incluindo:
 - `port/out/knack-launcher-supervisor/`, com `KnackSupervisor.exe` e suas bibliotecas;
 - `run.py`, `profiles/` e os scripts de preparação em `port/scripts/`;
 - `port/out/knack2-runtime.exe`, ou o fallback diagnóstico `tlg-probe.exe`;
-- a toolchain e bibliotecas nativas exigidas pelo runtime local.
+- as DLLs nativas ao lado do runtime; a alpha já as inclui. Builds próprios podem exigir dependências locais adicionais.
 
 O supervisor compilado executa o `run.py` oficial. Não utiliza o runner do
 inFAMOUS. Arquivos legados permanecem por compatibilidade e créditos.
