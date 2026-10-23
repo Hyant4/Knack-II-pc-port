@@ -1,6 +1,6 @@
 # Discoverability and launch checklist — Knack II PC Port
 
-This checklist accompanies the documentation-only discoverability PR. **Do not describe the alpha as fully playable** or claim complete campaign certification. Keep all download links pointed at the official GitHub release; do not mirror or bundle game content.
+This checklist accompanies the documentation-only discoverability PR. **You may describe the port as playable in the owner-tested section through reaching Chapter 2 in local co-op**, but do not claim that the entire campaign has been tested or is fully playable from start to finish. Keep all download links pointed at the official GitHub release; do not mirror or bundle game content.
 
 ## 1. GitHub repository metadata (manual settings)
 
@@ -38,7 +38,7 @@ Publish one accurate, non-spammy announcement with:
 - Title: **Knack II (Knack 2) PC port — experimental Windows alpha v0.10 released**
 - Official release and source links, two genuine screenshots, and ideally a short capture of the tested early section.
 - The requirement for the user's own CUSA08014 v01.01 dump.
-- Up-front disclosure that early gameplay and co-op have been tested, but the full campaign has not.
+- The owner's first-hand report of reaching Chapter 2 in local co-op without observed issues in that session, while explicitly noting the full campaign has not been validated.
 
 Respect each community's self-promotion rules and clearly label the port as unofficial. Do not post duplicate promotional links into unrelated discussions or promise compatibility not supported by tests.
 
@@ -52,4 +52,4 @@ When a newer public release exists, update **both** README files where needed, `
 - All links point at real repository paths or the recorded GitHub alpha v0.10 release.
 - English and Portuguese content agree on requirements and known limitations.
 - The Pages URL is a **planned URL**, not a claim of an already deployed site.
-- No claims of complete campaign playability, official Sony affiliation, or game download included.
+- No claims that the full campaign has been validated, no official Sony affiliation, and no game download included.

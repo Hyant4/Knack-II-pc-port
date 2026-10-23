@@ -33,9 +33,10 @@ Saves e preferências ficam em `%LOCALAPPDATA%\KnackII-PC`.
 
 ## Estado da versão
 
-Esta é uma **alpha experimental**. Partida individual e cooperativo local foram
-testados no início do jogo; a campanha completa ainda não foi validada.
-Falhas gráficas e encerramentos inesperados ainda podem ocorrer.
+Esta é uma **alpha experimental, mas jogável no trecho testado**. O proprietário
+relatou ter jogado normalmente em **cooperativo local até chegar ao capítulo 2**,
+sem problemas observados nessa sessão. A campanha completa e os capítulos seguintes
+ainda não foram validados. Falhas gráficas e encerramentos inesperados ainda podem ocorrer.
 
 ## Capturas de tela
 

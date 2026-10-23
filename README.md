@@ -4,7 +4,7 @@
 
 [**Download the Windows x64 alpha (v0.10)**](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10) · [Português (Brasil)](README.pt-BR.md) · [Screenshots](#screenshots) · [Credits and licenses](docs/CREDITS.md)
 
-> **Alpha status:** This is an unofficial community project, not a finished or fully validated PC release. Initial gameplay and local co-op have been tested, but the full campaign has **not** been verified. Graphical bugs, Vulkan device-loss errors, and crashes may occur.
+> **Alpha status:** This is an unofficial community project, not a finished or fully validated PC release. The project owner reports successfully reaching **Chapter 2 in local co-op**, without problems observed in that session. The rest of the campaign has **not** been verified. Graphical bugs, Vulkan device-loss errors, and crashes may occur.
 
 ## What is this project?
 
@@ -35,14 +35,14 @@ Available in-game languages depend on the files present in your dump. Settings a
 
 | Area | Current public evidence |
 | --- | --- |
-| Boot, menus, movement, early combat | Tested in the initial game section |
-| Local co-op | Tested in the initial game section; select two players and connect two controllers |
+| Boot, menus, movement, early combat | Tested; the owner also reports progressing to Chapter 2 in a cooperative session |
+| Local co-op | **Playable in the owner's test through reaching Chapter 2**, with no issues reported in that session; select two players and connect two controllers |
 | Audio | Dialogue, music, and sound effects were confirmed in an initial section after an audio pause/resume fix |
 | Full campaign | **Not validated** |
 | Stability and graphics | Experimental; graphical issues and Vulkan device-loss may occur |
-| Broader PCs and chapters | Not certified |
+| Later chapters and broader PC configurations | Not certified |
 
-This table summarizes the **v0.10 release notes**; it is not a claim that the whole game works. See the [full release notes](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10) for the exact scope of each test.
+The original alpha v0.10 release notes record earlier limited testing; the Chapter 2 co-op milestone is a **subsequent owner-reported gameplay result**, not an independent full-campaign certification. See the [full release notes](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10) for the exact scope of each test.
 
 ## Screenshots
 
