@@ -1,54 +1,69 @@
 # Knack II para PC
 
-Port experimental independente para **Knack II — CUSA08014, versão 01.01**.
-Executa os binários originais do proprietário por meio do runtime e tradução gráfica
-para Vulkan. Não é uma reimplementação do jogo; não inclui dump, firmware ou saves.
+Port experimental independente de **Knack II — CUSA08014, versão 01.01**, com foco no Windows x86-64.
 
-O launcher Knack II possui visual inspirado na franquia, seleção de jogadores e idiomas.
-O fluxo de execução usa o supervisor [run.py](run.py). A identidade pública do runtime
-Windows é `knack2-runtime.exe`; builds diagnósticos `tlg-probe.exe` continuam aceitos.
-O ícone da aplicação utiliza a imagem original `sce_sys/icon0.png` do dump local do
-proprietário, convertida apenas para os formatos do Windows e SDL. Essa arte fica
-fora do Git e não acompanha os fontes. Não implica vínculo oficial com a Sony.
+O projeto executa o código x86-64 original do jogo por meio de um runtime que implementa serviços do PS4 e traduz gráficos para Vulkan. O backend gráfico deriva do shadPS4; a base direta deste repositório é o port `iss_pc`, de HayatoG.
 
-Saves do launcher ficam em `%LOCALAPPDATA%\KnackII-PC`, com perfis persistentes
-separados para P1 e cooperativo. Não dependem da pasta da worktree ou dos logs.
+**Use seu próprio dump do jogo.** Este repositório não distribui jogo, firmware, saves ou assets extraídos. Não é um produto oficial da Sony.
 
-**Estado local de 21/10/2026:** o proprietário confirmou gameplay cooperativo com dois
-personagens e controles independentes, além dos recursos gráficos. A recuperação do
-perfil de áudio e a seleção de idioma foram preparadas em área isolada; sua confirmação
-auditiva e visual dentro do jogo permanece pendente. A entrega de identidade altera
-somente recursos e metadados do executável pré-compilado, mantendo seu código e ABI.
-Ela não substitui a etapa de integração dos fontes de áudio à main.
+## Estado do projeto
 
-Consulte [identidade e execução local](docs/KNACK_IDENTITY.md) para abrir o launcher,
-entender a proveniência do binário e os limites desta entrega. Não use instruções dos
-launchers legados para iniciar Knack II. O [README herdado](README.upstream.md) está
-preservado como registro histórico e fonte dos créditos.
+Validação **local de desenvolvimento**, atualizada em **22/10/2026**:
 
-## Validação histórica de boot e gameplay
-
-Runtime experimental para **CUSA08014 / 01.01**, derivado de `iss_pc`: executa o código x86-64 original e traduz gráficos para Vulkan. O perfil confere os hashes dos dois executáveis em [profiles/CUSA08014-01.01.json](profiles/CUSA08014-01.01.json).
-
-**Marco local de 17/10/2026:** tela de título de Knack II confirmada em dois boots, com mapa, logotipo e copyright. Capturas separadas por 63,243 segundos no primeiro e 34,500 segundos no segundo. Continuação: glifos corrigidos; seleção Single Player / Normal carregou **Chapter 1-1 — The Invasion**, em Newhaven, com HUD, tutorial de movimento e menu de pausa respondendo a Options. Correção gráfica posterior restaurou o cenário inicial: ruas, prédios, personagem, iluminação e fumaça visíveis, com duas capturas separadas por 57,162 segundos, movimento e pausa verificados em execução normal. Jogabilidade da fase inteira ainda não está validada. Máquina: Windows, Ryzen 7 5700G, RX 6650 XT, 32 GB RAM. Áudio completo, desempenho e Linux permanecem sem validação.
-
-| Camada | Evidência local |
+| Área | Evidência disponível |
 | --- | --- |
-| Build | MSYS2 CLANG64, RelWithDebInfo, LTO desligado; `build.ps1` concluído |
-| Imports | `eboot.bin`: zero ausentes; `game.elf`: 61 ainda ausentes na análise completa |
-| CPU | `eboot.bin` solicita `game.elf`; supervisor inicia processo limpo preservando quatro argumentos |
-| SaveData | GetParam lê 1328 bytes; UmountWithBackup copia arquivos e publica evento de conclusão |
-| Apresentação | Duas inicializações com conteúdo real observado por mais de 30 segundos; encerramento previsto por timeout |
-| Texto | Prompt completo, menus e tutorial legíveis; âncora acumulada corrigida em `FontWritingStep+0x20` |
-| Primeira fase | Cenário inicial do Chapter 1-1 restaurado; movimento e pausa funcionais; duas capturas separadas por 57,162 segundos |
+| Boot e menus | Título, seleção de partida e carregamento do início de Chapter 1-1 observados. |
+| Gameplay | Movimento, combate e transições no trecho inicial testados; campanha completa ainda não validada. |
+| Cooperativo local | Dois personagens com controles independentes confirmados pelo proprietário no início do jogo. |
+| Áudio | Falas retornam após pausar e retomar cutscene; música e efeitos normais no trecho testado, conforme confirmação do proprietário. |
+| Regressão de áudio | 13 runners focados passaram na etapa `audio-clock09`, incluindo contador de amostras, ciclo de vida, mixer e controles ATRAC9. |
+| Gráficos e desempenho | Há correções de transparências e descritores de vértices. Persistem experimentos gráficos e ocorrência registrada de `Device lost`; sem garantia de estabilidade contínua. |
+| Outras plataformas | O foco desta adaptação é Windows. Os resultados Linux dos projetos de origem não certificam Knack II no Linux. |
 
-Nenhum dos 61 imports ausentes interrompeu a transição observada até a primeira fase. Isso não comprova compatibilidade do jogo inteiro. Os testes partiram do `SAVEDATA00` já existente; primeiro boot sem save ainda requer validação no jogo.
+A correção recente de áudio informa ao jogo o contador de amostras efetivamente consumidas por voz. O contador acompanha a reprodução e congela na pausa, permitindo ao sincronizador retomar o som sem impor ganho artificial.
 
-A falha gráfica tinha duas causas: limpeza do buffer MSAA de transparências não aplicada à imagem Vulkan (alpha zero apagava a composição) e descritores de vértices antigos reutilizados após atualização do guest. A correção propaga o padrão real de limpeza e verifica os descritores antes de reutilizar a preparação. Evidências locais em `out/knack2/gpu-verified/`, com hashes em `visual-verification.json`; diagnóstico detalhado na seção 6 de [HANDOFF_ASTRA.md](HANDOFF_ASTRA.md). Capturas, dump e saves ficam fora do Git.
+Esses resultados descrevem o build local testado, **não uma certificação de todos os capítulos, imports ou equipamentos**. Builds locais e alterações ainda não publicados podem estar à frente de `main`. Consulte o [handoff técnico](HANDOFF_ASTRA.md) para proveniência e limites.
 
-## Compilar
+## Usar a instalação compilada
 
-Instale MSYS2 CLANG64. O caminho padrão usado aqui é `%LOCALAPPDATA%\knack2-toolchain\msys64`; para outra instalação, defina `$env:MSYS2_ROOT = 'C:\msys64'` no PowerShell.
+Na instalação já preparada, abra **`Knack II.exe`** na raiz do projeto:
+
+1. Selecione a pasta do seu dump CUSA08014 / 01.01.
+2. Clique em **Validar**.
+3. Escolha idioma, jogadores e ajustes em **Configurações**.
+4. Clique em **Jogar**.
+
+Abrir o launcher não inicia automaticamente o jogo. O caminho é lembrado; a validação é repetida na próxima abertura.
+
+O runtime Windows é `port/out/knack2-runtime.exe`. Builds de diagnóstico também podem usar o nome `tlg-probe.exe`. O launcher compilado utiliza o supervisor auxiliar em `port/out/knack-launcher-supervisor/`.
+
+**Clonar os fontes não fornece esses executáveis.** Esta documentação não anuncia uma release binária de Knack II. Downloads dos projetos de origem executam seus respectivos jogos, não este perfil.
+
+Detalhes de controles, idiomas, logs e empacotamento: [guia do launcher Windows](docs/LAUNCHER_WINDOWS.md).
+
+## Dump e dados locais
+
+O perfil [CUSA08014-01.01.json](profiles/CUSA08014-01.01.json) verifica a identidade e os hashes suportados. A pasta do jogo precisa conter, entre outros arquivos:
+
+- `eboot.bin` e `game.elf`;
+- `sce_sys/param.sfo`;
+- os módulos requeridos em `sce_module/`;
+- os recursos originais do jogo.
+
+O launcher oferece somente idiomas presentes na instalação validada. Na cópia inspecionada foram encontrados português do Brasil, inglês, espanhol latino-americano e francês.
+
+Saves e preferências do launcher ficam em **`%LOCALAPPDATA%\KnackII-PC`**, separados entre partida individual e cooperativa. Imagens preparadas, logs e caches ficam fora do versionamento. Não coloque dump, saves ou chaves no Git.
+
+## Compilar no Windows
+
+Use Git, Python, MSYS2 **CLANG64**, CMake, Ninja e as dependências nativas do runtime. Em um **checkout novo**, sem alterações locais a preservar:
+
+```powershell
+git clone --recurse-submodules https://github.com/Hyant4/Knack-II-pc-port.git
+cd Knack-II-pc-port
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install iced-x86==1.21.0
+```
 
 No shell **MSYS2 CLANG64**, instale as dependências:
 
@@ -60,102 +75,73 @@ pacman -S --needed git patch \
   mingw-w64-clang-x86_64-{spirv-tools,spirv-headers,spirv-cross}
 ```
 
-Na raiz do repositório, em PowerShell:
+Depois, na raiz do projeto, em PowerShell:
 
 ```powershell
-git submodule update --init --recursive
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install iced-x86==1.21.0
+# Ajuste apenas se o MSYS2 estiver em outro local.
+# $env:MSYS2_ROOT = 'C:\msys64'
 .\build.ps1 -Jobs 6
 ```
 
-Build validado com Python 3.14, Clang 23.1.3, CMake 4.4.4, Ninja 1.13.2, SDL3 3.4.18, FreeType 2.15.0 e FFmpeg 9.0.2. A lista completa de versões observadas fica em [docs/knack2-toolchain-packages.txt](docs/knack2-toolchain-packages.txt). O comando de instalação usa o catálogo do MSYS2, que pode mudar; a lista registra o ambiente validado e não constitui um espelho dos pacotes.
+O wrapper usa `%LOCALAPPDATA%\knack2-toolchain\msys64` por padrão. O build gera `port/out/tlg-probe.exe` e registra o log em `port/out/gpu-build.log`. Reconstruir o runtime não substitui automaticamente o executável de nome público que já exista no launcher.
 
-O binário fica em `port/out/tlg-probe.exe`; o log em `port/out/gpu-build.log`. O build aplica os patches FSR já versionados em `port/gpu/patches/fsr-vulkan/`, deixando esse submódulo modificado por desenho. Os commits dos submódulos permanecem fixados pelo Git.
+O build aplica os patches FSR versionados e pode deixar esse submódulo modificado por desenho; não descarte essas mudanças para “limpar” o checkout. A lista do ambiente observado está em [knack2-toolchain-packages.txt](docs/knack2-toolchain-packages.txt).
 
-## Analisar e executar
+Para construir a interface Qt/Python, siga [Reconstruir somente o launcher](docs/LAUNCHER_WINDOWS.md#reconstruir-somente-o-launcher). Essa etapa é separada da compilação do runtime.
 
-Use seu próprio dump. Nenhum arquivo do jogo é distribuído pelo projeto.
+## Diagnóstico e testes
 
-```powershell
-$game = 'C:\Users\dartv\Downloads\knack 2\CUSA08014'
-.\.venv\Scripts\python.exe run.py --game-dir $game --analyze
-.\.venv\Scripts\python.exe run.py --game-dir $game --check-imports
-.\.venv\Scripts\python.exe run.py --game-dir $game --timeout 120
-```
-
-`--check-imports` retorna 1 enquanto houver símbolos ausentes, incluindo caminhos ainda não executados. `--timeout` limita a sessão de execução; código 124 indica limite atingido. Código 75 de `eboot.bin` é a transição esperada para `game.elf`. `--out` muda o diretório de dados gerados, padrão `out/knack2`.
-
-O dump é lido diretamente. Imagens preparadas, logs, caches e saves ficam separados, sem duplicar os aproximadamente 52 GB de recursos. Configuração inicial: janela, upscaler desligado e perfil local/offline. A janela se ajusta à área útil do monitor.
-
-- Saves: `out/knack2/user/savedata/1/CUSA08014/`.
-- Backups: `out/knack2/user/savedata-backups/1/CUSA08014/SAVEDATA00/`; `current.txt` aponta para a última geração concluída. Gerações anteriores são preservadas.
-- Evidências: `out/knack2/session-*/`, com log por executável e `session.json`.
-- O supervisor mantém `visual_verified: false`, pois não inspeciona pixels. A confirmação visual fica em `visual-verification.json`, produzido após inspeção das capturas; não é inferida de janela aberta ou compilação de shaders.
-
-A restauração automática de backups e as demais APIs SaveData não chamadas neste trecho ainda não foram implementadas. O backup é síncrono e não declara sucesso antes da cópia completa.
-
-### Entrada e captura para diagnóstico
-
-`--pad-file` habilita explicitamente o arquivo de entrada já suportado por `scePad`. O arquivo deve existir antes de iniciar; tokens como `options`, `cross` e `ly=0` permanecem pressionados até limpar seu conteúdo. `--capture-dir` habilita a captura existente do renderer: criar `capture.request` solicita o próximo frame apresentado.
+A CLI oficial é o `run.py` da raiz:
 
 ```powershell
-New-Item -ItemType Directory -Force out/knack2/debug | Out-Null
-Set-Content -Encoding ASCII out/knack2/debug/pad.txt ''
-.\.venv\Scripts\python.exe run.py --game-dir $game --timeout 600 --pad-file out/knack2/debug/pad.txt --capture-dir out/knack2/debug/frames
+$game = 'D:\Jogos\KnackII\CUSA08014'
+.\.venv\Scripts\python.exe -B run.py --game-dir $game --analyze
+.\.venv\Scripts\python.exe -B run.py --game-dir $game --check-imports
 ```
 
-Em outro terminal, na raiz do repositório, após a tela estabilizar:
+`--check-imports` pode retornar 1 para símbolos ausentes em caminhos não exercitados. Uma contagem estática de imports não equivale à mesma quantidade de bloqueios de gameplay.
+
+Execuções de diagnóstico usam timeout padrão de 180 segundos. Código 124 indica timeout do supervisor e precisa ser distinguido de crash. O launcher normal usa sessões sem esse limite.
+
+Exemplos de regressões focadas, sem iniciar o jogo:
 
 ```powershell
-Set-Content -Encoding ASCII out/knack2/debug/pad.txt 'options'
-Start-Sleep -Milliseconds 500
-Set-Content -Encoding ASCII out/knack2/debug/pad.txt ''
-Set-Content -Encoding ASCII out/knack2/debug/frames/capture.request 'capture'
+.\.venv\Scripts\python.exe -B -m unittest discover -s port/tests -p test_prepare.py -v
+.\.venv\Scripts\python.exe -B -m unittest discover -s port/tests -p test_link_modules.py -v
 ```
 
-Os arquivos `output_NNN_LARGURAxALTURA.raw` capturam a apresentação. Na execução validada, usam RGBA de 8 bits por canal; decodifique com FFmpeg `-f rawvideo -pixel_format rgba -video_size LARGURAxALTURA -i ARQUIVO.raw -frames:v 1 captura.png`. A imagem deve ser inspecionada junto do log. Nenhum comando é injetado por padrão.
+Alguns runners dependem da toolchain ou de fixtures locais. Testes sintéticos, build, validação visual e confirmação auditiva são evidências diferentes.
 
-## Testar
+## Estrutura
 
-```powershell
-$tc = if ($env:MSYS2_ROOT) { $env:MSYS2_ROOT } else { "$env:LOCALAPPDATA\knack2-toolchain\msys64" }
-$env:PATH = "$tc\clang64\bin;$env:PATH"
-& "$tc\clang64\bin\clang.exe" -std=c11 -Iport/src -Iport tests/test_knack_loadexec.c port/src/runtime_knack.c -o out/knack-loadexec-test.exe
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -m unittest discover -s port/tests -p test_prepare.py -v
-.\.venv\Scripts\python.exe -m unittest discover -s port/tests -p test_link_modules.py -v
-.\.venv\Scripts\python.exe -m unittest discover -s port/tests -p test_link_libc.py -v
-```
+| Caminho | Conteúdo |
+| --- | --- |
+| `port/src/` | Loader, serviços, entrada, codecs e runtime de áudio. |
+| `port/gpu/` | Backend Vulkan, compilador de shaders e código gráfico herdado. |
+| `port/launcher/knack2/` | Launcher específico de Knack II. |
+| `profiles/` | Identidade e hashes do dump suportado. |
+| `tests/`, `port/tests/` | Testes e fixtures sintéticas. |
+| `docs/` | Guias, créditos e documentação técnica. |
+| `docs/archive/` | Artefatos históricos identificados, sem aplicação automática. |
+| `out/`, `port/out/` | Saídas locais ignoradas pelo Git. |
 
-Verificam protocolo LoadExec, argumentos e caminhos com espaços, timeout, isolamento de opções, parser SELF, relocações, TLS, metadados SaveData, limites de buffers, erros de corrupção, eventos e preservação de gerações de backup. O contrato de fontes testa os offsets lidos pelo guest, espaços, linha de base e unidades em pixels usando FreeType e a fonte DejaVuSans redistribuída no projeto. Os testes SaveData usam arquivos sintéticos em pasta temporária, sem acessar saves reais. São 29 execuções de teste nesses comandos; uma verificação de módulo é executada pelas duas suítes de link. Nesta continuação, os 12 testes de `tests/` passaram; parser e linker conservam a validação anterior.
-
-Regressões gráficas desta etapa (após o build e com CLANG64 no PATH):
-
-```powershell
-cmake --build port/out/gpu --target buffer-clear-test frame-capture-test async-fetch-snapshot-test -j 6
-.\port\out\gpu\buffer-clear-test.exe
-.\port\out\gpu\frame-capture-test.exe
-.\port\out\gpu\async-fetch-snapshot-test.exe
-```
-
-Os três testes passaram: invalidação de limpezas por escritas sobrepostas, descritores mutáveis de vértices e captura delimitada pelo flip GPU. A validação visual usou o launcher normal, sem desativar otimizações ou forçar barreiras globais.
+Ferramentas e launchers `infamous_*` são herança da base. Permanecem como referência e compatibilidade; não são a entrada de Knack II.
 
 ## Bases e créditos
 
-- Base principal: [HayatoG/iss_pc — d65fa53](https://github.com/HayatoG/iss_pc/tree/d65fa53a1e7cfe71c8eb402b1e6526fa835ef5df). README original preservado integralmente em [README.upstream.md](README.upstream.md); créditos e histórico mantidos.
-- Herança do runtime e infraestrutura: [The Last Guardian — HayatoG/tlg_pc](https://github.com/HayatoG/tlg_pc) e [Gravity Rush 2 — HayatoG/gr2_pc](https://github.com/HayatoG/gr2_pc), conforme os créditos da base `iss_pc`.
-- Referência Windows/diagnóstico: [FelipePrado0/gow3_pc — 1436e7e](https://github.com/FelipePrado0/gow3_pc/tree/1436e7e79807de8e832fc1b6da2f8f20a4293172).
-- Referência gráfica: [deadinside28/bloodborne_pc — 3c57da4](https://github.com/deadinside28/bloodborne_pc/tree/3c57da4198ad62039f63f33bfd205b9916518acf). Nenhuma correção adicional desta referência foi importada nesta etapa SaveData.
-- Núcleo gráfico e compilador de shaders: [shadPS4](https://github.com/shadps4-emu/shadPS4). Forks e backports herdados incluem [shadPS4-Infamous-FixBuild](https://github.com/rayhlancaner-png/shadPS4-Infamous-FixBuild), [ShadowOfTheColossus-PC / AjncSystem](https://github.com/AjncSystem/ShadowOfTheColossus-PC), Pink-shadPS4, variantes de Bloodborne de Mrsuss60 e 0xCydral e [T3CHNOLOG1C/CTR](https://github.com/T3CHNOLOG1C/CTR). Autores, hashes e escopo de cada importação estão preservados em [VENDOR.txt](port/gpu/VENDOR.txt) e [EXPERIMENTAL_FIXES.md](docs/EXPERIMENTAL_FIXES.md); não são apresentados como trabalho original de Knack II.
-- Decodificação e serviços de suporte: [LibAtrac9 / Thealexbarney](https://github.com/Thealexbarney/LibAtrac9), [FFmpeg](https://ffmpeg.org), [SDL3](https://libsdl.org), [FreeType](https://freetype.org) e demais dependências creditadas nos respectivos diretórios. Cada componente conserva sua própria licença.
-- Contratos ABI SaveData: [shadPS4 — e6c79a5](https://github.com/shadps4-emu/shadPS4/tree/e6c79a5fe0ea2f3d03fcb9c5c50cf61af063f3f5/src/core/libraries/save_data). A implementação de backup em diretórios é local.
+Este port depende do trabalho dos autores dos projetos abaixo:
 
-Licenças preservadas em [port/LICENSE](port/LICENSE), [port/gpu/shadps4/LICENSE](port/gpu/shadps4/LICENSE) e nas dependências. Os novos arquivos usam SPDX GPL-2.0-or-later quando aplicável. Não incluir dump, saves, imagens preparadas ou recursos proprietários em distribuições.
+- **[HayatoG/iss_pc](https://github.com/HayatoG/iss_pc)** — base direta, no snapshot `d65fa53a1e7cfe71c8eb402b1e6526fa835ef5df`.
+- **[HayatoG/tlg_pc](https://github.com/HayatoG/tlg_pc)** e **[HayatoG/gr2_pc](https://github.com/HayatoG/gr2_pc)** — linhagem do runtime e da infraestrutura herdada.
+- **[shadPS4](https://github.com/shadps4-emu/shadPS4)** — núcleo gráfico Vulkan e recompilação de shaders.
+- **[FelipePrado0/SpartanPort](https://github.com/FelipePrado0/SpartanPort)**, anteriormente `gow3_pc`, e **[deadinside28/bloodborne_pc](https://github.com/deadinside28/bloodborne_pc)** — linhagem e referências técnicas do runtime/Windows.
+- **[shadPS4-Infamous-FixBuild](https://github.com/rayhlancaner-png/shadPS4-Infamous-FixBuild)** e **[AjncSystem/ShadowOfTheColossus-PC](https://github.com/AjncSystem/ShadowOfTheColossus-PC)** — correções gráficas herdadas e adaptadas pela base.
+- **[Thealexbarney/LibAtrac9](https://github.com/Thealexbarney/LibAtrac9)**, **[FFmpeg](https://github.com/FFmpeg/FFmpeg)**, **[SDL](https://github.com/libsdl-org/SDL)** e **[FreeType](https://github.com/freetype/freetype)** — decodificação, mídia, entrada/saída e fontes.
 
-Knack e Knack II pertencem aos respectivos titulares, incluindo Sony Interactive
-Entertainment. Este projeto comunitário não é produto oficial nem tem afiliação
-com a Sony ou os criadores do jogo. Identidade própria não apaga autoria, licenças
-ou a origem do código utilizado.
+A lista detalhada de forks, bibliotecas, ferramentas e fontes está em **[Créditos e proveniência](docs/CREDITS.md)**. Os hashes e a autoria das importações gráficas permanecem em [VENDOR.txt](port/gpu/VENDOR.txt); a genealogia está em [UPSTREAM.md](port/UPSTREAM.md). O [README original](README.upstream.md) foi preservado integralmente.
 
-Estado técnico, capturas locais, avisos e fronteira para a próxima etapa: [HANDOFF_ASTRA.md](HANDOFF_ASTRA.md).
+## Licenças e titularidade
+
+O código derivado conserva a licença indicada em [port/LICENSE](port/LICENSE) e [shadPS4/LICENSE](port/gpu/shadps4/LICENSE), além dos avisos de autoria por arquivo. Dependências mantêm suas próprias licenças; a adaptação não altera essas condições.
+
+Knack e Knack II pertencem aos respectivos titulares, incluindo Sony Interactive Entertainment. Este projeto comunitário não tem afiliação oficial com a Sony ou os criadores do jogo.

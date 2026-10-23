@@ -36,3 +36,25 @@ port/dist/
 /out/
 /.venv/
 *.elf
+/Knack II.exe
+graphify-out/
+HANDOFF_ASTRAS.MD
+AGENTS.MD
+
+# Artefatos locais de investigação; patches mantidos pelo build ficam em port/gpu/patches/.
+/*.zip
+/*.patch
+/scratch/
+/.agents/
+/.kilo/
+/gpu_test_mask.txt
+/port/gpu_test_mask.txt
+*.raw
+*.dmp
+*.stackdump
+
+# Credenciais locais; modelos de configuração podem ser versionados explicitamente.
+.env
+.env.*
+!.env.example
+!.env.sample

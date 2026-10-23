@@ -1,11 +1,35 @@
 # Identidade, launcher e dados persistentes
 
+Uso diário, localização de logs e build do launcher estão no
+[guia Windows](LAUNCHER_WINDOWS.md). Este documento detalha identidade,
+preservação de saves e proveniência do runtime.
+
 O launcher usa o supervisor oficial `run.py`. Abrir a interface não inicia o jogo.
+Nesta instalação Windows, o launcher compilado é **Knack II.exe**, na raiz do
+repositório. Ele inclui Qt/Python e usa o supervisor compilado em
+`port/out/knack-launcher-supervisor`. Não depende da `.venv` para abrir ou executar
+o supervisor; mantém os arquivos oficiais de preparação e o runtime do projeto.
+A pasta selecionada é lembrada automaticamente. Seu caminho é restaurado na
+próxima abertura, mas a instalação precisa ser validada novamente antes de jogar.
 Com o Python do projeto e PySide6 disponíveis, execute na raiz:
 
 ```powershell
 python -B -m port.launcher.knack2 --real
 ```
+
+Para reconstruir somente o launcher no Windows, com PyInstaller 6.22.3 disponível
+no Python de build e o ícone original já preparado:
+
+```powershell
+python -B scripts/build_knack_launcher.py --build-dir 'C:\builds\knack-launcher'
+```
+
+O script recusa sobrescrever executáveis existentes. O build usa diretório
+isolado, não compila o Core, não inicia o jogo e registra hashes de ambos os EXEs.
+O console do supervisor é compartilhado e ocultado pelo bootloader para manter
+CTRL_BREAK e encerramento controlado, sem janela de terminal nas partidas.
+O teste do EXE confirmou esse encerramento com um filho sintético. Não foi
+realizada uma nova sessão de gameplay para validar esta entrega.
 
 ## Saves fixos
 
@@ -75,13 +99,24 @@ Para builds novos, `tlg-probe.rc` permite um ícone local pelo define
 A entrega local reutiliza o build COOP-05 / B2-F2C, SHA-256 original
 `3db2a9d1240a20e7de1815ddf0946c34277808543f1969c076b533239d252d65`.
 A cópia com recursos Knack preserva código e contratos desse build. Não é uma
-nova compilação do Core. Os fontes C/C++ desta branch ainda seguem a main e não
+nova compilação do Core. Os fontes C/C++ da branch de integração BRAND-01 seguem a main e não
 incluem toda a linha de áudio experimental do artefato. Reconstruir a main não
 substitui esse build de áudio; sua integração exige tarefa específica.
 
 Áudio audível, idioma efetivo dentro do jogo e comportamento desta identidade
 em gameplay ainda dependem de teste real. Nesta etapa, somente testes focados e
 recursos Windows foram validados; nenhum jogo foi iniciado.
+
+O registro de 21/10/2026 inclui 46 testes focados aprovados e cinco gates dos
+executáveis compilados: ajuda oficial, ajuda ISA, rejeição de dump ausente,
+abertura da interface e encerramento controlado. Os hashes abaixo identificam
+os artefatos locais dessa entrega, sem afirmar equivalência de futuros builds:
+
+| Artefato | SHA-256 |
+| --- | --- |
+| `Knack II.exe` | `944cfe124c3452554597f87d6bbfec1a0d2d80a6138491ac2fb866b899e5bbb0` |
+| `KnackSupervisor.exe` | `26ea85580cd34af9e35dacc660f639fe8ad50ad50678f6fa49448e5b7bbf50fb` |
+| `knack2-runtime.exe` com recursos Knack | `a73cd77cbc018cf19441207d45ed84fb8744f5615797f9d88c381989af4a44ea` |
 
 Nomes internos `TLG_*`, target `tlg-probe`, diretórios de terceiros, créditos,
 licenças e documentação histórica permanecem por compatibilidade e atribuição.
