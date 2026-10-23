@@ -35,6 +35,10 @@ Esta é uma **alpha experimental**. Partida individual e cooperativo local foram
 testados no início do jogo; a campanha completa ainda não foi validada.
 Falhas gráficas e encerramentos inesperados ainda podem ocorrer.
 
+## Capturas de tela
+
+<p align="center"><img src="docs/screenshots/knack-ii-title-screen.png" alt="Tela inicial de Knack II no port para PC" width="49%" /> <img src="docs/screenshots/knack-ii-combat.png" alt="Combate de Knack II no port para PC" width="49%" /></p>
+
 ## Precisa de ajuda?
 
 - **Validação falhou:** confira a pasta selecionada, o código **CUSA08014** e a versão **01.01** do jogo.
