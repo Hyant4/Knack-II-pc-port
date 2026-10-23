@@ -38,8 +38,12 @@ port/dist/
 *.elf
 /Knack II.exe
 graphify-out/
-HANDOFF_ASTRAS.MD
-AGENTS.MD
+# Instruções de agentes e handoffs locais, incluindo variações de caixa.
+[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+/[Hh][Aa][Nn][Dd][Oo][Ff][Ff]*.[Mm][Dd]
+/.codex/
+/.claude/
+/.gemini/
 
 # Artefatos locais de investigação; patches mantidos pelo build ficam em port/gpu/patches/.
 /*.zip
@@ -58,3 +62,23 @@ AGENTS.MD
 .env.*
 !.env.example
 !.env.sample
+
+# Chaves privadas e repositórios locais de credenciais.
+*.pem
+*.key
+*.pfx
+*.p12
+*.keystore
+*.jks
+id_rsa
+id_ed25519
+credentials.json
+service-account*.json
+
+# Dados privados de execução; fontes e fixtures sintéticas permanecem permitidas.
+/saves/
+/savedata/
+/savedata-backups/
+/captures/
+/logs/
+/firmware/

@@ -126,4 +126,4 @@ anterior. A validação do launcher compilado não iniciou o jogo. Áudio audív
 idioma efetivo dentro do jogo e gameplay usando este novo EXE ainda precisam
 de confirmação real; build e smoke não demonstram esses resultados.
 
-Registro técnico: [HANDOFF_ASTRA.md](../HANDOFF_ASTRA.md).
+Documentação pública: [identidade e proveniência](KNACK_IDENTITY.md), [créditos](CREDITS.md) e [guia de publicação](PUBLICACAO.md). Handoffs de desenvolvimento permanecem locais.

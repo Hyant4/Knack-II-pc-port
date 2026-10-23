@@ -22,7 +22,7 @@ Validação **local de desenvolvimento**, atualizada em **22/10/2026**:
 
 A correção recente de áudio informa ao jogo o contador de amostras efetivamente consumidas por voz. O contador acompanha a reprodução e congela na pausa, permitindo ao sincronizador retomar o som sem impor ganho artificial.
 
-Esses resultados descrevem o build local testado, **não uma certificação de todos os capítulos, imports ou equipamentos**. Builds locais e alterações ainda não publicados podem estar à frente de `main`. Consulte o [handoff técnico](HANDOFF_ASTRA.md) para proveniência e limites.
+Esses resultados descrevem o build local testado, **não uma certificação de todos os capítulos, imports ou equipamentos**. Builds locais e alterações ainda não publicados podem estar à frente de `main`. Consulte os [créditos e a proveniência](docs/CREDITS.md) e o [guia de publicação](docs/PUBLICACAO.md). Handoffs e instruções de agentes são documentos locais, fora da versão pública atual.
 
 ## Usar a instalação compilada
 
