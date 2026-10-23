@@ -95,6 +95,12 @@ class F3BTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='knack-f3b ')
         self.root = Path(self.temp.name)
+        # A fresh checkout has no native runtime. The synthetic session never executes it.
+        runtime = self.root / 'synthetic-runtime.exe'
+        runtime.write_bytes(b'test fixture, never executed')
+        self.runtime_path_patch = patch('port.launcher.knack2.ui.real.runtime_path', return_value=runtime)
+        self.runtime_path_patch.start()
+        self.addCleanup(self.runtime_path_patch.stop)
         self.sessions = []
         self.messages = []
         self.previous_handler = qInstallMessageHandler(lambda kind, ctx, msg: self.messages.append(msg))

@@ -4,7 +4,7 @@ Port independente e experimental de Knack II para Windows.
 
 **[Baixar para Windows — ZIP, 238 MB](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10)**
 
-[Notas da versão alpha](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-2026.10.22-audio-clock09)
+[Notas da versão alpha](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10)
 
 ## O que você precisa
 

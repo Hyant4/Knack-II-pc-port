@@ -2,7 +2,7 @@
 
 ## Abrir e jogar
 
-O pacote [alpha Windows audio-clock09](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-2026.10.22-audio-clock09) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
+O pacote [alpha Windows audio-clock09](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
 
 Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 

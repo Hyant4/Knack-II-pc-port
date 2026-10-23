@@ -54,7 +54,7 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--demo', action='store_true', help='Demonstração F3A, sem processos reais.')
     mode.add_argument('--real', action='store_true', help='Supervisor oficial (padrão); requer clicar em Jogar.')
-    parser.add_argument('--data-dir', type=Path, help='Dados persistentes; padrão Windows: %LOCALAPPDATA%/KnackII-PC.')
+    parser.add_argument('--data-dir', type=Path, help='Dados persistentes; padrão Windows: %%LOCALAPPDATA%%/KnackII-PC.')
     parser.add_argument('--offscreen', action='store_true', help='Renderização Qt sem janela visível.')
     parser.add_argument('--quit-after-ms', type=int, default=0, help='Fechar após N ms, para smoke finito.')
     parser.add_argument('--screenshot', type=Path, help='Salvar captura PNG da interface antes de fechar.')

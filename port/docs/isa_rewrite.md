@@ -2,7 +2,7 @@
 
 The PS4's Jaguar CPU has MOVBE, F16C, BMI1, LZCNT and AMD's SSE4A. The guest code runs on the host
 CPU as it is, so a host without one of these sets would stop on an illegal instruction. At start
-(`launcher/infamous_run.py` → `scripts/isa_rewrite.py`) the port lists every such instruction in
+(`../run.py` → `scripts/isa_rewrite.py`) the port lists every such instruction in
 the linked image (`out/isa-rewrite.bin`, format G3ISA1), and the probe (`src/isa_rewrite.c`) patches
 the sites of the sets the CPU lacks with a jump to a stub that emulates the instruction
 (`src/isa_emulate.c`, built with `-mgeneral-regs-only` and no libc: it runs inside guest code and

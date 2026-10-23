@@ -125,7 +125,7 @@ analysis takes about 5 s.
 | `ISS_RED_ZONE_REWRITE=1` (or `TLG_`) | on | on (tests) |
 | `ISS_RED_ZONE_REWRITE=0` | off | off |
 
-The launcher (`infamous_run.py`, `run.py`) builds the table with `--red-zone` when protection is
+The launcher (`../run.py`, `run.py`) builds the table with `--red-zone` when protection is
 wanted, even on a CPU that needs no emulation.
 
 **Test switch (Linux):** `TLG_CLOBBER_RED_ZONE=<bytes>`.
@@ -163,4 +163,4 @@ wanted, even on a CPU that needs no emulation.
   - the counts;
   - whether the image has `.eh_frame_hdr` tables (all PS4 SDK binaries we have seen do);
   - each port's environment prefix (`ISS_`, `GR2_`, ...);
-  - the launcher policy (`infamous_run.py`).
+  - the launcher policy (`../run.py`).

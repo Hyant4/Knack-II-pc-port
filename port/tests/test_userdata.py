@@ -1,5 +1,4 @@
-"""Data folder resolution, migration copy and the search for saves of other installs
-(launcher/userdata.py), and that the game gets the right --user (infamous_run.launch)."""
+"""Data folder resolution and migration used by the retained native diagnostics."""
 import os
 import sys
 import tempfile
@@ -10,7 +9,6 @@ from unittest import mock
 from paths import ROOT
 sys.path.insert(0, str(ROOT / 'launcher'))
 import userdata  # noqa: E402
-import infamous_run  # noqa: E402
 
 
 def make_save(data, user='1', slot='infamousssUser0', body=b'x' * 100, mtime=None):
@@ -70,8 +68,9 @@ class ResolutionTests(Temp):
         self.assertEqual({}, userdata.read_pointer(self.root / 'missing.json'))
 
     def test_real_pointer_through_environment(self):
-        env = {'XDG_CONFIG_HOME': str(self.root / 'xdg')}
-        with mock.patch.dict(os.environ, env, clear=False), mock.patch.object(userdata.os, 'name', 'posix'):
+        key = 'APPDATA' if os.name == 'nt' else 'XDG_CONFIG_HOME'
+        env = {key: str(self.root / 'config')}
+        with mock.patch.dict(os.environ, env, clear=False):
             os.environ.pop('ISS_USER_DIR', None)
             os.environ.pop('TLG_USER_DIR', None)
             userdata.set_user_dir(self.root / 'saves')
@@ -84,43 +83,6 @@ class ResolutionTests(Temp):
         self.assertEqual(Path('/d/infamous-pc'), userdata.suggested_dir(nt=False, env={'XDG_DATA_HOME': '/d'}))
 
 
-class GameGetsTheRightUserTests(Temp):
-    """infamous_run.launch must hand tlg-probe --user <resolved folder>, and run it from there."""
-
-    def run_launch(self, env, pointer=None):
-        port = self.root / 'port'
-        settings = dict(infamous_run.DEFAULT_SETTINGS, game_dir=str(self.root / 'game'))
-        with mock.patch.dict(os.environ, env), \
-                mock.patch.object(infamous_run, 'OUT_DIR', port / 'out'), \
-                mock.patch.object(infamous_run, 'LOG_DIR', port / 'out' / 'logs'), \
-                mock.patch.object(infamous_run, 'PORT_DIR', port), \
-                mock.patch.object(infamous_run, 'pad_glyphs', return_value=''), \
-                mock.patch.object(infamous_run, 'probe_env', return_value={}), \
-                mock.patch.object(infamous_run.subprocess, 'Popen') as popen, \
-                mock.patch.object(userdata, 'read_pointer', return_value=pointer or {}):
-            infamous_run.launch(settings)
-        return popen.call_args
-
-    def test_default_pointer_and_env(self):
-        with mock.patch.dict(os.environ):
-            for name in ('ISS_USER_DIR', 'TLG_USER_DIR', 'ISS_GPU_USER_DIR', 'TLG_GPU_USER_DIR'):
-                os.environ.pop(name, None)
-            call = self.run_launch({})
-            cmd = call.args[0]
-            self.assertEqual(str(self.root / 'port' / 'user'), cmd[cmd.index('--user') + 1])
-            self.assertEqual(str(self.root / 'port' / 'user'), call.kwargs['cwd'])
-            self.assertEqual(str(self.root / 'port' / 'user' / 'tlg.ini'), call.kwargs['env']['ISS_CONFIG'])
-            self.assertEqual(str(self.root / 'port' / 'user'), call.kwargs['env']['TLG_GPU_USER_DIR'])
-
-            call = self.run_launch({}, {'user_dir': str(self.root / 'docs')})
-            cmd = call.args[0]
-            self.assertEqual(str(self.root / 'docs'), cmd[cmd.index('--user') + 1])
-            self.assertTrue((self.root / 'docs' / 'tlg.ini').is_file())
-            self.assertEqual(str(self.root / 'docs'), call.kwargs['env']['TLG_GPU_USER_DIR'])
-
-            call = self.run_launch({'ISS_USER_DIR': str(self.root / 'envdir')}, {'user_dir': 'ignored'})
-            cmd = call.args[0]
-            self.assertEqual(str(self.root / 'envdir'), cmd[cmd.index('--user') + 1])
 
 
 class MigrationTests(Temp):

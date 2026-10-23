@@ -5,8 +5,8 @@ Para baixar o pacote pronto e jogar, consulte o [README](../README.md).
 
 ## Fontes da versão distribuída
 
-O ZIP `Knack-II-sources-audio-clock09.zip` anexado à
-[release alpha](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-2026.10.22-audio-clock09)
+O ZIP `Knack-II-sources-audio-V0.10.zip` anexado à
+[release alpha](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10)
 contém as alterações locais dessa compilação e os submódulos expandidos.
 Os arquivos automáticos “Source code” do GitHub correspondem à tag de documentação
 e não substituem esse snapshot. `BUILDINFO.json` registra a proveniência.
@@ -75,3 +75,15 @@ Alguns runners dependem da toolchain ou de fixtures locais. Testes sintéticos, 
 - [Ambiente de compilação observado](knack2-toolchain-packages.txt)
 - [Créditos e proveniência](CREDITS.md)
 - [Publicação e dados locais](PUBLICACAO.md)
+
+## Organização e verificações
+
+O fluxo de Knack II usa `run.py` da raiz, `port/launcher/knack2/` e seu spec de
+empacotamento. Os launchers, telas Qt, scripts de publicação e documentação de
+usuário específicos de inFAMOUS foram removidos. Código nativo, ABI, dependências
+vendorizadas, recursos referenciados pelo CMake e licenças permanecem preservados.
+
+O workflow `Knack II checks` executa verificações Python em pull requests ou por
+acionamento manual. Ele não compila o jogo nem publica releases. As dependências
+da interface estão em `port/launcher/knack2/requirements.txt`; os testes Windows
+usam UTF-8 explícito para manter os subprocessos com a mesma codificação.

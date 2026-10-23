@@ -1,11 +1,8 @@
-<!-- What changed and why (English). -->
+## O que mudou
 
+Descreva o problema e o resultado desta alteração.
 
-<!-- Release notes: one "- " line per change, in both languages. Mention the issue (#N) it fixes;
-     the release credits whoever opened it. -->
-<!-- notes:pt-BR -->
-- 
-<!-- /notes -->
-<!-- notes:en-US -->
-- 
-<!-- /notes -->
+## Validação
+
+Informe os testes executados, os resultados e o que permaneceu sem validação.
+Não inclua dump, saves, áudio do jogo, credenciais ou logs com dados privados.

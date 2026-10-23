@@ -30,7 +30,7 @@ Nomes internos como `tlg`, `gr2` e `iss` refletem essa história. Eles não indi
 | [T3CHNOLOG1C/CTR](https://github.com/T3CHNOLOG1C/CTR) | Origem histórica registrada do backport BP09, `d26bcb2`, para imagens 1D. O endereço retornou 404 na conferência de 22/10/2026; o crédito histórico é mantido. |
 | [FireBurn/FSR-Vulkan](https://github.com/FireBurn/FSR-Vulkan) | Submódulo de suporte FSR do backend, com adaptações versionadas em `port/gpu/patches/fsr-vulkan/`. |
 
-O inventário por commit e o escopo de cada importação estão em [VENDOR.txt](../port/gpu/VENDOR.txt). As opções herdadas estão documentadas em [EXPERIMENTAL_FIXES.md](EXPERIMENTAL_FIXES.md); essa documentação histórica não certifica todas as opções em Knack II.
+O inventário por commit e o escopo de cada importação estão em [VENDOR.txt](../port/gpu/VENDOR.txt). Esse registro preserva a autoria e o escopo dos backports, incluindo os componentes compartilhados que continuam no runtime.
 
 ## Áudio, mídia, fontes e preparação
 
@@ -70,7 +70,7 @@ Os arquivos [`.gitmodules`](../.gitmodules), [CMakeLists.txt](../port/gpu/CMakeL
 
 O launcher específico de Knack II utiliza Python, Qt for Python/PySide6 e PyInstaller. Referências: [CPython](https://github.com/python/cpython), [Qt for Python](https://code.qt.io/cgit/pyside/pyside-setup.git/) e [PyInstaller](https://github.com/pyinstaller/pyinstaller).
 
-A interface herdada também inclui fontes e respectivos avisos: [Barlow](../port/launcher/qt/fonts/OFL-Barlow.txt) e [Big Shoulders Stencil Display](../port/launcher/qt/fonts/OFL-BigShouldersStencilDisplay.txt). Essas licenças permanecem ao lado dos arquivos originais.
+A interface herdada utilizava as fontes abaixo. Sua interface e assets não utilizados foram removidos; os avisos históricos de autoria permanecem preservados: [Barlow](../port/launcher/qt/fonts/OFL-Barlow.txt) e [Big Shoulders Stencil Display](../port/launcher/qt/fonts/OFL-BigShouldersStencilDisplay.txt). Os arquivos de licença foram preservados nos caminhos originais.
 
 ## Licenças e recursos do jogo
 

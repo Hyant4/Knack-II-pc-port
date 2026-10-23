@@ -9,8 +9,21 @@ do Knack II (CUSA08014 01.01). O fluxo ativo começa no supervisor `run.py` da r
 - `launcher/knack2/`: launcher Qt, validação e supervisão específicos de Knack II;
 - `packaging/windows/`: recursos de ícone, manifesto e metadados do runtime Windows.
 
-Arquivos com nomes `tlg_*`, `infamous_*` e componentes de outros ports preservam
-compatibilidade e histórico. Os launchers legados não são a entrada de Knack II.
+Na instalação Windows local, a entrada para o usuário é **Knack II.exe**, na
+raiz do repositório. O launcher inclui Qt/Python, lembra automaticamente a pasta
+selecionada e usa `port/out/knack-launcher-supervisor/KnackSupervisor.exe` para
+executar o supervisor oficial. O build da interface está em
+`launcher/knack2/packaging/knack2.spec` e `../scripts/build_knack_launcher.py`;
+ele não recompila este Core.
+
+Saves ficam em `%LOCALAPPDATA%\KnackII-PC`, em perfis separados `single` e `coop`.
+P1 é o padrão; P2=4099 exige seleção explícita. A interface inicia sessões sem
+limite de tempo. Uso, logs e reconstrução do launcher estão no
+[guia Windows](../docs/LAUNCHER_WINDOWS.md).
+
+Os launchers e o empacotamento legados de inFAMOUS foram removidos. Componentes
+compartilhados do runtime, ferramentas nativas e recursos exigidos pelo build
+continuam preservados, mesmo quando seus nomes refletem projetos anteriores.
 O runtime público usa `knack2-runtime.exe`, com fallback para builds diagnósticos
 `tlg-probe.exe`. Não se realizou renomeação de ABI, exports ou opções internas.
 
