@@ -486,6 +486,21 @@ class F3BTests(unittest.TestCase):
         self.assertTrue(self.backend._runner.session_info.session_dir.is_relative_to(self.backend._out))
 
 
+    def test_shader_preload_preference_persists_and_reaches_supervisor(self):
+        self.assertEqual(self.backend.settings['shader_preload'], '1')
+        for value in ('0', '1'):
+            self.backend.setSetting('shader_preload', value)
+            self.backend.saveSettings()
+            ini = self.backend.workspace / 'knack2.ini'
+            self.assertEqual(config.load_knack2_ini(ini)['shader_preload'], value)
+            restored = RealBackend(data_dir=self.backend.workspace)
+            try:
+                self.assertEqual(restored.settings['shader_preload'], value)
+            finally:
+                restored.shutdown()
+            env = supervisor.runtime_environment(self.root / 'preload-output', config_file=ini)
+            self.assertEqual(env.get('TLG_BACKGROUND_WARMUP') == '0', value == '1')
+
     def test_launcher_language_persists_without_dump_or_game_language_change(self):
         path = self.root / 'data' / 'launcher_settings.json'
         config.save_launcher_settings({'language': 'fr-FR', 'custom': 'preserve'}, path=path)

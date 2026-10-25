@@ -19,13 +19,61 @@
     "bytes": 670,
     "sha256": "60ca995ab5d8136ea9d6e6c4da104f372e88e487759b1c031c301117c9ba3d22"
   },
+  "BUILDINFO.json": {
+    "bytes": 5879,
+    "sha256": "2293e79718e800c605cc94f4b4a85a69c59478781eeadf970c29a8dc483366ee"
+  },
+  "FSR4-ASSETS.json": {
+    "bytes": 48505,
+    "sha256": "2f25fdd1a8fe2093ef98fe259c1180a050b75e105ca73d4ba3282e69ad49bff8"
+  },
+  "LEIA-ME.md": {
+    "bytes": 1807,
+    "sha256": "2f7cfb6be230c78be03b2881f440b05861e78a664ce80b99b82712ff187d3191"
+  },
+  "READ-ME.md": {
+    "bytes": 1612,
+    "sha256": "1d166b424e10c249d3fecb841a4837e7a35f52e2ee319b62904431b01148d7d0"
+  },
+  "README.md": {
+    "bytes": 9191,
+    "sha256": "2fb58fd44f02362169516a68a2b11fb9f1ab75c9468eeb142d6ba3b34ca7f2ef"
+  },
+  "README.pt-BR.md": {
+    "bytes": 8250,
+    "sha256": "6f87b1cf263af690478feec317ededd9a9aefdbeaea2b1904f3462d791686f2b"
+  },
+  "README.upstream.md": {
+    "bytes": 84059,
+    "sha256": "e5fc6fa2d2039a59a72f0a766c963b1c5b9e4da83df66a42f0e209eaab13a222"
+  },
+  "RELEASE-NOTES.md": {
+    "bytes": 3418,
+    "sha256": "ca50acc13031fb1f1c9be5dd01bb2ee5b2642814b946143b7ff67c2862eba4d2"
+  },
+  "RELEASE-SOURCE.md": {
+    "bytes": 711,
+    "sha256": "389a68476188fa221ee54f0ce76c7c1e054e46d1d733e296715c2e42dc7d2285"
+  },
+  "THIRD-PARTY.md": {
+    "bytes": 2018,
+    "sha256": "7631a36ecd9b05a57091ca8eab7a48397281a65cdf6ad339c06bdea59182d67e"
+  },
+  "TOOLCHAIN-PACKAGES.txt": {
+    "bytes": 8855,
+    "sha256": "453b5da2dbdce21e0b193a055ec8b4896571de9c2b9377d3bf7d1fd6dc31ec27"
+  },
+  "UI-ASSETS.json": {
+    "bytes": 1032,
+    "sha256": "ee8da8162d350dfa30fb3be0a3babff21eec585bc9f8f351eaff3795f45015bd"
+  },
+  "UI-ASSETS.md": {
+    "bytes": 459,
+    "sha256": "60299f4dcb42be3c4f2ab9e0101f4e87d248d7ca670e39a3643ca4d931da6d1b"
+  },
   "build.ps1": {
     "bytes": 1454,
     "sha256": "64e06ca8a81fbea20561a501a548d55773fa23b87fa191b1a76ba47685589757"
-  },
-  "BUILDINFO.json": {
-    "bytes": 7027,
-    "sha256": "91770ac7f77998354e9893792e0b2ebe3f5303b1b52ca823655d9b9a776b11fd"
   },
   "docs/AUDIO.md": {
     "bytes": 2893,
@@ -51,14 +99,6 @@
     "bytes": 22635,
     "sha256": "b4920b0e88a6259b1b11d6ae7e46ef3ef37521a545d68949a376099a3a6e713c"
   },
-  "docs/index.html": {
-    "bytes": 11198,
-    "sha256": "104059bdfb468187cabe9a4be05c3823ca025ea126e943ad7b28cb95c0b46211"
-  },
-  "docs/knack2-toolchain-packages.txt": {
-    "bytes": 8852,
-    "sha256": "2747f5bc37c316df2f5162c901f147e7b81c96a9e3d5b2c0ca7b2bc917999360"
-  },
   "docs/KNACK2_FONT_ABI.md": {
     "bytes": 2625,
     "sha256": "643774ee8eeb9e2580d0f018fcbc78a6b3bae0f1cdf9de8aa213a6016850338a"
@@ -75,6 +115,18 @@
     "bytes": 2690,
     "sha256": "262ac26a16e689902a832c3639cc32a64c26fc2f3ad8de771e7bf861b06dd9f1"
   },
+  "docs/SEO_LAUNCH.md": {
+    "bytes": 4032,
+    "sha256": "685e5328655647016c4118541dfdf5b6769dc503ee09b3f82ea16ed69efd419e"
+  },
+  "docs/index.html": {
+    "bytes": 11198,
+    "sha256": "104059bdfb468187cabe9a4be05c3823ca025ea126e943ad7b28cb95c0b46211"
+  },
+  "docs/knack2-toolchain-packages.txt": {
+    "bytes": 8852,
+    "sha256": "2747f5bc37c316df2f5162c901f147e7b81c96a9e3d5b2c0ca7b2bc917999360"
+  },
   "docs/robots.txt": {
     "bytes": 91,
     "sha256": "b23588bcdc1f9dfd270d7e234d194cf1012935478a199985c552511b773657c7"
@@ -87,25 +139,25 @@
     "bytes": 4874093,
     "sha256": "ee3173f2284bd2ee95c230d40de86e6c359dd266a1312783f0b941d17bcb9a44"
   },
-  "docs/SEO_LAUNCH.md": {
-    "bytes": 4032,
-    "sha256": "685e5328655647016c4118541dfdf5b6769dc503ee09b3f82ea16ed69efd419e"
-  },
   "docs/sitemap.xml": {
     "bytes": 181,
     "sha256": "fc24c1b918094224289bebe102cd50dd292da71019e5d2b6396ac6e0d45143af"
   },
-  "FSR4-ASSETS.json": {
-    "bytes": 48505,
-    "sha256": "2f25fdd1a8fe2093ef98fe259c1180a050b75e105ca73d4ba3282e69ad49bff8"
-  },
-  "LEIA-ME.md": {
-    "bytes": 1245,
-    "sha256": "ee6dff1ba69bf16abd16eb51433ec4b71339fb05a2178ed2028d886de406f82f"
-  },
   "port/.gitignore": {
     "bytes": 525,
     "sha256": "8726ccf26184e539237577235ab03adc57eb2a58ebc05eaeba235f8da9d9f67d"
+  },
+  "port/LICENSE": {
+    "bytes": 18322,
+    "sha256": "498d32907f132c2cd7d3ae269f304aed87156293f63e724b83d9f62ed787d55a"
+  },
+  "port/README.md": {
+    "bytes": 2097,
+    "sha256": "142390b811cbed476fb198f9b4f2319f4517148af0562cbd41eac6840bfaa777"
+  },
+  "port/UPSTREAM.md": {
+    "bytes": 1779,
+    "sha256": "569c333fe089a30b5bcf129709e62fa9db0351e7a3197bb3c7c96853a8020405"
   },
   "port/build.sh": {
     "bytes": 10247,
@@ -134,6 +186,10 @@
   "port/docs/upscaler.md": {
     "bytes": 26131,
     "sha256": "51aacfc1cf683af1862e4a4f7d34e14672ce43d35b50cda41a11eee12e0d2df3"
+  },
+  "port/fsr4_shaders/LICENSE-FSR4-v07.txt": {
+    "bytes": 1841,
+    "sha256": "1ba466516fa4270690c2b6e6a65f5b4b23d7ff0d7b1346603e187c1b3ad67f2a"
   },
   "port/fsr4_shaders/fsr4_1080_pass1.spv": {
     "bytes": 36,
@@ -1059,9 +1115,9 @@
     "bytes": 21,
     "sha256": "a08db5d56995e01630199f153a24e7a3a08573672a3dd42bbdb8ab13c8f4e8d9"
   },
-  "port/fsr4_shaders/LICENSE-FSR4-v07.txt": {
-    "bytes": 1841,
-    "sha256": "1ba466516fa4270690c2b6e6a65f5b4b23d7ff0d7b1346603e187c1b3ad67f2a"
+  "port/fsr4_shaders/opt/KNACK2-FSR4-PREPARE.json": {
+    "bytes": 9108,
+    "sha256": "43094d2d3a080e37023d3ca8f80ce27cd475abe5dcc51ccbcfd9cad3d64731e3"
   },
   "port/fsr4_shaders/opt/fsr4_model_v07_i8_balanced_1080_pass11.spv": {
     "bytes": 120732,
@@ -1183,10 +1239,6 @@
     "bytes": 63408,
     "sha256": "98155116bd0413af4e90514527e0193f606093bba6cafc026478f631a97031d0"
   },
-  "port/fsr4_shaders/opt/KNACK2-FSR4-PREPARE.json": {
-    "bytes": 9108,
-    "sha256": "43094d2d3a080e37023d3ca8f80ce27cd475abe5dcc51ccbcfd9cad3d64731e3"
-  },
   "port/fsr4_shaders/rcas.spv": {
     "bytes": 18908,
     "sha256": "03aa0e0729f67bb9907667526ed2d5d5f933030e7faa3acd953e3de109a54950"
@@ -1198,6 +1250,10 @@
   "port/gpu/CMakeLists.txt": {
     "bytes": 35637,
     "sha256": "8b7800bc6994a0b74f30d0a12574416cb0c2d464fb24000fa1faa802f3325c20"
+  },
+  "port/gpu/VENDOR.txt": {
+    "bytes": 2939,
+    "sha256": "df345d744221a95f69b46a9e9e3a9bd7c23c2d567b9afb963a2b013c64e6b3b3"
   },
   "port/gpu/dlss_bridge/CMakeLists.txt": {
     "bytes": 1520,
@@ -1230,6 +1286,10 @@
   "port/gpu/patches/fsr-vulkan/README.md": {
     "bytes": 751,
     "sha256": "85a05d6e37fa033076d2f1783d7be067ab371277085dfdb7fb4b1431791bf179"
+  },
+  "port/gpu/shadps4/LICENSE": {
+    "bytes": 18431,
+    "sha256": "189b1af95d661151e054cea10c91b3d754e4de4d3fecfb074c1fb29476f7167b"
   },
   "port/gpu/shadps4/common/adaptive_mutex.h": {
     "bytes": 885,
@@ -1706,10 +1766,6 @@
   "port/gpu/shadps4/core/platform.h": {
     "bytes": 3092,
     "sha256": "4a00aa77065aa7014e8261be09cb4e3c6f16890b763868caad957a03eed3bfac"
-  },
-  "port/gpu/shadps4/LICENSE": {
-    "bytes": 18431,
-    "sha256": "189b1af95d661151e054cea10c91b3d754e4de4d3fecfb074c1fb29476f7167b"
   },
   "port/gpu/shadps4/shader_recompiler/backend/bindings.h": {
     "bytes": 368,
@@ -2347,6 +2403,10 @@
     "bytes": 310,
     "sha256": "7fc5f3af1dcab304e4804317e2232edf614de353c0125889c0308daddef37025"
   },
+  "port/gpu/shadps4/video_core/host_shaders/CMakeLists.txt": {
+    "bytes": 2634,
+    "sha256": "c08cee5ac2bb21c277aa010dfd49383920a066e7fc2f777b4ad1fbd38b8b57e9"
+  },
   "port/gpu/shadps4/video_core/host_shaders/buffer_multi_copy.comp": {
     "bytes": 949,
     "sha256": "469ebb47120d28218cad6453e4809ddded5671c00323c57e021bc421a51c72d5"
@@ -2354,10 +2414,6 @@
   "port/gpu/shadps4/video_core/host_shaders/camera_motion.comp": {
     "bytes": 5961,
     "sha256": "d782da890a6e01ae26b34c55360071d8c444a4ae58ebb1b9241065e4a608b06c"
-  },
-  "port/gpu/shadps4/video_core/host_shaders/CMakeLists.txt": {
-    "bytes": 2634,
-    "sha256": "c08cee5ac2bb21c277aa010dfd49383920a066e7fc2f777b4ad1fbd38b8b57e9"
   },
   "port/gpu/shadps4/video_core/host_shaders/color_to_ms_depth.frag": {
     "bytes": 764,
@@ -2375,6 +2431,10 @@
     "bytes": 557,
     "sha256": "24d6107536db2f3948a723d4731f652e7a8ab149341266cccb6d79c69d583f10"
   },
+  "port/gpu/shadps4/video_core/host_shaders/fsr.comp": {
+    "bytes": 3389,
+    "sha256": "6ae045362713a8ddbf720c387f1e05708c285bda27820978a7f755a250f0bee9"
+  },
   "port/gpu/shadps4/video_core/host_shaders/fsr/ffx_a.h": {
     "bytes": 184592,
     "sha256": "94d8d663b6925c72fbecc8a5a6d6dcc88cd99a82033c8b8663a83f1938a192c6"
@@ -2382,10 +2442,6 @@
   "port/gpu/shadps4/video_core/host_shaders/fsr/ffx_fsr1.h": {
     "bytes": 61530,
     "sha256": "4dc2022ee8a0463446f5d56ae8bc310a6bba1079e1d92235e35c324fee66fc22"
-  },
-  "port/gpu/shadps4/video_core/host_shaders/fsr.comp": {
-    "bytes": 3389,
-    "sha256": "6ae045362713a8ddbf720c387f1e05708c285bda27820978a7f755a250f0bee9"
   },
   "port/gpu/shadps4/video_core/host_shaders/ms_image_blit.frag": {
     "bytes": 627,
@@ -2644,8 +2700,8 @@
     "sha256": "d32fa92ef120434d30a00d544582489a55d5cbf5da6a117507071f4a0f685ae1"
   },
   "port/gpu/shadps4/video_core/renderer_vulkan/vk_pipeline_serialization.cpp": {
-    "bytes": 65819,
-    "sha256": "3b1d15ac959146cee62d5bd64d8e5e63f6df012e2a8df36480a87efa3ddfeb94"
+    "bytes": 66615,
+    "sha256": "9b931237f76d9f43af53fa9520956a8ba77f5e6e3cc843374d210e5dbbcf32ae"
   },
   "port/gpu/shadps4/video_core/renderer_vulkan/vk_pipeline_serialization.h": {
     "bytes": 2614,
@@ -3067,13 +3123,37 @@
     "bytes": 141,
     "sha256": "74740b7dd34afd6fb3a24936db519ca1f5284cbe4ee9a3a5f9a00aa4d5c7876d"
   },
-  "port/gpu/third_party/fsr-vulkan/cmake/ffx-vulkan-config.cmake.in": {
-    "bytes": 562,
-    "sha256": "ca295669d041d37aa9869cc34646726534cedc3d7de944bbca566d99a68b8106"
-  },
   "port/gpu/third_party/fsr-vulkan/CMakeLists.txt": {
     "bytes": 58932,
     "sha256": "3f09bace7068d403f17c1140a27a56a5770fdeee86e7a6fdbdaae384b4dda5ee"
+  },
+  "port/gpu/third_party/fsr-vulkan/LICENSE.txt": {
+    "bytes": 1109,
+    "sha256": "3c696fbf540205a21914e469c3a66c22ec075b30c324de16dbd484334f7be425"
+  },
+  "port/gpu/third_party/fsr-vulkan/NOTICE.md": {
+    "bytes": 1173,
+    "sha256": "44ccacf7c42b441a9a27af783d7cc59d7f18bdb6d4527b8ee9c610c703b6d268"
+  },
+  "port/gpu/third_party/fsr-vulkan/PUBLISHING.md": {
+    "bytes": 1357,
+    "sha256": "76607a6e4038594f7dabad88295698a51b7eac4bd36a3baddd5b6242bf49014d"
+  },
+  "port/gpu/third_party/fsr-vulkan/README.md": {
+    "bytes": 28927,
+    "sha256": "3c8acab35af51e92a393eb2e819d2427fe84cec6cd9bc3b5cd6510b00d8b9691"
+  },
+  "port/gpu/third_party/fsr-vulkan/UPSTREAM.md": {
+    "bytes": 25229,
+    "sha256": "b369af0898274d1efd9ff6150f4b2c4254dd2007f1d1e742f4e44ffd206374e1"
+  },
+  "port/gpu/third_party/fsr-vulkan/VP_VULKANINFO_AMD_Radeon_Graphics_(RADV_RENOIR)_26_2_99.json": {
+    "bytes": 362805,
+    "sha256": "0c2823227f0aad592313262aadd6535e489e625220f237f27547f590b7729dcf"
+  },
+  "port/gpu/third_party/fsr-vulkan/cmake/ffx-vulkan-config.cmake.in": {
+    "bytes": 562,
+    "sha256": "ca295669d041d37aa9869cc34646726534cedc3d7de944bbca566d99a68b8106"
   },
   "port/gpu/third_party/fsr-vulkan/examples/consumer/CMakeLists.txt": {
     "bytes": 532,
@@ -3087,25 +3167,29 @@
     "bytes": 768,
     "sha256": "7ed61c30fb72fae83de10c691775b38a19c9a039f0cf43d9f7fbb9307716bd56"
   },
-  "port/gpu/third_party/fsr-vulkan/examples/full-stack/integration_contract.cpp": {
-    "bytes": 3371,
-    "sha256": "7704cc6f6fc412fdea216fe6c254bdc8ce8dc5e98f5d11d32b118f8a62930bf5"
-  },
   "port/gpu/third_party/fsr-vulkan/examples/full-stack/README.md": {
     "bytes": 1620,
     "sha256": "c6e0e87030fe3b7d3b5962e60e8d79aabcb483a101c171e8e4db7cde7ffff9d5"
+  },
+  "port/gpu/third_party/fsr-vulkan/examples/full-stack/integration_contract.cpp": {
+    "bytes": 3371,
+    "sha256": "7704cc6f6fc412fdea216fe6c254bdc8ce8dc5e98f5d11d32b118f8a62930bf5"
   },
   "port/gpu/third_party/fsr-vulkan/examples/installed-full-stack/CMakeLists.txt": {
     "bytes": 533,
     "sha256": "e16f0521b5db9efb1afcb87537a598b75397717806aea1917204f685f6f49203"
   },
+  "port/gpu/third_party/fsr-vulkan/examples/installed-full-stack/README.md": {
+    "bytes": 1093,
+    "sha256": "7216e78e369567001e6adbe1468ddbd0b1d30902ae6c814d790cac82a0a575a6"
+  },
   "port/gpu/third_party/fsr-vulkan/examples/installed-full-stack/integration_contract.cpp": {
     "bytes": 3386,
     "sha256": "e4c42a97a507df196c71fdfc168171166ff86ba293ee99f4c363217ca8318fdb"
   },
-  "port/gpu/third_party/fsr-vulkan/examples/installed-full-stack/README.md": {
-    "bytes": 1093,
-    "sha256": "7216e78e369567001e6adbe1468ddbd0b1d30902ae6c814d790cac82a0a575a6"
+  "port/gpu/third_party/fsr-vulkan/generated/ffx-1.1.4/vk/fsr3framegeneration/SHA256SUMS": {
+    "bytes": 24138,
+    "sha256": "34b61493119ca8a0cc29027d84533cc3bd4b5c77768f0bbb0913528c9a7de285"
   },
   "port/gpu/third_party/fsr-vulkan/generated/ffx-1.1.4/vk/fsr3framegeneration/ffx_frameinterpolation_compute_game_vector_field_inpainting_pyramid_pass_16bit_93963115f7d4030e9a55a13119d0666c.h": {
     "bytes": 211985,
@@ -3763,9 +3847,9 @@
     "bytes": 4059,
     "sha256": "f3b453200cc91550558e8a028a0509d417cfd0f851dd62825fd906b7b69ba759"
   },
-  "port/gpu/third_party/fsr-vulkan/generated/ffx-1.1.4/vk/fsr3framegeneration/SHA256SUMS": {
-    "bytes": 24138,
-    "sha256": "34b61493119ca8a0cc29027d84533cc3bd4b5c77768f0bbb0913528c9a7de285"
+  "port/gpu/third_party/fsr-vulkan/generated/ffx-1.1.4/vk/fsr3upscaler/SHA256SUMS": {
+    "bytes": 28078,
+    "sha256": "4da7af6726eb4dd15961d110bbb97b32fd49b8aa72a1a0e894bd5f2234c1c6e3"
   },
   "port/gpu/third_party/fsr-vulkan/generated/ffx-1.1.4/vk/fsr3upscaler/ffx_fsr3upscaler_accumulate_pass_116519e0bbe5de426eb96f3ac053f489.h": {
     "bytes": 156328,
@@ -4567,10 +4651,6 @@
     "bytes": 4750,
     "sha256": "08177625f8a97c816c22802ea47cd4d918a7f366d4e80caffc3547bca429d1f6"
   },
-  "port/gpu/third_party/fsr-vulkan/generated/ffx-1.1.4/vk/fsr3upscaler/SHA256SUMS": {
-    "bytes": 28078,
-    "sha256": "4da7af6726eb4dd15961d110bbb97b32fd49b8aa72a1a0e894bd5f2234c1c6e3"
-  },
   "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/.gitignore": {
     "bytes": 175,
     "sha256": "3a7866ef31052683171a453fa810e07c07eac2fda50c1ef81fa0f03c23f6a9d6"
@@ -4578,6 +4658,14 @@
   "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3framegeneration-q2-v1/EMBEDDED_SOURCE_SHA256SUMS": {
     "bytes": 2301,
     "sha256": "ecb31c00f8ffaa45e00460f39f853467af16e20f841944092671864bdb2be672"
+  },
+  "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3framegeneration-q2-v1/SHA256SUMS": {
+    "bytes": 2301,
+    "sha256": "e219ebbbf032bf0d622353f77b9e9061f7f0336cc99cabda1b3c885a5eb88537"
+  },
+  "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3framegeneration-q2-v1/SOURCE_SHA256SUMS": {
+    "bytes": 2826,
+    "sha256": "10a184e9f45d5a40c27d845b1072003ec81021d158df4c58c0a94c3b6bf9f6cf"
   },
   "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3framegeneration-q2-v1/ffx_vk_fsr3_3_1_6_framegen_embedded_spirv.h": {
     "bytes": 1415412,
@@ -4655,17 +4743,13 @@
     "bytes": 9552,
     "sha256": "a2b1365dfec81e21123e4f6415ad01b545f0c5b403d36a864cf3befe32afddd0"
   },
-  "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3framegeneration-q2-v1/SHA256SUMS": {
-    "bytes": 2301,
-    "sha256": "e219ebbbf032bf0d622353f77b9e9061f7f0336cc99cabda1b3c885a5eb88537"
-  },
-  "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3framegeneration-q2-v1/SOURCE_SHA256SUMS": {
-    "bytes": 2826,
-    "sha256": "10a184e9f45d5a40c27d845b1072003ec81021d158df4c58c0a94c3b6bf9f6cf"
-  },
   "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3upscaler-q2-v2/EMBEDDED_SOURCE_SHA256SUMS": {
     "bytes": 1067,
     "sha256": "64d143f9d6b29d896b1060aa51ba1d9a6f1760102bd87536fa0949620bcc84f2"
+  },
+  "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3upscaler-q2-v2/SHA256SUMS": {
+    "bytes": 1067,
+    "sha256": "96923e965348b351ef773a21ea65e1687e0010bdbc76c87229b10b4ee84de029"
   },
   "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3upscaler-q2-v2/ffx_vk_fsr3_3_1_5_embedded_spirv.h": {
     "bytes": 1892456,
@@ -4714,10 +4798,6 @@
   "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3upscaler-q2-v2/fsr3_3_1_5_shading_change_pyramid.spv": {
     "bytes": 139292,
     "sha256": "37d32254e56373440c358a0abf6147e58bf7ebf04b7cc9b94709cc45c4747a68"
-  },
-  "port/gpu/third_party/fsr-vulkan/generated/ffx-2.3.0/vk/fsr3upscaler-q2-v2/SHA256SUMS": {
-    "bytes": 1067,
-    "sha256": "96923e965348b351ef773a21ea65e1687e0010bdbc76c87229b10b4ee84de029"
   },
   "port/gpu/third_party/fsr-vulkan/include/ffx_vk_framegeneration_presenter.h": {
     "bytes": 6288,
@@ -4782,22 +4862,6 @@
   "port/gpu/third_party/fsr-vulkan/include/ffx_vk_vulkan_compat.h": {
     "bytes": 1760,
     "sha256": "a0e2ef2ee33f1a2d930963f2fafa7501efa90ec0b94cdd90bc9a9198fb097929"
-  },
-  "port/gpu/third_party/fsr-vulkan/LICENSE.txt": {
-    "bytes": 1109,
-    "sha256": "3c696fbf540205a21914e469c3a66c22ec075b30c324de16dbd484334f7be425"
-  },
-  "port/gpu/third_party/fsr-vulkan/NOTICE.md": {
-    "bytes": 1173,
-    "sha256": "44ccacf7c42b441a9a27af783d7cc59d7f18bdb6d4527b8ee9c610c703b6d268"
-  },
-  "port/gpu/third_party/fsr-vulkan/PUBLISHING.md": {
-    "bytes": 1357,
-    "sha256": "76607a6e4038594f7dabad88295698a51b7eac4bd36a3baddd5b6242bf49014d"
-  },
-  "port/gpu/third_party/fsr-vulkan/README.md": {
-    "bytes": 28927,
-    "sha256": "3c8acab35af51e92a393eb2e819d2427fe84cec6cd9bc3b5cd6510b00d8b9691"
   },
   "port/gpu/third_party/fsr-vulkan/src/ffx_1_1_4_portability.hpp": {
     "bytes": 6402,
@@ -5030,6 +5094,10 @@
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/ORIGINAL_SHA256SUMS": {
     "bytes": 16904,
     "sha256": "cbf0bcaa1de87fa50f33ba5b8e73befceecf2896a3433ae72731553b4c4e174c"
+  },
+  "port/gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/LICENSE.txt": {
+    "bytes": 1136,
+    "sha256": "c93d509cd69d50698796c9c3274247352736ef122a3197ace2010f0978e21aa6"
   },
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/include/FidelityFX/gpu/CMakeCompileShaders.txt": {
     "bytes": 6279,
@@ -5306,10 +5374,6 @@
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/include/FidelityFX/host/ffx_util.h": {
     "bytes": 6246,
     "sha256": "3cf11cb69ebbc4887170b870ea9421c32b16afd3fd2b05e2f603f2c48399c6c9"
-  },
-  "port/gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/LICENSE.txt": {
-    "bytes": 1136,
-    "sha256": "c93d509cd69d50698796c9c3274247352736ef122a3197ace2010f0978e21aa6"
   },
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/src/backends/shared/blob_accessors/ffx_frameinterpolation_shaderblobs.cpp": {
     "bytes": 16164,
@@ -5799,6 +5863,14 @@
     "bytes": 46920,
     "sha256": "02059324753b7b28b7968b43403f363153a858d7094d0712f0cbd06fb26ca284"
   },
+  "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/fsr3/internal/shaders/FrameInterpolationSwapchainDebugPacing.hlsl": {
+    "bytes": 1856,
+    "sha256": "d4ff8dfb35c2cdca86345c17a7185021d3123752bbed2406359bb646243e33a0"
+  },
+  "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/fsr3/internal/shaders/FrameInterpolationSwapchainUiComposition.hlsl": {
+    "bytes": 1806,
+    "sha256": "bf45454c4adafecc8836257239b759d9cfba0074d01b7823b2f81205447069b4"
+  },
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/fsr3/internal/shaders/ffx_frameinterpolation_compute_game_vector_field_inpainting_pyramid_pass.hlsl": {
     "bytes": 4085,
     "sha256": "ec7224062de319bf689f8e5017f00cc31949f15e57421ef2079b988e780d2f3c"
@@ -5870,14 +5942,6 @@
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/fsr3/internal/shaders/ffx_opticalflow_scale_optical_flow_advanced_pass_v5.hlsl": {
     "bytes": 2626,
     "sha256": "da63504854fa834ee952a0508b7c8ae5901e3b0beff48b0fc8e43998a31489d5"
-  },
-  "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/fsr3/internal/shaders/FrameInterpolationSwapchainDebugPacing.hlsl": {
-    "bytes": 1856,
-    "sha256": "d4ff8dfb35c2cdca86345c17a7185021d3123752bbed2406359bb646243e33a0"
-  },
-  "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/fsr3/internal/shaders/FrameInterpolationSwapchainUiComposition.hlsl": {
-    "bytes": 1806,
-    "sha256": "bf45454c4adafecc8836257239b759d9cfba0074d01b7823b2f81205447069b4"
   },
   "port/gpu/third_party/fsr-vulkan/upstream/ffx-2.3.0/Kits/FidelityFX/framegeneration/include/dx12/ffx_api_framegeneration_dx12.h": {
     "bytes": 10708,
@@ -6191,14 +6255,6 @@
     "bytes": 24078,
     "sha256": "ed58504584df23ccabb4253525793445f837ca895d35c309203688b0f2d6c852"
   },
-  "port/gpu/third_party/fsr-vulkan/UPSTREAM.md": {
-    "bytes": 25229,
-    "sha256": "b369af0898274d1efd9ff6150f4b2c4254dd2007f1d1e742f4e44ffd206374e1"
-  },
-  "port/gpu/third_party/fsr-vulkan/VP_VULKANINFO_AMD_Radeon_Graphics_(RADV_RENOIR)_26_2_99.json": {
-    "bytes": 362805,
-    "sha256": "0c2823227f0aad592313262aadd6535e489e625220f237f27547f590b7729dcf"
-  },
   "port/gpu/third_party/gcn/include/gcn/si_ci_vi_merged_offset.h": {
     "bytes": 1272394,
     "sha256": "0b5b085db96e912e3893dbc748406410428b27798f37b664b36bbbbf9f988884"
@@ -6223,13 +6279,21 @@
     "bytes": 340,
     "sha256": "8b0ee5f78fb448a4331a6579f09d75305ed5087e711777daaf92b962099862f5"
   },
+  "port/gpu/third_party/half/CMakeLists.txt": {
+    "bytes": 1615,
+    "sha256": "01964fea4e6a40fa93f6bcdb59c15a92995a3bba49ddb34176b051df75114c19"
+  },
   "port/gpu/third_party/half/ChangeLog.txt": {
     "bytes": 5932,
     "sha256": "dd522ad19a37256e62022b70036fdf34ac0cbd0daa3084d015b4f8f0cffe0326"
   },
-  "port/gpu/third_party/half/CMakeLists.txt": {
-    "bytes": 1615,
-    "sha256": "01964fea4e6a40fa93f6bcdb59c15a92995a3bba49ddb34176b051df75114c19"
+  "port/gpu/third_party/half/LICENSE.txt": {
+    "bytes": 1100,
+    "sha256": "1269110471a5506d5cc9c115c57b855206f69a90cc57bbbf27860907067ed946"
+  },
+  "port/gpu/third_party/half/README.txt": {
+    "bytes": 15817,
+    "sha256": "d786a23333c136ecf92c07525b4dfc8a60b78cb990c793a561fcfa3ab4bab027"
   },
   "port/gpu/third_party/half/docs/.gitignore": {
     "bytes": 66,
@@ -6278,14 +6342,6 @@
   "port/gpu/third_party/half/include/half.hpp": {
     "bytes": 149317,
     "sha256": "d659163a391183c877d8ea91e8bb683cd9b7286429f2fb31fd24ce4e4cace730"
-  },
-  "port/gpu/third_party/half/LICENSE.txt": {
-    "bytes": 1100,
-    "sha256": "1269110471a5506d5cc9c115c57b855206f69a90cc57bbbf27860907067ed946"
-  },
-  "port/gpu/third_party/half/README.txt": {
-    "bytes": 15817,
-    "sha256": "d786a23333c136ecf92c07525b4dfc8a60b78cb990c793a561fcfa3ab4bab027"
   },
   "port/gpu/third_party/half/test/Makefile": {
     "bytes": 706,
@@ -6367,14 +6423,6 @@
     "bytes": 80025,
     "sha256": "438defecada2a7db46c0d9ff4047c15233c54905d26c027e08160448ceef41b5"
   },
-  "port/gpu/third_party/half/web/half.hpp": {
-    "bytes": 34763,
-    "sha256": "c54f890e677a646e852dda42b369e8f41c6cfe6bb0b8f38379c93c58d964a2b5"
-  },
-  "port/gpu/third_party/half/web/layout.xml": {
-    "bytes": 6827,
-    "sha256": "6c3f9e592b913bf421ac439ccc8101314ff00fb30553efbd8df076aaa529c32e"
-  },
   "port/gpu/third_party/half/web/Mainpage.md": {
     "bytes": 19009,
     "sha256": "cedbbdea89b59927b61e5d573b18cad0a2b18e4b0ff01424ec37d32463f83f93"
@@ -6382,6 +6430,14 @@
   "port/gpu/third_party/half/web/News.md": {
     "bytes": 14897,
     "sha256": "014fdb243ff89f8d41dd402098500e0df44daede3a422cf391e8fed64486e110"
+  },
+  "port/gpu/third_party/half/web/half.hpp": {
+    "bytes": 34763,
+    "sha256": "c54f890e677a646e852dda42b369e8f41c6cfe6bb0b8f38379c93c58d964a2b5"
+  },
+  "port/gpu/third_party/half/web/layout.xml": {
+    "bytes": 6827,
+    "sha256": "6c3f9e592b913bf421ac439ccc8101314ff00fb30553efbd8df076aaa529c32e"
   },
   "port/gpu/third_party/half/web/web.vcxproj": {
     "bytes": 5394,
@@ -6438,6 +6494,10 @@
   "port/gpu/third_party/imgui/.gitignore": {
     "bytes": 1990,
     "sha256": "854d1432d65c0a4bc2a597b464d70a658c334ee940c9e90a634743a27c3c5ec4"
+  },
+  "port/gpu/third_party/imgui/LICENSE.txt": {
+    "bytes": 1104,
+    "sha256": "f20418b409e53c8c9f4e90917ff395554a60320d4dfbf833da89b339cad8628a"
   },
   "port/gpu/third_party/imgui/backends/imgui_impl_allegro5.cpp": {
     "bytes": 36656,
@@ -6687,6 +6747,14 @@
     "bytes": 30137,
     "sha256": "7ebf99f65a7ac5e82f07ae10da1bfbdd23804b21497808c1eca9f7af2d897f06"
   },
+  "port/gpu/third_party/imgui/examples/README.txt": {
+    "bytes": 835,
+    "sha256": "ff66bba4b9a802c5455f7e70084f2c173b2d0dfcbf268f2bd324885798593ea8"
+  },
+  "port/gpu/third_party/imgui/examples/example_allegro5/README.md": {
+    "bytes": 1716,
+    "sha256": "f9880d8628349bf479e6ce7b477e99b1ad03e3f48c4d15c3e11abc3001a23198"
+  },
   "port/gpu/third_party/imgui/examples/example_allegro5/example_allegro5.vcxproj": {
     "bytes": 9769,
     "sha256": "57ddd8a3f716c0556c0e0f5b7a209e1b4e9f8dbed099f6a6876995088bf86734"
@@ -6703,9 +6771,9 @@
     "bytes": 7229,
     "sha256": "174a911983cc945ca66a031caeb363b42d4bf7ce1c3e47ac391b9ea8c7945050"
   },
-  "port/gpu/third_party/imgui/examples/example_allegro5/README.md": {
-    "bytes": 1716,
-    "sha256": "f9880d8628349bf479e6ce7b477e99b1ad03e3f48c4d15c3e11abc3001a23198"
+  "port/gpu/third_party/imgui/examples/example_android_opengl3/CMakeLists.txt": {
+    "bytes": 1196,
+    "sha256": "f820f532b387ef8f82c585ce6fa6950f3af068e2cc19bd4616c196404e45b85a"
   },
   "port/gpu/third_party/imgui/examples/example_android_opengl3/android/.gitignore": {
     "bytes": 214,
@@ -6735,13 +6803,17 @@
     "bytes": 523,
     "sha256": "610387435a2147db77d42ce6459ff1d34d29394fa9887a263fe41d5b40a06892"
   },
-  "port/gpu/third_party/imgui/examples/example_android_opengl3/CMakeLists.txt": {
-    "bytes": 1196,
-    "sha256": "f820f532b387ef8f82c585ce6fa6950f3af068e2cc19bd4616c196404e45b85a"
-  },
   "port/gpu/third_party/imgui/examples/example_android_opengl3/main.cpp": {
     "bytes": 15266,
     "sha256": "aadc097e8b0c51ec1bda5036ce99dd8e26a4c2e58532e831f564c6f948180b87"
+  },
+  "port/gpu/third_party/imgui/examples/example_apple_metal/Makefile": {
+    "bytes": 719,
+    "sha256": "00f9526eda8862293d6cd81e129fa7cc13bd3e8fd93bc70ba63ca343af8540ec"
+  },
+  "port/gpu/third_party/imgui/examples/example_apple_metal/README.md": {
+    "bytes": 353,
+    "sha256": "c0991a8b6bf51ce1e580e3e4ea86237767779e3c17f962c15530cb88a87dc925"
   },
   "port/gpu/third_party/imgui/examples/example_apple_metal/example_apple_metal.xcodeproj/project.pbxproj": {
     "bytes": 25156,
@@ -6767,13 +6839,13 @@
     "bytes": 12529,
     "sha256": "7b2dd825dd01403e8071b201d5697970c96a2546eb1a9bef108630896f0f514d"
   },
-  "port/gpu/third_party/imgui/examples/example_apple_metal/Makefile": {
-    "bytes": 719,
-    "sha256": "00f9526eda8862293d6cd81e129fa7cc13bd3e8fd93bc70ba63ca343af8540ec"
+  "port/gpu/third_party/imgui/examples/example_apple_metal4/Makefile": {
+    "bytes": 722,
+    "sha256": "7d3c8c6cc552a001de437181abeb888c1ddbd20a68f313e215c384445ec2f476"
   },
-  "port/gpu/third_party/imgui/examples/example_apple_metal/README.md": {
-    "bytes": 353,
-    "sha256": "c0991a8b6bf51ce1e580e3e4ea86237767779e3c17f962c15530cb88a87dc925"
+  "port/gpu/third_party/imgui/examples/example_apple_metal4/README.md": {
+    "bytes": 355,
+    "sha256": "a4c177e2489624d54db62bf3c16daba03e3c84fc8b2e224b2e4f84dc71cf55f4"
   },
   "port/gpu/third_party/imgui/examples/example_apple_metal4/example_apple_metal4.xcodeproj/project.pbxproj": {
     "bytes": 26896,
@@ -6799,13 +6871,9 @@
     "bytes": 13338,
     "sha256": "00d9247382aa2ddefdfa49a7fe2b7a6c13a1bc316adc37a59bbc0424b689da95"
   },
-  "port/gpu/third_party/imgui/examples/example_apple_metal4/Makefile": {
-    "bytes": 722,
-    "sha256": "7d3c8c6cc552a001de437181abeb888c1ddbd20a68f313e215c384445ec2f476"
-  },
-  "port/gpu/third_party/imgui/examples/example_apple_metal4/README.md": {
-    "bytes": 355,
-    "sha256": "a4c177e2489624d54db62bf3c16daba03e3c84fc8b2e224b2e4f84dc71cf55f4"
+  "port/gpu/third_party/imgui/examples/example_apple_opengl2/Makefile": {
+    "bytes": 694,
+    "sha256": "dd7a1f2f2c1b3415fe48ef342dc9ab60bae6a1edb50ea73c20e48eb640b8f1c9"
   },
   "port/gpu/third_party/imgui/examples/example_apple_opengl2/example_apple_opengl2.xcodeproj/project.pbxproj": {
     "bytes": 15452,
@@ -6815,17 +6883,17 @@
     "bytes": 9954,
     "sha256": "f37adf7cc53082f9ae36f3d2edd045b50b4abd30cd2bd040e5f175ad8da6aa40"
   },
-  "port/gpu/third_party/imgui/examples/example_apple_opengl2/Makefile": {
-    "bytes": 694,
-    "sha256": "dd7a1f2f2c1b3415fe48ef342dc9ab60bae6a1edb50ea73c20e48eb640b8f1c9"
+  "port/gpu/third_party/imgui/examples/example_glfw_metal/Makefile": {
+    "bytes": 1288,
+    "sha256": "387b7385b278528e48f7fc04727403f2f3a12c596b7e91aae477a4e958e8de96"
   },
   "port/gpu/third_party/imgui/examples/example_glfw_metal/main.mm": {
     "bytes": 9103,
     "sha256": "f749d29997d10874dadd06bbd6526ab96b34cb95f4bb4d1ba37862e764793f92"
   },
-  "port/gpu/third_party/imgui/examples/example_glfw_metal/Makefile": {
-    "bytes": 1288,
-    "sha256": "387b7385b278528e48f7fc04727403f2f3a12c596b7e91aae477a4e958e8de96"
+  "port/gpu/third_party/imgui/examples/example_glfw_opengl2/Makefile": {
+    "bytes": 2187,
+    "sha256": "5c007c48db20eb0f237e8726f0456edb53138f92030b2bef1f2a9615a095ae60"
   },
   "port/gpu/third_party/imgui/examples/example_glfw_opengl2/build_win32.bat": {
     "bytes": 561,
@@ -6843,9 +6911,13 @@
     "bytes": 8928,
     "sha256": "f81f01da0ac343bc7ee1dd619e30a1f199308bae42f19b1b5dde2345851e1cbf"
   },
-  "port/gpu/third_party/imgui/examples/example_glfw_opengl2/Makefile": {
-    "bytes": 2187,
-    "sha256": "5c007c48db20eb0f237e8726f0456edb53138f92030b2bef1f2a9615a095ae60"
+  "port/gpu/third_party/imgui/examples/example_glfw_opengl3/Makefile": {
+    "bytes": 2485,
+    "sha256": "3f9e8d5171627e61635436369bde6707b21d357e96ca25a452e41a7c5c36a542"
+  },
+  "port/gpu/third_party/imgui/examples/example_glfw_opengl3/Makefile.emscripten": {
+    "bytes": 3474,
+    "sha256": "8de3d4544296338716a3b7cdcf73f3b1eac1c84c079251b86d99b86dc1234b80"
   },
   "port/gpu/third_party/imgui/examples/example_glfw_opengl3/build_win32.bat": {
     "bytes": 561,
@@ -6863,13 +6935,13 @@
     "bytes": 10428,
     "sha256": "f57ed9437cafa0bb4e3a478380ed38904861f574cf79a57997735805e604ad51"
   },
-  "port/gpu/third_party/imgui/examples/example_glfw_opengl3/Makefile": {
-    "bytes": 2485,
-    "sha256": "3f9e8d5171627e61635436369bde6707b21d357e96ca25a452e41a7c5c36a542"
+  "port/gpu/third_party/imgui/examples/example_glfw_vulkan/CMakeLists.txt": {
+    "bytes": 1659,
+    "sha256": "1571ee8ae8114bbda60acec378ab98ca0b812466d4c7527343b8db2c254f5df4"
   },
-  "port/gpu/third_party/imgui/examples/example_glfw_opengl3/Makefile.emscripten": {
-    "bytes": 3474,
-    "sha256": "8de3d4544296338716a3b7cdcf73f3b1eac1c84c079251b86d99b86dc1234b80"
+  "port/gpu/third_party/imgui/examples/example_glfw_vulkan/Makefile": {
+    "bytes": 2280,
+    "sha256": "e9c4e6e73d49324d2ccf780238227cec05b7f1e6167c2a92f95828dead406f17"
   },
   "port/gpu/third_party/imgui/examples/example_glfw_vulkan/build_win32.bat": {
     "bytes": 779,
@@ -6878,10 +6950,6 @@
   "port/gpu/third_party/imgui/examples/example_glfw_vulkan/build_win64.bat": {
     "bytes": 784,
     "sha256": "93460427c8a425e5f2cc6203c88ea8ec256109dadf1ab28f675096a1d24f9d62"
-  },
-  "port/gpu/third_party/imgui/examples/example_glfw_vulkan/CMakeLists.txt": {
-    "bytes": 1659,
-    "sha256": "1571ee8ae8114bbda60acec378ab98ca0b812466d4c7527343b8db2c254f5df4"
   },
   "port/gpu/third_party/imgui/examples/example_glfw_vulkan/example_glfw_vulkan.vcxproj": {
     "bytes": 10597,
@@ -6895,17 +6963,9 @@
     "bytes": 25320,
     "sha256": "f2e86127025f6d11c19f39f1736d2900db7a4ad63afdd3eb6712eed6ce3cf245"
   },
-  "port/gpu/third_party/imgui/examples/example_glfw_vulkan/Makefile": {
-    "bytes": 2280,
-    "sha256": "e9c4e6e73d49324d2ccf780238227cec05b7f1e6167c2a92f95828dead406f17"
-  },
   "port/gpu/third_party/imgui/examples/example_glfw_wgpu/CMakeLists.txt": {
     "bytes": 11484,
     "sha256": "4f8709f38d0ed96dc381ac60cc69fcdfc35253b882ae7372f65617df53530ae6"
-  },
-  "port/gpu/third_party/imgui/examples/example_glfw_wgpu/main.cpp": {
-    "bytes": 24387,
-    "sha256": "1fe60e0ba868534ae448a302cad9022d9d2a44ab58d58fdbb536d020eb39d541"
   },
   "port/gpu/third_party/imgui/examples/example_glfw_wgpu/Makefile.emscripten": {
     "bytes": 3474,
@@ -6914,6 +6974,14 @@
   "port/gpu/third_party/imgui/examples/example_glfw_wgpu/README.md": {
     "bytes": 8119,
     "sha256": "f77497e3507c815bfc203823e9d9e78cf2e7e9403edf538af0e4d6fe2babe286"
+  },
+  "port/gpu/third_party/imgui/examples/example_glfw_wgpu/main.cpp": {
+    "bytes": 24387,
+    "sha256": "1fe60e0ba868534ae448a302cad9022d9d2a44ab58d58fdbb536d020eb39d541"
+  },
+  "port/gpu/third_party/imgui/examples/example_glut_opengl2/Makefile": {
+    "bytes": 1955,
+    "sha256": "bd30313c292667a24c5d333c72c714c043106c51c7159b66512bbcc20edee6c4"
   },
   "port/gpu/third_party/imgui/examples/example_glut_opengl2/example_glut_opengl2.vcxproj": {
     "bytes": 10076,
@@ -6927,9 +6995,9 @@
     "bytes": 7796,
     "sha256": "f96b440e9ae0b30b1ede6268b78f6fa152889e65617131f714e33f62f03e5e04"
   },
-  "port/gpu/third_party/imgui/examples/example_glut_opengl2/Makefile": {
-    "bytes": 1955,
-    "sha256": "bd30313c292667a24c5d333c72c714c043106c51c7159b66512bbcc20edee6c4"
+  "port/gpu/third_party/imgui/examples/example_null/Makefile": {
+    "bytes": 2702,
+    "sha256": "3300943a9d2cf4cc9636da83f03feae00e4ccd29445976e1cc8c32d1d18fe577"
   },
   "port/gpu/third_party/imgui/examples/example_null/build_win32.bat": {
     "bytes": 263,
@@ -6947,10 +7015,6 @@
     "bytes": 1410,
     "sha256": "11bbaf93c6cc873ee3fd326309317984af11086b9c9cd524a6d4ce78592b4d24"
   },
-  "port/gpu/third_party/imgui/examples/example_null/Makefile": {
-    "bytes": 2702,
-    "sha256": "3300943a9d2cf4cc9636da83f03feae00e4ccd29445976e1cc8c32d1d18fe577"
-  },
   "port/gpu/third_party/imgui/examples/example_sdl2_directx11/build_win32.bat": {
     "bytes": 705,
     "sha256": "e30a6fc37b70c021b50df5f5b170cdfe86f6ce5a1adadbe1c29cf51ce5ac7ec6"
@@ -6967,13 +7031,21 @@
     "bytes": 12149,
     "sha256": "3eae79ea959738b813b732cac0f4eb516c13c72f2b31488c9531a78cc18a4296"
   },
+  "port/gpu/third_party/imgui/examples/example_sdl2_metal/Makefile": {
+    "bytes": 1257,
+    "sha256": "aec1ac5e25ed423d9d25d5711be7114bb9a8cc2e5e62c641a4c0eaf579935856"
+  },
   "port/gpu/third_party/imgui/examples/example_sdl2_metal/main.mm": {
     "bytes": 9341,
     "sha256": "5fd231cc6f75273dcae413295af6b4877f414aafbbe30fd9a0986db99dcc7c6d"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_metal/Makefile": {
-    "bytes": 1257,
-    "sha256": "aec1ac5e25ed423d9d25d5711be7114bb9a8cc2e5e62c641a4c0eaf579935856"
+  "port/gpu/third_party/imgui/examples/example_sdl2_opengl2/Makefile": {
+    "bytes": 2095,
+    "sha256": "7112397f365b176ee6c9993b2bf617174bfaf850a741dfa4aafe2e629ae7cf61"
+  },
+  "port/gpu/third_party/imgui/examples/example_sdl2_opengl2/README.md": {
+    "bytes": 1480,
+    "sha256": "3dff43fd28ec475ed81679cba18daa76f3a48fabc812d1af4b7fb8b947fd5f30"
   },
   "port/gpu/third_party/imgui/examples/example_sdl2_opengl2/build_win32.bat": {
     "bytes": 572,
@@ -6991,13 +7063,17 @@
     "bytes": 8974,
     "sha256": "8d2e2486b4512943cb1d5c83a5d922bed1d278b0ebcc8d7237523a8e9f8b5ab4"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_opengl2/Makefile": {
-    "bytes": 2095,
-    "sha256": "7112397f365b176ee6c9993b2bf617174bfaf850a741dfa4aafe2e629ae7cf61"
+  "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/Makefile": {
+    "bytes": 2581,
+    "sha256": "f8306c387dd6b0248986f0f7fe1ebd20e2cd6ae796b6085c88971d5ef75359ee"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_opengl2/README.md": {
-    "bytes": 1480,
-    "sha256": "3dff43fd28ec475ed81679cba18daa76f3a48fabc812d1af4b7fb8b947fd5f30"
+  "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/Makefile.emscripten": {
+    "bytes": 3319,
+    "sha256": "93788e9c7830e194c87be6d0c0f94697d48cf9b2d6c605e66f4bad0f6dc22c6c"
+  },
+  "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/README.md": {
+    "bytes": 3799,
+    "sha256": "2c55ed80e4b5a3088a9bd279eccd4986bd2c5a89fa9285e7e13c86e72c952eec"
   },
   "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/build_win32.bat": {
     "bytes": 572,
@@ -7015,17 +7091,13 @@
     "bytes": 10971,
     "sha256": "7de47426936c8e43a6635ea9ac867f403baa3e554c7c5b8bfc9408880ec6db14"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/Makefile": {
-    "bytes": 2581,
-    "sha256": "f8306c387dd6b0248986f0f7fe1ebd20e2cd6ae796b6085c88971d5ef75359ee"
+  "port/gpu/third_party/imgui/examples/example_sdl2_sdlrenderer2/Makefile": {
+    "bytes": 2105,
+    "sha256": "fda4ab50e7aecef013532425c2fc74bc6c708869dba25d905fc4e786e4f5b702"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/Makefile.emscripten": {
-    "bytes": 3319,
-    "sha256": "93788e9c7830e194c87be6d0c0f94697d48cf9b2d6c605e66f4bad0f6dc22c6c"
-  },
-  "port/gpu/third_party/imgui/examples/example_sdl2_opengl3/README.md": {
-    "bytes": 3799,
-    "sha256": "2c55ed80e4b5a3088a9bd279eccd4986bd2c5a89fa9285e7e13c86e72c952eec"
+  "port/gpu/third_party/imgui/examples/example_sdl2_sdlrenderer2/README.md": {
+    "bytes": 1363,
+    "sha256": "fab2870f83f6ebd356693fc4ecc99790253afc79bd3d59a2b0a643aa6f76ae2a"
   },
   "port/gpu/third_party/imgui/examples/example_sdl2_sdlrenderer2/build_win32.bat": {
     "bytes": 557,
@@ -7043,13 +7115,9 @@
     "bytes": 8994,
     "sha256": "3d2339c9ac167110daa867820d271eb1966d2670c63118dd57cf6835204cda36"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_sdlrenderer2/Makefile": {
-    "bytes": 2105,
-    "sha256": "fda4ab50e7aecef013532425c2fc74bc6c708869dba25d905fc4e786e4f5b702"
-  },
-  "port/gpu/third_party/imgui/examples/example_sdl2_sdlrenderer2/README.md": {
-    "bytes": 1363,
-    "sha256": "fab2870f83f6ebd356693fc4ecc99790253afc79bd3d59a2b0a643aa6f76ae2a"
+  "port/gpu/third_party/imgui/examples/example_sdl2_vulkan/Makefile": {
+    "bytes": 2151,
+    "sha256": "82d5d318997decdd161f362d78e2b4f1f829d914c3cc5be02564e77dd95542e8"
   },
   "port/gpu/third_party/imgui/examples/example_sdl2_vulkan/build_win32.bat": {
     "bytes": 806,
@@ -7071,17 +7139,9 @@
     "bytes": 25412,
     "sha256": "0169d8eecd2a76b79593707ac4440c6f7db30da7ade238dc7f084a23a3895fc9"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl2_vulkan/Makefile": {
-    "bytes": 2151,
-    "sha256": "82d5d318997decdd161f362d78e2b4f1f829d914c3cc5be02564e77dd95542e8"
-  },
   "port/gpu/third_party/imgui/examples/example_sdl2_wgpu/CMakeLists.txt": {
     "bytes": 10958,
     "sha256": "a4120d000ca91dc1cbd5c5403441e33b3b09565f70444d2068522d5a36f3f171"
-  },
-  "port/gpu/third_party/imgui/examples/example_sdl2_wgpu/main.cpp": {
-    "bytes": 23574,
-    "sha256": "19d2caa99b0805df49eba446daf2b274fd5c985ec31ac466a3f014fca5d0092b"
   },
   "port/gpu/third_party/imgui/examples/example_sdl2_wgpu/Makefile.emscripten": {
     "bytes": 3333,
@@ -7090,6 +7150,10 @@
   "port/gpu/third_party/imgui/examples/example_sdl2_wgpu/README.md": {
     "bytes": 8119,
     "sha256": "ac5b1cc932b729bff3ef3f76b68978f2ba63b8bc59ed4e1eb159dd784145051e"
+  },
+  "port/gpu/third_party/imgui/examples/example_sdl2_wgpu/main.cpp": {
+    "bytes": 23574,
+    "sha256": "19d2caa99b0805df49eba446daf2b274fd5c985ec31ac466a3f014fca5d0092b"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_directx11/build_win32.bat": {
     "bytes": 692,
@@ -7107,21 +7171,33 @@
     "bytes": 12190,
     "sha256": "6ef8902f0c76dc0711144a251300b1de479ac668fe98b35bbb7944921ad2a403"
   },
+  "port/gpu/third_party/imgui/examples/example_sdl3_metal/Makefile": {
+    "bytes": 1316,
+    "sha256": "a57cc456cbb39d32aecf42898956d3ea93e89eaf5ab6fc939380b12594271817"
+  },
   "port/gpu/third_party/imgui/examples/example_sdl3_metal/main.mm": {
     "bytes": 10418,
     "sha256": "2d0462913342e13e59c2d1a779e88c374797676de95b173020ef5b5639dbb4af"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl3_metal/Makefile": {
-    "bytes": 1316,
-    "sha256": "a57cc456cbb39d32aecf42898956d3ea93e89eaf5ab6fc939380b12594271817"
+  "port/gpu/third_party/imgui/examples/example_sdl3_metal4/Makefile": {
+    "bytes": 1318,
+    "sha256": "30c6a76541c1a5b60345fa85de5332588f4f827932f01d586a7ef4254c7938a2"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_metal4/main.mm": {
     "bytes": 11806,
     "sha256": "fd6d916b9e6e3377de46a9b310a337004318fc149b2dc23c7831a5a375992f74"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl3_metal4/Makefile": {
-    "bytes": 1318,
-    "sha256": "30c6a76541c1a5b60345fa85de5332588f4f827932f01d586a7ef4254c7938a2"
+  "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/Makefile": {
+    "bytes": 2511,
+    "sha256": "173d61d5846fe06e1fbf445ab3b4eca7406edab2100e2b3441b3b78a2adb7c98"
+  },
+  "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/Makefile.emscripten": {
+    "bytes": 3487,
+    "sha256": "c968ac174245526a4a9c76c12c1065892f9377782e51fdf6b2e269a0e8616f4c"
+  },
+  "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/README.md": {
+    "bytes": 1696,
+    "sha256": "01b5b33da46e26cade64513f11d88c1adddc251ab18adb14062d489b5040f43c"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/build_win32.bat": {
     "bytes": 743,
@@ -7143,17 +7219,9 @@
     "bytes": 11132,
     "sha256": "1a3e166f7f932864a3e6791207e47b0134bcd9faaf9a666f7e56fe2a8a6490ef"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/Makefile": {
-    "bytes": 2511,
-    "sha256": "173d61d5846fe06e1fbf445ab3b4eca7406edab2100e2b3441b3b78a2adb7c98"
-  },
-  "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/Makefile.emscripten": {
-    "bytes": 3487,
-    "sha256": "c968ac174245526a4a9c76c12c1065892f9377782e51fdf6b2e269a0e8616f4c"
-  },
-  "port/gpu/third_party/imgui/examples/example_sdl3_opengl3/README.md": {
-    "bytes": 1696,
-    "sha256": "01b5b33da46e26cade64513f11d88c1adddc251ab18adb14062d489b5040f43c"
+  "port/gpu/third_party/imgui/examples/example_sdl3_sdlgpu3/Makefile": {
+    "bytes": 1995,
+    "sha256": "70e1670fbad9c45c4470c2f9c31cf8db51d010d39c1d1d1339ef4d94dce31b7c"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_sdlgpu3/build_win64.bat": {
     "bytes": 730,
@@ -7171,9 +7239,9 @@
     "bytes": 11647,
     "sha256": "291c606642c2bcc88fe52d607ade815e49283f11b77bf3174150a2169f48d28b"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl3_sdlgpu3/Makefile": {
-    "bytes": 1995,
-    "sha256": "70e1670fbad9c45c4470c2f9c31cf8db51d010d39c1d1d1339ef4d94dce31b7c"
+  "port/gpu/third_party/imgui/examples/example_sdl3_sdlrenderer3/Makefile": {
+    "bytes": 2034,
+    "sha256": "2cac71c9c4bdc025cb3abd76ce231d85db2b4a7ac88cb152e5d3aaf8db5fbbee"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_sdlrenderer3/build_win32.bat": {
     "bytes": 544,
@@ -7191,9 +7259,9 @@
     "bytes": 9421,
     "sha256": "62688c3b26a3cd902e1b08678cea7d969762752f37c43845d6408dfe61c91a71"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl3_sdlrenderer3/Makefile": {
-    "bytes": 2034,
-    "sha256": "2cac71c9c4bdc025cb3abd76ce231d85db2b4a7ac88cb152e5d3aaf8db5fbbee"
+  "port/gpu/third_party/imgui/examples/example_sdl3_vulkan/Makefile": {
+    "bytes": 2088,
+    "sha256": "a55f2602c7506cf944dbd1c12594af6abb0447a438a4d5fb05feba32edbc6f27"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_vulkan/build_win32.bat": {
     "bytes": 793,
@@ -7215,17 +7283,9 @@
     "bytes": 25887,
     "sha256": "58ce097438b39997f0d653fc1ffb60b494c779c5045a46e603f970687ccf5312"
   },
-  "port/gpu/third_party/imgui/examples/example_sdl3_vulkan/Makefile": {
-    "bytes": 2088,
-    "sha256": "a55f2602c7506cf944dbd1c12594af6abb0447a438a4d5fb05feba32edbc6f27"
-  },
   "port/gpu/third_party/imgui/examples/example_sdl3_wgpu/CMakeLists.txt": {
     "bytes": 11067,
     "sha256": "c7c9d34371babcfb7b8845737003c05d8922ac440a9e7793381b0f38e1bdbc47"
-  },
-  "port/gpu/third_party/imgui/examples/example_sdl3_wgpu/main.cpp": {
-    "bytes": 24279,
-    "sha256": "7ff155d5c6ae12b9be15bccaa9222095c825d82c04396fb72785a88548305d05"
   },
   "port/gpu/third_party/imgui/examples/example_sdl3_wgpu/Makefile.emscripten": {
     "bytes": 3333,
@@ -7234,6 +7294,10 @@
   "port/gpu/third_party/imgui/examples/example_sdl3_wgpu/README.md": {
     "bytes": 8118,
     "sha256": "e68a0cf32e33182ab49e4c5961690469753f7b52145519344bee6efb3d586287"
+  },
+  "port/gpu/third_party/imgui/examples/example_sdl3_wgpu/main.cpp": {
+    "bytes": 24279,
+    "sha256": "7ff155d5c6ae12b9be15bccaa9222095c825d82c04396fb72785a88548305d05"
   },
   "port/gpu/third_party/imgui/examples/example_win32_directx10/build_win32.bat": {
     "bytes": 628,
@@ -7383,10 +7447,6 @@
     "bytes": 17066,
     "sha256": "1759dc5c76f8e03eda413c42ded1e63597959127d53da9c2516538cec02b24d1"
   },
-  "port/gpu/third_party/imgui/examples/README.txt": {
-    "bytes": 835,
-    "sha256": "ff66bba4b9a802c5455f7e70084f2c173b2d0dfcbf268f2bd324885798593ea8"
-  },
   "port/gpu/third_party/imgui/imconfig.h": {
     "bytes": 12849,
     "sha256": "58ca417d54cc576fb89e69b24880b9d2ad4b380b2acdb149386c417ff36d7cdc"
@@ -7431,9 +7491,13 @@
     "bytes": 204588,
     "sha256": "a4131c7a2e324c0625250830af6976adb5732b453f0fc6e8bc5ad70065bc2b79"
   },
-  "port/gpu/third_party/imgui/LICENSE.txt": {
-    "bytes": 1104,
-    "sha256": "f20418b409e53c8c9f4e90917ff395554a60320d4dfbf833da89b339cad8628a"
+  "port/gpu/third_party/imgui/misc/README.txt": {
+    "bytes": 1053,
+    "sha256": "3ee66b60c9cf4c31b9b626710234dfd498c2d3c46ea6b3acd32deaac3d9f43c1"
+  },
+  "port/gpu/third_party/imgui/misc/cpp/README.txt": {
+    "bytes": 687,
+    "sha256": "38e5966cc77bb2a7d02d5c4410fad08b55eef98d1eef1ab4eac909351394a658"
   },
   "port/gpu/third_party/imgui/misc/cpp/imgui_stdlib.cpp": {
     "bytes": 3950,
@@ -7443,9 +7507,9 @@
     "bytes": 1702,
     "sha256": "0712b39030b15b08be89d6c4f63a203af03f4e0f31fecd43f686a5ca69573c99"
   },
-  "port/gpu/third_party/imgui/misc/cpp/README.txt": {
-    "bytes": 687,
-    "sha256": "38e5966cc77bb2a7d02d5c4410fad08b55eef98d1eef1ab4eac909351394a658"
+  "port/gpu/third_party/imgui/misc/debuggers/README.txt": {
+    "bytes": 828,
+    "sha256": "f366d7f808a699ee0a3a4ca968afeaa3dee1650fe01621a7b090dbeab457c58b"
   },
   "port/gpu/third_party/imgui/misc/debuggers/imgui.gdb": {
     "bytes": 567,
@@ -7462,14 +7526,6 @@
   "port/gpu/third_party/imgui/misc/debuggers/imgui_lldb.py": {
     "bytes": 6412,
     "sha256": "42a05e8c5348ccd2998485fd5a5347697c806bdf35e12178cdf2f26029afa495"
-  },
-  "port/gpu/third_party/imgui/misc/debuggers/README.txt": {
-    "bytes": 828,
-    "sha256": "f366d7f808a699ee0a3a4ca968afeaa3dee1650fe01621a7b090dbeab457c58b"
-  },
-  "port/gpu/third_party/imgui/misc/fonts/binary_to_compressed_c.cpp": {
-    "bytes": 16177,
-    "sha256": "36b66dac1d9b55b3e4462b033875969c40a63ba6c94f9c5c228b60f78d5bec72"
   },
   "port/gpu/third_party/imgui/misc/fonts/Cousine-Regular.ttf": {
     "bytes": 43912,
@@ -7495,6 +7551,14 @@
     "bytes": 162588,
     "sha256": "8559132c89ad51d8a2ba5b171887a44a7ba93776e205f553573de228e64b45f8"
   },
+  "port/gpu/third_party/imgui/misc/fonts/binary_to_compressed_c.cpp": {
+    "bytes": 16177,
+    "sha256": "36b66dac1d9b55b3e4462b033875969c40a63ba6c94f9c5c228b60f78d5bec72"
+  },
+  "port/gpu/third_party/imgui/misc/freetype/README.md": {
+    "bytes": 3685,
+    "sha256": "d8da6c4777aa9f01ed1a3c42fc09fb37e795bf62760c4c112465c8d4b92c469e"
+  },
   "port/gpu/third_party/imgui/misc/freetype/imgui_freetype.cpp": {
     "bytes": 36479,
     "sha256": "d8db0fd6b57360edac87517b899820b0586fd7d85436dfca39355d5e88f89b8a"
@@ -7502,14 +7566,6 @@
   "port/gpu/third_party/imgui/misc/freetype/imgui_freetype.h": {
     "bytes": 5674,
     "sha256": "c926ae84fb01d38839a7d19ed5b44e93253bf603e39f73e31a3b410a24eb3e4f"
-  },
-  "port/gpu/third_party/imgui/misc/freetype/README.md": {
-    "bytes": 3685,
-    "sha256": "d8da6c4777aa9f01ed1a3c42fc09fb37e795bf62760c4c112465c8d4b92c469e"
-  },
-  "port/gpu/third_party/imgui/misc/README.txt": {
-    "bytes": 1053,
-    "sha256": "3ee66b60c9cf4c31b9b626710234dfd498c2d3c46ea6b3acd32deaac3d9f43c1"
   },
   "port/gpu/third_party/imgui/misc/single_file/imgui_single_file.h": {
     "bytes": 1023,
@@ -7571,9 +7627,33 @@
     "bytes": 230,
     "sha256": "8b9f119dba3efeb85e6de6b6cd41f682ec1174fc95cdb8ac472d992dfcc46ca9"
   },
-  "port/gpu/third_party/magic_enum/cmake/GenPkgConfig/buildTimeScripts/getObjectFilesBaseNames.cmake": {
-    "bytes": 697,
-    "sha256": "2f8aeca2a7a405b989cde3e7b2e13742d313b77a64d65b04a1fbbcb8155f0a73"
+  "port/gpu/third_party/magic_enum/CMakeLists.txt": {
+    "bytes": 5363,
+    "sha256": "88ad9ff2e48a6fba33786cbcb48a2ce830ac9df70d81d6a8fef0e1c434292e53"
+  },
+  "port/gpu/third_party/magic_enum/Dockerfile": {
+    "bytes": 2407,
+    "sha256": "ec129cb54c00fe4b2c45af89fae030de115fb6a5ceebd7d3687f163114beb0f4"
+  },
+  "port/gpu/third_party/magic_enum/LICENSE": {
+    "bytes": 1101,
+    "sha256": "807abee0c36b11f5d64c5c2652129b84b41cc9f8f9b8d324e0e53290b2542956"
+  },
+  "port/gpu/third_party/magic_enum/MODULE.bazel": {
+    "bytes": 92,
+    "sha256": "2205d1095eb334c5883ed1f592c7f10b27d5feb7e05f4bd97b43202901c14e0d"
+  },
+  "port/gpu/third_party/magic_enum/README.md": {
+    "bytes": 11552,
+    "sha256": "9c062dfb31431f502e3eb20e7c03b0386421fd9374ee19ea6a7f55ed183b35c8"
+  },
+  "port/gpu/third_party/magic_enum/SECURITY.md": {
+    "bytes": 688,
+    "sha256": "c4dffe734abad75e3435bd6ec226792e504e229559ced618d14f87e85f638348"
+  },
+  "port/gpu/third_party/magic_enum/WORKSPACE.bazel": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "port/gpu/third_party/magic_enum/cmake/GenPkgConfig/GenPkgConfig.cmake": {
     "bytes": 10962,
@@ -7587,9 +7667,9 @@
     "bytes": 1236,
     "sha256": "f0197bed41a53bde53baed458d3cea00fafe514fc0d755c141d3dcb75f84dea1"
   },
-  "port/gpu/third_party/magic_enum/CMakeLists.txt": {
-    "bytes": 5363,
-    "sha256": "88ad9ff2e48a6fba33786cbcb48a2ce830ac9df70d81d6a8fef0e1c434292e53"
+  "port/gpu/third_party/magic_enum/cmake/GenPkgConfig/buildTimeScripts/getObjectFilesBaseNames.cmake": {
+    "bytes": 697,
+    "sha256": "2f8aeca2a7a405b989cde3e7b2e13742d313b77a64d65b04a1fbbcb8155f0a73"
   },
   "port/gpu/third_party/magic_enum/doc/limitations.md": {
     "bytes": 4588,
@@ -7598,10 +7678,6 @@
   "port/gpu/third_party/magic_enum/doc/reference.md": {
     "bytes": 30529,
     "sha256": "d0ff8ee6a7e9a85f3967e4cb24ec2657b90bc1eb83db867e052d194ffde80194"
-  },
-  "port/gpu/third_party/magic_enum/Dockerfile": {
-    "bytes": 2407,
-    "sha256": "ec129cb54c00fe4b2c45af89fae030de115fb6a5ceebd7d3687f163114beb0f4"
   },
   "port/gpu/third_party/magic_enum/example/CMakeLists.txt": {
     "bytes": 1056,
@@ -7675,10 +7751,6 @@
     "bytes": 6220,
     "sha256": "56f1c6422849ef07b8cdd4c4d9a205106239cb757fa3f26be1946bb99a2cf140"
   },
-  "port/gpu/third_party/magic_enum/LICENSE": {
-    "bytes": 1101,
-    "sha256": "807abee0c36b11f5d64c5c2652129b84b41cc9f8f9b8d324e0e53290b2542956"
-  },
   "port/gpu/third_party/magic_enum/meson.build": {
     "bytes": 847,
     "sha256": "e9be45228181e590f6e3dbf9360fa34e33aeea29cc055eb246953930c6d0a9a8"
@@ -7691,33 +7763,21 @@
     "bytes": 2030,
     "sha256": "73b9646a7ac7d121566b98cd3bd6920e45fa3ab9d3d9cb220ddf35fc38e761a6"
   },
-  "port/gpu/third_party/magic_enum/MODULE.bazel": {
-    "bytes": 92,
-    "sha256": "2205d1095eb334c5883ed1f592c7f10b27d5feb7e05f4bd97b43202901c14e0d"
-  },
   "port/gpu/third_party/magic_enum/package.xml": {
     "bytes": 749,
     "sha256": "899915edc5351c4291a7224cf06af70784e9a745922b56fd4c87706ce0bb996e"
-  },
-  "port/gpu/third_party/magic_enum/README.md": {
-    "bytes": 11552,
-    "sha256": "9c062dfb31431f502e3eb20e7c03b0386421fd9374ee19ea6a7f55ed183b35c8"
-  },
-  "port/gpu/third_party/magic_enum/SECURITY.md": {
-    "bytes": 688,
-    "sha256": "c4dffe734abad75e3435bd6ec226792e504e229559ced618d14f87e85f638348"
   },
   "port/gpu/third_party/magic_enum/test/.bazelrc": {
     "bytes": 34,
     "sha256": "15cca6d8d2627f9830301ef77a0d13fa34df4815b452bf0f81b9d01eacd0aa34"
   },
-  "port/gpu/third_party/magic_enum/test/3rdparty/Catch2/include/catch2/catch.hpp": {
-    "bytes": 674813,
-    "sha256": "9cd5b51e787a25080faa17a07a390ff82c2817f7903c7b50dd58248890b829ab"
-  },
   "port/gpu/third_party/magic_enum/test/3rdparty/Catch2/LICENSE": {
     "bytes": 1361,
     "sha256": "beb8e42e9d6b4284e03304d05a81a0755200a965fc8d0a5e0aea1e84cf805d6e"
+  },
+  "port/gpu/third_party/magic_enum/test/3rdparty/Catch2/include/catch2/catch.hpp": {
+    "bytes": 674813,
+    "sha256": "9cd5b51e787a25080faa17a07a390ff82c2817f7903c7b50dd58248890b829ab"
   },
   "port/gpu/third_party/magic_enum/test/BUILD.bazel": {
     "bytes": 666,
@@ -7727,13 +7787,17 @@
     "bytes": 5176,
     "sha256": "802c5a8dcce259d29678fba19889cfa4f8b8e51028791613bbe3b8d7ea5ccf63"
   },
-  "port/gpu/third_party/magic_enum/test/meson.build": {
-    "bytes": 417,
-    "sha256": "3ccd155aa72664a34e3df4c1046167c187a935350fbd29290c48915403fc655c"
-  },
   "port/gpu/third_party/magic_enum/test/MODULE.bazel": {
     "bytes": 182,
     "sha256": "77e65310763e4d205f9d55abe83c6d6f1fad1463478a091b064a88b320e032cc"
+  },
+  "port/gpu/third_party/magic_enum/test/WORKSPACE.bazel": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "port/gpu/third_party/magic_enum/test/meson.build": {
+    "bytes": 417,
+    "sha256": "3ccd155aa72664a34e3df4c1046167c187a935350fbd29290c48915403fc655c"
   },
   "port/gpu/third_party/magic_enum/test/test.cpp": {
     "bytes": 52904,
@@ -7759,17 +7823,9 @@
     "bytes": 5616,
     "sha256": "0e07a7080a3e23c828ed149378354ce83e843680c28d9caa824a15395b97b061"
   },
-  "port/gpu/third_party/magic_enum/test/WORKSPACE.bazel": {
-    "bytes": 0,
-    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
   "port/gpu/third_party/magic_enum/test_installed_version.bash": {
     "bytes": 630,
     "sha256": "c3e47b176b7db56b8b0fe72e531676dcd339c64b92e87a1181c1f14f4c4a9228"
-  },
-  "port/gpu/third_party/magic_enum/WORKSPACE.bazel": {
-    "bytes": 0,
-    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "port/gpu/third_party/miniz/.clang-format": {
     "bytes": 1489,
@@ -7795,14 +7851,6 @@
     "bytes": 39,
     "sha256": "743fb202e9117283760584656805540623f3504a76b5626e7df99bfac7ead87b"
   },
-  "port/gpu/third_party/miniz/amalgamate.sh": {
-    "bytes": 1952,
-    "sha256": "2d7859b17c9edfd94cadc9da9f006f97ca1c2c309ac0f8eeeac01b76eb05a803"
-  },
-  "port/gpu/third_party/miniz/ChangeLog.md": {
-    "bytes": 20179,
-    "sha256": "ff3b6040f7cbd8c9779a0690e906c66408f7efe3cf88a25019323f0189025ec3"
-  },
   "port/gpu/third_party/miniz/CMakeLists.txt": {
     "bytes": 13553,
     "sha256": "7646317b20ad361f364d0798e6076b0c5b394b86090268b6f000be3aa7d27438"
@@ -7811,9 +7859,21 @@
     "bytes": 641,
     "sha256": "4e5bd62d7acdd210765aa4549d252ef4229736c82bf569240f0e91220eb7c7d9"
   },
+  "port/gpu/third_party/miniz/ChangeLog.md": {
+    "bytes": 20179,
+    "sha256": "ff3b6040f7cbd8c9779a0690e906c66408f7efe3cf88a25019323f0189025ec3"
+  },
   "port/gpu/third_party/miniz/Config.cmake.in": {
     "bytes": 64,
     "sha256": "b5e27b111af9abc51388098e9c3d72e63f561723e1f1facc6f2713a4f9f8d730"
+  },
+  "port/gpu/third_party/miniz/LICENSE": {
+    "bytes": 1184,
+    "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3"
+  },
+  "port/gpu/third_party/miniz/amalgamate.sh": {
+    "bytes": 1952,
+    "sha256": "2d7859b17c9edfd94cadc9da9f006f97ca1c2c309ac0f8eeeac01b76eb05a803"
   },
   "port/gpu/third_party/miniz/examples/example1.c": {
     "bytes": 3698,
@@ -7838,10 +7898,6 @@
   "port/gpu/third_party/miniz/examples/example6.c": {
     "bytes": 5289,
     "sha256": "8d3776e29c9a10745f7d4271653ef07b5adc5c17a97bc0a0bfb0d7b1d94683cd"
-  },
-  "port/gpu/third_party/miniz/LICENSE": {
-    "bytes": 1184,
-    "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3"
   },
   "port/gpu/third_party/miniz/meson.build": {
     "bytes": 793,
@@ -7991,6 +8047,14 @@
     "bytes": 3003,
     "sha256": "7978ee5d70db62bbda131265e9482fd7ff524f846ef4553214e66fb0f8ce6c55"
   },
+  "port/gpu/third_party/sirit/LICENSE.txt": {
+    "bytes": 1516,
+    "sha256": "29a8f5acbf5feb3a18bf70d704e9609131d5f505ae5fc0ebed8157a20a12e7f3"
+  },
+  "port/gpu/third_party/sirit/README.md": {
+    "bytes": 1446,
+    "sha256": "6b25f878ae2e073ef47abf612ce9b098d570cd0ca5a42c4eac3aab9727158dac"
+  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/.gitattributes": {
     "bytes": 79,
     "sha256": "920c45a68fa3a2691a9dab30f7d195cd154b00a8ad31c676f61a284966fbdd32"
@@ -8015,10 +8079,6 @@
     "bytes": 2038,
     "sha256": "d7433e5b9406e293b3cf215e834dda3f794c45fec1197d3d522ff15edb1f5916"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/cmake/SPIRV-Headers.pc.in": {
-    "bytes": 202,
-    "sha256": "290763d966a986461d649c3a44c871494c7bec6563f8a57bbaa280a3494a5769"
-  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/CMakeLists.txt": {
     "bytes": 3447,
     "sha256": "7a7762eb7ae1a80638dad5bf0d550a58715bc7e129a43babba0b4bedf6bb3bbd"
@@ -8027,13 +8087,25 @@
     "bytes": 281,
     "sha256": "92ef01b61215680f6abfb5779a69d910fab87cc79009f05375d0468dbe237bbe"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/extinst.glsl.std.450.grammar.json": {
-    "bytes": 15389,
-    "sha256": "d6c833162006cd988f65cdec236a83cfcdc14a099ffc281ff3ce6eefff825d32"
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/LICENSE": {
+    "bytes": 4915,
+    "sha256": "016e30d9b990f6c8cbfc26366b9ac0e1c7c3ed39caeedf873d6f9b34004bcf7e"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/extinst.opencl.std.100.grammar.json": {
-    "bytes": 30655,
-    "sha256": "f53e0446cd4f9519438db018601e01e820f370234232de96d0ea82f9ff4b390c"
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/README.md": {
+    "bytes": 7961,
+    "sha256": "5d391b58ee1a899d372258441eb082beca0d462974c70bb6b6f2be66476e2289"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/SECURITY.md": {
+    "bytes": 712,
+    "sha256": "70a94c8c2e11aa125a1d6803574c843e5c6d1b4a1adf1c1b50bab7a59fa9316b"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/WORKSPACE": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/cmake/SPIRV-Headers.pc.in": {
+    "bytes": 202,
+    "sha256": "290763d966a986461d649c3a44c871494c7bec6563f8a57bbaa280a3494a5769"
   },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/GLSL.std.450.h": {
     "bytes": 4258,
@@ -8042,6 +8114,14 @@
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/OpenCL.std.h": {
     "bytes": 4998,
     "sha256": "f52a15f865b38499482cfa1264a4e90ac2801ea31f5ed2f2f87510c2ade9be85"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/extinst.glsl.std.450.grammar.json": {
+    "bytes": 15389,
+    "sha256": "d6c833162006cd988f65cdec236a83cfcdc14a099ffc281ff3ce6eefff825d32"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/extinst.opencl.std.100.grammar.json": {
+    "bytes": 30655,
+    "sha256": "f53e0446cd4f9519438db018601e01e820f370234232de96d0ea82f9ff4b390c"
   },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.0/spirv.core.grammar.json": {
     "bytes": 170131,
@@ -8075,14 +8155,6 @@
     "bytes": 28527,
     "sha256": "2548e0f0b05ba6fb86364941af3c67f8d408d14061deb5e664154800e173bd3c"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/extinst.glsl.std.450.grammar.json": {
-    "bytes": 15389,
-    "sha256": "d6c833162006cd988f65cdec236a83cfcdc14a099ffc281ff3ce6eefff825d32"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/extinst.opencl.std.100.grammar.json": {
-    "bytes": 30655,
-    "sha256": "f53e0446cd4f9519438db018601e01e820f370234232de96d0ea82f9ff4b390c"
-  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/GLSL.std.450.h": {
     "bytes": 4258,
     "sha256": "5ad2a15c40c8edbd9749d56bffa532fe5c64d984b8b21d4b845715514c28db7f"
@@ -8090,6 +8162,14 @@
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/OpenCL.std.h": {
     "bytes": 4998,
     "sha256": "f52a15f865b38499482cfa1264a4e90ac2801ea31f5ed2f2f87510c2ade9be85"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/extinst.glsl.std.450.grammar.json": {
+    "bytes": 15389,
+    "sha256": "d6c833162006cd988f65cdec236a83cfcdc14a099ffc281ff3ce6eefff825d32"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/extinst.opencl.std.100.grammar.json": {
+    "bytes": 30655,
+    "sha256": "f53e0446cd4f9519438db018601e01e820f370234232de96d0ea82f9ff4b390c"
   },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.1/spirv.core.grammar.json": {
     "bytes": 175076,
@@ -8123,14 +8203,6 @@
     "bytes": 29333,
     "sha256": "f4e323f6e22d44657e70e3b7f2c03f87eb1717f12b7f64f87e7bd9b22fe76aaf"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/extinst.glsl.std.450.grammar.json": {
-    "bytes": 15389,
-    "sha256": "d6c833162006cd988f65cdec236a83cfcdc14a099ffc281ff3ce6eefff825d32"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/extinst.opencl.std.100.grammar.json": {
-    "bytes": 30655,
-    "sha256": "f53e0446cd4f9519438db018601e01e820f370234232de96d0ea82f9ff4b390c"
-  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/GLSL.std.450.h": {
     "bytes": 4258,
     "sha256": "5ad2a15c40c8edbd9749d56bffa532fe5c64d984b8b21d4b845715514c28db7f"
@@ -8138,6 +8210,14 @@
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/OpenCL.std.h": {
     "bytes": 4998,
     "sha256": "f52a15f865b38499482cfa1264a4e90ac2801ea31f5ed2f2f87510c2ade9be85"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/extinst.glsl.std.450.grammar.json": {
+    "bytes": 15389,
+    "sha256": "d6c833162006cd988f65cdec236a83cfcdc14a099ffc281ff3ce6eefff825d32"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/extinst.opencl.std.100.grammar.json": {
+    "bytes": 30655,
+    "sha256": "f53e0446cd4f9519438db018601e01e820f370234232de96d0ea82f9ff4b390c"
   },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/1.2/spirv.core.grammar.json": {
     "bytes": 176526,
@@ -8195,6 +8275,38 @@
     "bytes": 4858,
     "sha256": "48c447a2d7a3fd2b0de61348a23fac5902a3cb2b3b4e5c5487b400a51f5abbe2"
   },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/GLSL.std.450.h": {
+    "bytes": 4258,
+    "sha256": "9d52d5f0f9374ef2970562bc216ca997a4343b1fbc74d2795a2328d19a38a04e"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticClspvReflection.h": {
+    "bytes": 4701,
+    "sha256": "093c7b1d482deaab7d8cb9f05bf5529df0dc7a8ebdd7c9eeb337337d159f84f1"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticDebugBreak.h": {
+    "bytes": 1909,
+    "sha256": "57a7c1c00d006d25926141b68d9005e858b91fa73bca750c749b05f6d23e21f2"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticDebugPrintf.h": {
+    "bytes": 1918,
+    "sha256": "9b5b67a46ee23868c21421287428387b4f8c945ab8d71a0e3259f9cc587d4387"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticShaderDebugInfo100.h": {
+    "bytes": 8089,
+    "sha256": "ee51576fb14a8b5771fe022498c51a5b22345a31480366d08db2a56ababae5a3"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticVkspReflection.h": {
+    "bytes": 2311,
+    "sha256": "2245e7e927097670c79d25ceb5e3cb889f95c025937de8bc5c87fec6d6a919d7"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/OpenCL.std.h": {
+    "bytes": 10284,
+    "sha256": "d79a4e1deb10f66ca6c51593e9acc04bf229e48841afc28ba11fa1aba206c5bf"
+  },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/OpenCLDebugInfo100.h": {
+    "bytes": 6260,
+    "sha256": "f072ce98270a66a9efe3713f4029d9c5a4d6268c207869d4eba14ff13ffc5534"
+  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/extinst.debuginfo.grammar.json": {
     "bytes": 17898,
     "sha256": "03c3056f6a408b587f1c745b98333211fbadd1f09f3a516ef3f94811ebfbc6ac"
@@ -8247,38 +8359,6 @@
     "bytes": 2715,
     "sha256": "c2131074284e9abc565cb3653d797b0713d4f587dbf786c8f969b65e5e16b223"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/GLSL.std.450.h": {
-    "bytes": 4258,
-    "sha256": "9d52d5f0f9374ef2970562bc216ca997a4343b1fbc74d2795a2328d19a38a04e"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticClspvReflection.h": {
-    "bytes": 4701,
-    "sha256": "093c7b1d482deaab7d8cb9f05bf5529df0dc7a8ebdd7c9eeb337337d159f84f1"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticDebugBreak.h": {
-    "bytes": 1909,
-    "sha256": "57a7c1c00d006d25926141b68d9005e858b91fa73bca750c749b05f6d23e21f2"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticDebugPrintf.h": {
-    "bytes": 1918,
-    "sha256": "9b5b67a46ee23868c21421287428387b4f8c945ab8d71a0e3259f9cc587d4387"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticShaderDebugInfo100.h": {
-    "bytes": 8089,
-    "sha256": "ee51576fb14a8b5771fe022498c51a5b22345a31480366d08db2a56ababae5a3"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/NonSemanticVkspReflection.h": {
-    "bytes": 2311,
-    "sha256": "2245e7e927097670c79d25ceb5e3cb889f95c025937de8bc5c87fec6d6a919d7"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/OpenCL.std.h": {
-    "bytes": 10284,
-    "sha256": "d79a4e1deb10f66ca6c51593e9acc04bf229e48841afc28ba11fa1aba206c5bf"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/OpenCLDebugInfo100.h": {
-    "bytes": 6260,
-    "sha256": "f072ce98270a66a9efe3713f4029d9c5a4d6268c207869d4eba14ff13ffc5534"
-  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/include/spirv/unified1/spirv.bf": {
     "bytes": 83676,
     "sha256": "f01f8f309ca2be1644b5346bb5eedef05710ef30e5c19250463ea584389a25bf"
@@ -8319,18 +8399,6 @@
     "bytes": 65579,
     "sha256": "5c2ad2b8e28d96dfd2db118a175a211c094f27eb51b8de7b590b5571aceda7d3"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/LICENSE": {
-    "bytes": 4915,
-    "sha256": "016e30d9b990f6c8cbfc26366b9ac0e1c7c3ed39caeedf873d6f9b34004bcf7e"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/README.md": {
-    "bytes": 7961,
-    "sha256": "5d391b58ee1a899d372258441eb082beca0d462974c70bb6b6f2be66476e2289"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/SECURITY.md": {
-    "bytes": 712,
-    "sha256": "70a94c8c2e11aa125a1d6803574c843e5c6d1b4a1adf1c1b50bab7a59fa9316b"
-  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/tests/CMakeLists.txt": {
     "bytes": 2014,
     "sha256": "80d0fd37890065d7ce3ed41f36c4e2742cdff5400fb52befac51f5a5d58c19d1"
@@ -8347,6 +8415,10 @@
     "bytes": 605,
     "sha256": "7a52411f511c9d2b1d670b5a727d71b56301da513bc76336ec68e92f25ad4a4f"
   },
+  "port/gpu/third_party/sirit/externals/SPIRV-Headers/tools/buildHeaders/CMakeLists.txt": {
+    "bytes": 579,
+    "sha256": "73911e5517b998288d0388fac889ec7bdbc8984c3db708767371e4a844b07f15"
+  },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/tools/buildHeaders/bin/generate_language_headers.py": {
     "bytes": 9040,
     "sha256": "56d9c9de330890c58fc320af1c84e97e8f334655e94fc490641861d85340ef6d"
@@ -8358,10 +8430,6 @@
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/tools/buildHeaders/bin/makeHeaders": {
     "bytes": 218,
     "sha256": "b353f6dd58cd1cb8b0dfa9581af12a86f4c5bfdcb04cf1d76bb0b68565aeb09a"
-  },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/tools/buildHeaders/CMakeLists.txt": {
-    "bytes": 579,
-    "sha256": "73911e5517b998288d0388fac889ec7bdbc8984c3db708767371e4a844b07f15"
   },
   "port/gpu/third_party/sirit/externals/SPIRV-Headers/tools/buildHeaders/header.cpp": {
     "bytes": 39511,
@@ -8383,21 +8451,9 @@
     "bytes": 4641,
     "sha256": "7440289091244e7b89247209b906b7f0133a1cf3b8bacb9aed29d80a0fa0dcf4"
   },
-  "port/gpu/third_party/sirit/externals/SPIRV-Headers/WORKSPACE": {
-    "bytes": 0,
-    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
   "port/gpu/third_party/sirit/include/sirit/sirit.h": {
     "bytes": 70954,
     "sha256": "5b0dffeac62ecfc653e27f32c75e253714fa6dff5e5229455e8030e82841f6de"
-  },
-  "port/gpu/third_party/sirit/LICENSE.txt": {
-    "bytes": 1516,
-    "sha256": "29a8f5acbf5feb3a18bf70d704e9609131d5f505ae5fc0ebed8157a20a12e7f3"
-  },
-  "port/gpu/third_party/sirit/README.md": {
-    "bytes": 1446,
-    "sha256": "6b25f878ae2e073ef47abf612ce9b098d570cd0ca5a42c4eac3aab9727158dac"
   },
   "port/gpu/third_party/sirit/src/.gitignore": {
     "bytes": 9,
@@ -8507,13 +8563,13 @@
     "bytes": 618,
     "sha256": "bb620d4ea78ba086be890df2c22c6822eb03bdfe4ee69fb6869ae6e5a17eec1e"
   },
-  "port/gpu/third_party/vulkan-headers/.github/dependabot.yml": {
-    "bytes": 244,
-    "sha256": "a52711e14a0a1e081ca99979ad255ee56cc523b9d32a7b68c78a4417443726b1"
-  },
   "port/gpu/third_party/vulkan-headers/.github/ISSUE_TEMPLATE/bug_report.md": {
     "bytes": 1205,
     "sha256": "50e99c3ec9527c9db593dcd01267784c62cee257a715f7189b5feb912bcca66d"
+  },
+  "port/gpu/third_party/vulkan-headers/.github/dependabot.yml": {
+    "bytes": 244,
+    "sha256": "a52711e14a0a1e081ca99979ad255ee56cc523b9d32a7b68c78a4417443726b1"
   },
   "port/gpu/third_party/vulkan-headers/.github/pull_request_template.md": {
     "bytes": 578,
@@ -8546,6 +8602,34 @@
   "port/gpu/third_party/vulkan-headers/CONTRIBUTING.md": {
     "bytes": 1990,
     "sha256": "a0c668d47e339b1f4ade8b28b44e2c5a7e4452601f76d8d38d99174baf52ff1a"
+  },
+  "port/gpu/third_party/vulkan-headers/LICENSE.md": {
+    "bytes": 476,
+    "sha256": "f43ba543d73f08f7401d99b697b2b741704eb22b5447a5021fd92b279b297646"
+  },
+  "port/gpu/third_party/vulkan-headers/LICENSES/Apache-2.0.txt": {
+    "bytes": 11560,
+    "sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5"
+  },
+  "port/gpu/third_party/vulkan-headers/LICENSES/MIT.txt": {
+    "bytes": 1093,
+    "sha256": "051daae2dae99c2b0fc9d8363cf704b9456ae0e3c89589ac755d506a0b2c10c3"
+  },
+  "port/gpu/third_party/vulkan-headers/Makefile.release": {
+    "bytes": 5054,
+    "sha256": "a4ea03ed9db8b192daec64e3e0eca6c50ca2fd91787a3826ff3634ef036677aa"
+  },
+  "port/gpu/third_party/vulkan-headers/README.md": {
+    "bytes": 1971,
+    "sha256": "1bdad01cc84e69a7d77324e44a510f9484610f75b41cb932a9dda7c1a15d191b"
+  },
+  "port/gpu/third_party/vulkan-headers/REUSE.toml": {
+    "bytes": 737,
+    "sha256": "18ccafd65fb6ed35af59513a348ea345f01db3db70ea6a175e33789583dcd462"
+  },
+  "port/gpu/third_party/vulkan-headers/SECURITY.md": {
+    "bytes": 422,
+    "sha256": "4f1ca7d0e4b573b22a16baf41c9ff3600cdff79b34cc4741810d6331f39b4621"
   },
   "port/gpu/third_party/vulkan-headers/include/vk_video/vulkan_video_codec_av1std.h": {
     "bytes": 17081,
@@ -8743,26 +8827,6 @@
     "bytes": 1547,
     "sha256": "3a86336bcb878c759a2875294076158467d8d66c605eb2996312c916b78fb9a8"
   },
-  "port/gpu/third_party/vulkan-headers/LICENSE.md": {
-    "bytes": 476,
-    "sha256": "f43ba543d73f08f7401d99b697b2b741704eb22b5447a5021fd92b279b297646"
-  },
-  "port/gpu/third_party/vulkan-headers/LICENSES/Apache-2.0.txt": {
-    "bytes": 11560,
-    "sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5"
-  },
-  "port/gpu/third_party/vulkan-headers/LICENSES/MIT.txt": {
-    "bytes": 1093,
-    "sha256": "051daae2dae99c2b0fc9d8363cf704b9456ae0e3c89589ac755d506a0b2c10c3"
-  },
-  "port/gpu/third_party/vulkan-headers/Makefile.release": {
-    "bytes": 5054,
-    "sha256": "a4ea03ed9db8b192daec64e3e0eca6c50ca2fd91787a3826ff3634ef036677aa"
-  },
-  "port/gpu/third_party/vulkan-headers/README.md": {
-    "bytes": 1971,
-    "sha256": "1bdad01cc84e69a7d77324e44a510f9484610f75b41cb932a9dda7c1a15d191b"
-  },
   "port/gpu/third_party/vulkan-headers/registry/apiconventions.py": {
     "bytes": 685,
     "sha256": "cd9d19002f8c9e2a994bbc97b89f5f8cc518511b00f4a76f725741f6c9aa14c2"
@@ -8823,14 +8887,6 @@
     "bytes": 27234,
     "sha256": "2c025954686a19005daaae42d876b3a257de620179c57b76dfc9a5193fc20d2e"
   },
-  "port/gpu/third_party/vulkan-headers/REUSE.toml": {
-    "bytes": 737,
-    "sha256": "18ccafd65fb6ed35af59513a348ea345f01db3db70ea6a175e33789583dcd462"
-  },
-  "port/gpu/third_party/vulkan-headers/SECURITY.md": {
-    "bytes": 422,
-    "sha256": "4f1ca7d0e4b573b22a16baf41c9ff3600cdff79b34cc4741810d6331f39b4621"
-  },
   "port/gpu/third_party/vulkan-headers/tests/CMakeLists.txt": {
     "bytes": 1291,
     "sha256": "dce4e44af68cb69708c0df4681ad3b68ef973a125f5a407b80d63843270974a6"
@@ -8875,14 +8931,6 @@
     "bytes": 178,
     "sha256": "75f604b4a957419fa1635b7dbf97836cb76da8e20aa0d44a165dbfdba8d1a4a0"
   },
-  "port/gpu/third_party/xbyak/cmake/config.cmake.in": {
-    "bytes": 85,
-    "sha256": "085e6c2f49c0680f84a05e6ddc9ddf1f177226fe0f2f2abdbbf0c6598ca6dff7"
-  },
-  "port/gpu/third_party/xbyak/cmake/meson-config.cmake.in": {
-    "bytes": 216,
-    "sha256": "224baaf4d60e90f18d06e186c1e864ff395ec114b653707748013f8e16c4d9c4"
-  },
   "port/gpu/third_party/xbyak/CMakeLists.txt": {
     "bytes": 1362,
     "sha256": "6c98f741fe029af12e824b35abbc945e5dcfc858955294377985141eb6cdd540"
@@ -8890,6 +8938,18 @@
   "port/gpu/third_party/xbyak/COPYRIGHT": {
     "bytes": 1501,
     "sha256": "7e411d5c5d38501a504843f58afb6824439c828872b35d2ff1e892e73fd1a30d"
+  },
+  "port/gpu/third_party/xbyak/Makefile": {
+    "bytes": 445,
+    "sha256": "63d360ea8798981b477ccaabff0fbffd9bffd23f72c2e3e14db2d6cd6ed05e99"
+  },
+  "port/gpu/third_party/xbyak/cmake/config.cmake.in": {
+    "bytes": 85,
+    "sha256": "085e6c2f49c0680f84a05e6ddc9ddf1f177226fe0f2f2abdbbf0c6598ca6dff7"
+  },
+  "port/gpu/third_party/xbyak/cmake/meson-config.cmake.in": {
+    "bytes": 216,
+    "sha256": "224baaf4d60e90f18d06e186c1e864ff395ec114b653707748013f8e16c4d9c4"
   },
   "port/gpu/third_party/xbyak/doc/changelog.md": {
     "bytes": 19898,
@@ -8902,6 +8962,10 @@
   "port/gpu/third_party/xbyak/doc/usage.md": {
     "bytes": 23674,
     "sha256": "4e009c748eeed057577de7252e90210a6e6a80fce1cf1bbcd444b62dbcde1c34"
+  },
+  "port/gpu/third_party/xbyak/gen/Makefile": {
+    "bytes": 1430,
+    "sha256": "2234d66bc5fec42a562f702cc982e4009dd7cba43334acdd54a1b0c3a528ba8e"
   },
   "port/gpu/third_party/xbyak/gen/avx_type.hpp": {
     "bytes": 2921,
@@ -8927,10 +8991,6 @@
     "bytes": 94254,
     "sha256": "2a1ea2c78c7256048b4921a3f70271eb71e75a9b3f39b5470223f65e7b25a573"
   },
-  "port/gpu/third_party/xbyak/gen/Makefile": {
-    "bytes": 1430,
-    "sha256": "2234d66bc5fec42a562f702cc982e4009dd7cba43334acdd54a1b0c3a528ba8e"
-  },
   "port/gpu/third_party/xbyak/gen/sortline.cpp": {
     "bytes": 475,
     "sha256": "941621fa2db06c304581dba8fdc52d631cc35dc028bf12c4b023ab208e12e13d"
@@ -8938,10 +8998,6 @@
   "port/gpu/third_party/xbyak/gen/update.bat": {
     "bytes": 795,
     "sha256": "09484c963beb029f55a8d67e52eb52dcc472d86f49ad61b07ca4ceba735907a2"
-  },
-  "port/gpu/third_party/xbyak/Makefile": {
-    "bytes": 445,
-    "sha256": "63d360ea8798981b477ccaabff0fbffd9bffd23f72c2e3e14db2d6cd6ed05e99"
   },
   "port/gpu/third_party/xbyak/meson.build": {
     "bytes": 1324,
@@ -8954,6 +9010,14 @@
   "port/gpu/third_party/xbyak/readme.txt": {
     "bytes": 37332,
     "sha256": "87773d1eb076746b4a58844c3b1fb32c6ce3c37f07259b12d6b0762bf4b793d2"
+  },
+  "port/gpu/third_party/xbyak/sample/CMakeLists.txt": {
+    "bytes": 5178,
+    "sha256": "6dde01ac952e4770c0dc9bde46ad619851c5af5d8508a115fecd0b672eea19e6"
+  },
+  "port/gpu/third_party/xbyak/sample/Makefile": {
+    "bytes": 3646,
+    "sha256": "abf9bd8a752f4deb357620dd3f7d6795c48d029b02e2f6e85565ebcb5d95c6de"
   },
   "port/gpu/third_party/xbyak/sample/bf.cpp": {
     "bytes": 5046,
@@ -8970,10 +9034,6 @@
   "port/gpu/third_party/xbyak/sample/ccmp.cpp": {
     "bytes": 1560,
     "sha256": "14ae777216b9c9ccb32218fb45ecbd136104fb829d698ef282efad4ad65ccc20"
-  },
-  "port/gpu/third_party/xbyak/sample/CMakeLists.txt": {
-    "bytes": 5178,
-    "sha256": "6dde01ac952e4770c0dc9bde46ad619851c5af5d8508a115fecd0b672eea19e6"
   },
   "port/gpu/third_party/xbyak/sample/cpuid/adl.txt": {
     "bytes": 328,
@@ -9139,10 +9199,6 @@
     "bytes": 2423,
     "sha256": "a89d3403e19ce262f60f02b1c0b27d4059032b498a1770f1e3d6284d3b949e71"
   },
-  "port/gpu/third_party/xbyak/sample/Makefile": {
-    "bytes": 3646,
-    "sha256": "abf9bd8a752f4deb357620dd3f7d6795c48d029b02e2f6e85565ebcb5d95c6de"
-  },
   "port/gpu/third_party/xbyak/sample/memfd.cpp": {
     "bytes": 1326,
     "sha256": "0dae4a53c5819d734d26a5edf6e8628303073e5de5eeb6eb47fc1d323a08c236"
@@ -9195,6 +9251,18 @@
     "bytes": 845,
     "sha256": "693bff7ad75e156d97bc4026c649ba95c8596d26333ef02b09f33e78899cf7b0"
   },
+  "port/gpu/third_party/xbyak/test/CFLAGS_WARN.cfg": {
+    "bytes": 103,
+    "sha256": "bfc0c544817e0a8c820d5c2713fe73f7690b803e2161edab9ac85757827e16be"
+  },
+  "port/gpu/third_party/xbyak/test/Makefile": {
+    "bytes": 4503,
+    "sha256": "b3473c39e4bcfe29f6a58d40416be044ee2d86f42ba910d2758ffec649ba8011"
+  },
+  "port/gpu/third_party/xbyak/test/Makefile.win": {
+    "bytes": 492,
+    "sha256": "4f02959cd803ae41d14fca9bf412303fdcdc8b53e35992528c49f309cccc1cab"
+  },
   "port/gpu/third_party/xbyak/test/a.bat": {
     "bytes": 169,
     "sha256": "6d09feb6450eb4d8319ab5717cfa25c7d66d5108b7b9c2fd3046537115f4ad29"
@@ -9218,10 +9286,6 @@
   "port/gpu/third_party/xbyak/test/bad_address.cpp": {
     "bytes": 1127,
     "sha256": "b336208ec1377e13419fca57224ef4b0d8aa7edab1e50df7edcfa46b4e3fe540"
-  },
-  "port/gpu/third_party/xbyak/test/CFLAGS_WARN.cfg": {
-    "bytes": 103,
-    "sha256": "bfc0c544817e0a8c820d5c2713fe73f7690b803e2161edab9ac85757827e16be"
   },
   "port/gpu/third_party/xbyak/test/cpumask_test.cpp": {
     "bytes": 2932,
@@ -9318,14 +9382,6 @@
   "port/gpu/third_party/xbyak/test/make_nm.cpp": {
     "bytes": 50737,
     "sha256": "1f7f8b21109e04f1e14c09de64b2fee714cda08ec3f5bf24a5e57cdaefd2e396"
-  },
-  "port/gpu/third_party/xbyak/test/Makefile": {
-    "bytes": 4503,
-    "sha256": "b3473c39e4bcfe29f6a58d40416be044ee2d86f42ba910d2758ffec649ba8011"
-  },
-  "port/gpu/third_party/xbyak/test/Makefile.win": {
-    "bytes": 492,
-    "sha256": "4f02959cd803ae41d14fca9bf412303fdcdc8b53e35992528c49f309cccc1cab"
   },
   "port/gpu/third_party/xbyak/test/misc.cpp": {
     "bytes": 25430,
@@ -9467,9 +9523,9 @@
     "bytes": 27874,
     "sha256": "fffd78dba1a188347c3b4dda012870ee600a11f3eed434f48edb7c82d9352f83"
   },
-  "port/gpu/VENDOR.txt": {
-    "bytes": 2939,
-    "sha256": "df345d744221a95f69b46a9e9e3a9bd7c23c2d567b9afb963a2b013c64e6b3b3"
+  "port/launcher/README.md": {
+    "bytes": 1148,
+    "sha256": "f3ec6e560b6f65d46e1eb8668d1957b6dc66570fbe4fa631087bdcad9ac5d31b"
   },
   "port/launcher/infamous.ico": {
     "bytes": 170166,
@@ -9488,8 +9544,8 @@
     "sha256": "8833fe23a155d4780a11b88c1f8371165e122bfaf77f0a7fa7538e836e538d96"
   },
   "port/launcher/knack2/config.py": {
-    "bytes": 13428,
-    "sha256": "9d781f1c99ad79cfab0301ebf6c5f4b9ffe3dd0d89c8e6d0d4d48545ca90b28c"
+    "bytes": 13468,
+    "sha256": "7550dd1dbecc8c083814d5ae7631db63d566a613508fcfcf681be1b57d7b739f"
   },
   "port/launcher/knack2/identity.py": {
     "bytes": 1900,
@@ -9527,13 +9583,49 @@
     "bytes": 2315,
     "sha256": "1a9be0fdf8132a6353ac84df507e525b3f9281c2da91b6548dcfc09241f63acd"
   },
-  "port/launcher/knack2/ui/__init__.py": {
-    "bytes": 116,
-    "sha256": "63b5353b5e389d655fe8e275e2fa41f1ef4bd2615c9feb2439697b0f08931e1b"
-  },
   "port/launcher/knack2/ui/ActionButton.qml": {
     "bytes": 1551,
     "sha256": "a03bed43cdb903d46be1aba10525eef1837f102041068c4f47c8f2044add8819"
+  },
+  "port/launcher/knack2/ui/ControllerGuide.qml": {
+    "bytes": 12847,
+    "sha256": "ad1515c12d03317e588dd0a2c254c6fad3154a0f5c64bd464f3de78dc87fe805"
+  },
+  "port/launcher/knack2/ui/ControllerGuideData.js": {
+    "bytes": 8427,
+    "sha256": "7edc8a39c09309ef1cf84e0e6295cff32184da017851098ef9f4d943124bc84a"
+  },
+  "port/launcher/knack2/ui/KnackIcon.qml": {
+    "bytes": 3805,
+    "sha256": "7971eb5f234fb3d38b564bff7df7f23b2b2c0d7adab00d25bf0160eb2cb5f18f"
+  },
+  "port/launcher/knack2/ui/LogPanel.qml": {
+    "bytes": 2769,
+    "sha256": "eee2ce99e66415d96f19a8ffc02bda71f77fb57318bbb716c5b2263b46cfbcc7"
+  },
+  "port/launcher/knack2/ui/Main.qml": {
+    "bytes": 39950,
+    "sha256": "24cf1a244c3deeaf428df7efdd5d9538ed08c867bd42ce4facb2d0957b478d33"
+  },
+  "port/launcher/knack2/ui/OptionSelect.qml": {
+    "bytes": 752,
+    "sha256": "a3b3046b10ae8d31e9ae37cf13347851ca892c7cdf140901d4e8249849346efe"
+  },
+  "port/launcher/knack2/ui/OptionSwitch.qml": {
+    "bytes": 978,
+    "sha256": "33cabef41955da5a00c39d889fcfb960c221405b4e7632a8c5098e5d959077d9"
+  },
+  "port/launcher/knack2/ui/README.md": {
+    "bytes": 20902,
+    "sha256": "1e1912f2b6ef531bb244841b4237084a3ce65e361ac6eb0e549766118afc7bf1"
+  },
+  "port/launcher/knack2/ui/Relic.qml": {
+    "bytes": 5159,
+    "sha256": "06a205ecac229872871e2d118226f3a81c70912043cb757bf8399bd32c721b37"
+  },
+  "port/launcher/knack2/ui/__init__.py": {
+    "bytes": 116,
+    "sha256": "63b5353b5e389d655fe8e275e2fa41f1ef4bd2615c9feb2439697b0f08931e1b"
   },
   "port/launcher/knack2/ui/app.py": {
     "bytes": 5378,
@@ -9560,60 +9652,24 @@
     "sha256": "2a9be97c513ee7c4b96b60d3f1cb472eceb4ddcfa75cffc844e2a1833c9b6c72"
   },
   "port/launcher/knack2/ui/backend.py": {
-    "bytes": 17010,
-    "sha256": "9c9331bc3eb63b6633c8403cc85bdc3a8979022a68a13eb6d4e57be29eb39aeb"
-  },
-  "port/launcher/knack2/ui/ControllerGuide.qml": {
-    "bytes": 12847,
-    "sha256": "ad1515c12d03317e588dd0a2c254c6fad3154a0f5c64bd464f3de78dc87fe805"
-  },
-  "port/launcher/knack2/ui/ControllerGuideData.js": {
-    "bytes": 8427,
-    "sha256": "7edc8a39c09309ef1cf84e0e6295cff32184da017851098ef9f4d943124bc84a"
+    "bytes": 17033,
+    "sha256": "0e402b91c80e464541bea2eeca9e00ef7a5deefea29253c731d9c2663e83f5ae"
   },
   "port/launcher/knack2/ui/demo.py": {
     "bytes": 5331,
     "sha256": "59f92e09d5bc75db2e4cc537ade72fba1721f487f9e3bd9902e66dba70cd6736"
   },
   "port/launcher/knack2/ui/i18n.py": {
-    "bytes": 45261,
-    "sha256": "b7b3a4844cf3cb0fa53f8b672a2960c79bf047fe896076d45a491b4dd6137aaf"
+    "bytes": 46713,
+    "sha256": "858fefc13e4fa9e8bedc4c51bc87cc5cdf9cbd01da7d8c161ebd84b58259d91e"
   },
   "port/launcher/knack2/ui/i18n_ru.py": {
     "bytes": 402437,
     "sha256": "518072af1696e06dfcff21570103dc836e04ff400907774d46375d07c16a834f"
   },
-  "port/launcher/knack2/ui/KnackIcon.qml": {
-    "bytes": 3805,
-    "sha256": "7971eb5f234fb3d38b564bff7df7f23b2b2c0d7adab00d25bf0160eb2cb5f18f"
-  },
-  "port/launcher/knack2/ui/LogPanel.qml": {
-    "bytes": 2769,
-    "sha256": "eee2ce99e66415d96f19a8ffc02bda71f77fb57318bbb716c5b2263b46cfbcc7"
-  },
-  "port/launcher/knack2/ui/Main.qml": {
-    "bytes": 38774,
-    "sha256": "6e41a5a4e920e9380e10885d9ef7cf4bee8b117482b95c607304c57c4cd2ff72"
-  },
-  "port/launcher/knack2/ui/OptionSelect.qml": {
-    "bytes": 752,
-    "sha256": "a3b3046b10ae8d31e9ae37cf13347851ca892c7cdf140901d4e8249849346efe"
-  },
-  "port/launcher/knack2/ui/OptionSwitch.qml": {
-    "bytes": 978,
-    "sha256": "33cabef41955da5a00c39d889fcfb960c221405b4e7632a8c5098e5d959077d9"
-  },
-  "port/launcher/knack2/ui/README.md": {
-    "bytes": 20902,
-    "sha256": "1e1912f2b6ef531bb244841b4237084a3ce65e361ac6eb0e549766118afc7bf1"
-  },
   "port/launcher/knack2/ui/real.py": {
     "bytes": 17609,
     "sha256": "d9604d574ee1fc440e9183f656f04e3f810ec2fbd18dde0888ea84944cdbfb79"
-  },
-  "port/launcher/knack2/ui/Relic.qml": {
-    "bytes": 5159,
-    "sha256": "06a205ecac229872871e2d118226f3a81c70912043cb757bf8399bd32c721b37"
   },
   "port/launcher/knack2/validator.py": {
     "bytes": 11082,
@@ -9631,10 +9687,6 @@
     "bytes": 4489,
     "sha256": "e887db98623c1c52cdb733b86ca0d6876b3f3b02654242202c2678ecf6e5369e"
   },
-  "port/launcher/README.md": {
-    "bytes": 1148,
-    "sha256": "f3ec6e560b6f65d46e1eb8668d1957b6dc66570fbe4fa631087bdcad9ac5d31b"
-  },
   "port/launcher/savemanager.py": {
     "bytes": 25167,
     "sha256": "7c73347e2a2a9bafc8382fe63de69a2ca668340622536844fee2cd36ef06e163"
@@ -9647,10 +9699,6 @@
     "bytes": 12747,
     "sha256": "237a88d606f748758f2ec2a7c76f4e8d8c9438f4dbd19e5ccf0b1b61f8611f62"
   },
-  "port/LICENSE": {
-    "bytes": 18322,
-    "sha256": "498d32907f132c2cd7d3ae269f304aed87156293f63e724b83d9f62ed787d55a"
-  },
   "port/msys2-env.sh": {
     "bytes": 321,
     "sha256": "9e1c77fc231d2c6bea49b550ab102fb9cec9d534f504242c8317325fcbd2d651"
@@ -9658,6 +9706,10 @@
   "port/packaging/linux/build_deps.sh": {
     "bytes": 3227,
     "sha256": "1e2199a459fb9de29b1a4f904f4a909893c1a6106ec3ac6c80b404288b3f3b54"
+  },
+  "port/packaging/windows/README.md": {
+    "bytes": 819,
+    "sha256": "2a49a98de157156b4af08563667d51d1b749dc853924fc308578b3bf3a958a64"
   },
   "port/packaging/windows/build_dlss.sh": {
     "bytes": 1176,
@@ -9671,10 +9723,6 @@
     "bytes": 38,
     "sha256": "9ede74fa402a60c4207f980d26bcef921cad4a55bd2fd82cf5d81cf5ee05705a"
   },
-  "port/packaging/windows/README.md": {
-    "bytes": 819,
-    "sha256": "2a49a98de157156b4af08563667d51d1b749dc853924fc308578b3bf3a958a64"
-  },
   "port/packaging/windows/tlg-gpu-capabilities.rc": {
     "bytes": 38,
     "sha256": "9ede74fa402a60c4207f980d26bcef921cad4a55bd2fd82cf5d81cf5ee05705a"
@@ -9686,10 +9734,6 @@
   "port/packaging/windows/tlg-probe.rc": {
     "bytes": 1138,
     "sha256": "2fece5912a292e0c60b8c006e64fc3741fda4e59f76617e9fcc77eea44e5f8e2"
-  },
-  "port/README.md": {
-    "bytes": 2097,
-    "sha256": "142390b811cbed476fb198f9b4f2319f4517148af0562cbd41eac6840bfaa777"
   },
   "port/run.py": {
     "bytes": 12422,
@@ -10391,6 +10435,10 @@
     "bytes": 4597,
     "sha256": "6c2b53a2e5df2485ac622299f518d0443b12efe8243ed31d0d7d250eea145b08"
   },
+  "port/third_party/LibAtrac9/C/Makefile": {
+    "bytes": 1566,
+    "sha256": "92805271c774c12b6c9bcfe0978f3b5e003eba46a8ba56e00b2dc0241512d480"
+  },
   "port/third_party/LibAtrac9/C/libatrac9.sln": {
     "bytes": 1431,
     "sha256": "5a340d15db3c1ec67cc5cd30075e74a0d73bfdbd85cd81b5ad3a258a29d02710"
@@ -10406,10 +10454,6 @@
   "port/third_party/LibAtrac9/C/libatrac9.version": {
     "bytes": 38,
     "sha256": "01d755cb18af4f0c5af74aa556c98d49c48267607b8313b202b0ba797daddc3c"
-  },
-  "port/third_party/LibAtrac9/C/Makefile": {
-    "bytes": 1566,
-    "sha256": "92805271c774c12b6c9bcfe0978f3b5e003eba46a8ba56e00b2dc0241512d480"
   },
   "port/third_party/LibAtrac9/C/src/band_extension.c": {
     "bytes": 12305,
@@ -10523,6 +10567,10 @@
     "bytes": 311,
     "sha256": "1271aafec9268ab82beb48eddd75df4f1f065dc19b9a0c29bf41c4de17f2a511"
   },
+  "port/third_party/LibAtrac9/CSharp/LibAtrac9.sln": {
+    "bytes": 2231,
+    "sha256": "ff74c1574ce4410cc9820bf8a8a11583e2ec444e2ea145af854ef45dff156150"
+  },
   "port/third_party/LibAtrac9/CSharp/LibAtrac9/Atrac9Config.cs": {
     "bytes": 4531,
     "sha256": "81d78dcd4cb3f113a4f94543ba09433f451742572fb105f14f95cc166dd5608e"
@@ -10607,13 +10655,13 @@
     "bytes": 6527,
     "sha256": "3df723d462c4ad28f47ace52aeb3de589ae2c7a50b2ad9606eaa26a194c99df7"
   },
-  "port/third_party/LibAtrac9/CSharp/LibAtrac9.sln": {
-    "bytes": 2231,
-    "sha256": "ff74c1574ce4410cc9820bf8a8a11583e2ec444e2ea145af854ef45dff156150"
-  },
   "port/third_party/LibAtrac9/LICENSE": {
     "bytes": 1089,
     "sha256": "06a7e63d1e48754e925339e0df0abc62f0ac828196c0783cb156ff69334fa737"
+  },
+  "port/tools/Fsr4SpirvCrossFixes.pm": {
+    "bytes": 946,
+    "sha256": "7d5695818253491bad9c3c610934ba5860835bf14436269922aada493d989cf5"
   },
   "port/tools/ab.sh": {
     "bytes": 1824,
@@ -10695,10 +10743,6 @@
     "bytes": 1363,
     "sha256": "1b8c4cc6f34e220856717455c5e793cf26dc9e562aedf8c0316352b78c19b6e0"
   },
-  "port/tools/Fsr4SpirvCrossFixes.pm": {
-    "bytes": 946,
-    "sha256": "7d5695818253491bad9c3c610934ba5860835bf14436269922aada493d989cf5"
-  },
   "port/tools/got_import.py": {
     "bytes": 837,
     "sha256": "f96b56482c9796990e68f4db1d71c7503c734391f3bf4185f2ede04e687f3bf6"
@@ -10726,6 +10770,10 @@
   "port/tools/tlg_frame_map.py": {
     "bytes": 4351,
     "sha256": "c1032bf7eb68e553ac05033c094dd7f1877784afe35c2e5494772638bcc8ea73"
+  },
+  "port/tools/xpps/README.md": {
+    "bytes": 19837,
+    "sha256": "b06b3218fd9cf9a7c2d35a08e2ac7f5e32b0aa0a59c1acc2645707b4eb62a544"
   },
   "port/tools/xpps/__init__.py": {
     "bytes": 573,
@@ -10771,10 +10819,6 @@
     "bytes": 7834,
     "sha256": "cac7189f369af20becd24ae1a197cf4f98533f0372d0787d92e643bc4b5ea3b8"
   },
-  "port/tools/xpps/README.md": {
-    "bytes": 19837,
-    "sha256": "b06b3218fd9cf9a7c2d35a08e2ac7f5e32b0aa0a59c1acc2645707b4eb62a544"
-  },
   "port/tools/xpps/scan.py": {
     "bytes": 17039,
     "sha256": "b41d0bf192dde90c6115b825f3238de783e7dc92cac2a2d627c09bc3c262e417"
@@ -10783,10 +10827,6 @@
     "bytes": 23054,
     "sha256": "d4e5d2253a7e67e678ac9c560b63241108b4db2667c0c35d2624b441ab1c1a1e"
   },
-  "port/UPSTREAM.md": {
-    "bytes": 1779,
-    "sha256": "569c333fe089a30b5bcf129709e62fa9db0351e7a3197bb3c7c96853a8020405"
-  },
   "profiles/CUSA07670-01.01.json": {
     "bytes": 410,
     "sha256": "436a5ed6b2333e3fc62641f4b4942ebc7be2ee7a89c013320507e65438dd4cb9"
@@ -10794,26 +10834,6 @@
   "profiles/CUSA08014-01.01.json": {
     "bytes": 423,
     "sha256": "e6ce13f731b3d245392875a79c5ebb4860a0b8069de47aa8976ff669d05fb824"
-  },
-  "README.md": {
-    "bytes": 3674,
-    "sha256": "04b9b131cf507e726bb9d0206b17feeb858385d66a1d4fbf9080db87b7d739ca"
-  },
-  "README.pt-BR.md": {
-    "bytes": 6425,
-    "sha256": "ba0e033b0153b08c95c09db14e623c7ad0a1782983d5d5a9e5c049ad6232bc04"
-  },
-  "README.upstream.md": {
-    "bytes": 84059,
-    "sha256": "e5fc6fa2d2039a59a72f0a766c963b1c5b9e4da83df66a42f0e209eaab13a222"
-  },
-  "RELEASE-NOTES.md": {
-    "bytes": 1245,
-    "sha256": "ee6dff1ba69bf16abd16eb51433ec4b71339fb05a2178ed2028d886de406f82f"
-  },
-  "RELEASE-SOURCE.md": {
-    "bytes": 332,
-    "sha256": "ae2320f6aac5ae48cc42ae9d87dc8d4c911c95ef250c625c7f6916ad0c459d1d"
   },
   "release-tools/pe_utils.py": {
     "bytes": 4605,
@@ -10824,12 +10844,12 @@
     "sha256": "336c966e80b70a6d6dc3196e40521a8a5cf2c0f6a80db717c9e57f958887e2a6"
   },
   "run.py": {
-    "bytes": 20728,
-    "sha256": "3d3c8113dd96ab978ea204947d75c4dacb6f5bab7da8ee197a4a918915f8f198"
+    "bytes": 21026,
+    "sha256": "6a6b26b8b9ea3a5ad01081a2faa5a91806b6bb35646c22bbb319d4df59a2581f"
   },
   "scripts/build_knack_launcher.py": {
     "bytes": 3362,
-    "sha256": "9593085687ae9cbe384a69bcbf21188c8469c82a412bdaeeb5a3e53cfc4bfcfb"
+    "sha256": "283084c70f3eb1a5e90b81665f25db059d8c369663732b22d694781c6c383ca8"
   },
   "scripts/build_knack_linux.py": {
     "bytes": 6524,
@@ -10919,6 +10939,22 @@
     "bytes": 15477,
     "sha256": "d4d7305ff2f53ff8ffed664a8bb8c7758cbccf52b8d7c6388b948103dcd1fb16"
   },
+  "tests/pipeline_cache/README.md": {
+    "bytes": 1009,
+    "sha256": "b9a5946e014c5181335f71e39a0767cb3789de8d4d7854bcc4d80aa86489a47f"
+  },
+  "tests/pipeline_cache/cache_probe.cpp.in": {
+    "bytes": 10248,
+    "sha256": "369cbf5ca6c5a357f59d00f764f7f8a9ca4e1c6397ebaf8b5d3e07e6030e4967"
+  },
+  "tests/pipeline_cache/probe_startup.py": {
+    "bytes": 2584,
+    "sha256": "f1b74a56f9d6a949affbf4895580f6427c8a32bcefbadf775b3b840f24d7056a"
+  },
+  "tests/pipeline_cache/run_probe.py": {
+    "bytes": 3263,
+    "sha256": "7e37899aadc43de45cddf904a9908011a970a7e1005899bf32f75464155c1e79"
+  },
   "tests/test_ajm_atrac9_adapter.c": {
     "bytes": 4132,
     "sha256": "16d6c9a357c6b039b34725e5442d2220de6e776c21e8693a469d7581583c9406"
@@ -10988,8 +11024,8 @@
     "sha256": "b1023ad6759d50dbf4d4b9a8c53b8c17872c98a7b02d6c332f3d950f1163201c"
   },
   "tests/test_knack2_f3b.py": {
-    "bytes": 29794,
-    "sha256": "d358453f84d9d7f41a59dc1bd400f5c40636879fe295058f7d481c9d3f82219c"
+    "bytes": 30631,
+    "sha256": "0b54d037933ad917d299d864b94f92cba410dea520acac997d7bea8c96bb9054"
   },
   "tests/test_knack2_fsr4_assets.py": {
     "bytes": 5936,
@@ -11039,6 +11075,10 @@
     "bytes": 37710,
     "sha256": "6223b0ad76dce379da3b23e4e9ebef987da109d749ec52a701abe0bf8de4f1b2"
   },
+  "tests/test_knack2_shader_preload.py": {
+    "bytes": 2828,
+    "sha256": "db336369910bad2cf9b76efa8153b7e0810b7abb17c9fe3d14f5fdecc1788e83"
+  },
   "tests/test_knack2_storage.py": {
     "bytes": 5625,
     "sha256": "eabf50f3fee1b02418d042e2a42a47b51f98753044bf34c34ef400947c2c9ae5"
@@ -11048,8 +11088,8 @@
     "sha256": "3f4c1c75d538fd1f296cf9065bbb0b54e1639b3b8a428370c6080c1bb6d2c5dc"
   },
   "tests/test_knack2_ui.py": {
-    "bytes": 26987,
-    "sha256": "b8e90ba062434f9f47b5fd7230a94990a5e8de27c5d1a045f403b5558f75ab67"
+    "bytes": 27823,
+    "sha256": "daeb7bb662b3fab71254c4cbc7ab585761640b1e01a91db26c310e90bf20b2bf"
   },
   "tests/test_knack2_ultrawide.c": {
     "bytes": 5956,
@@ -11322,21 +11362,5 @@
   "tests/test_savedata.py": {
     "bytes": 2744,
     "sha256": "071b14244d30c186af7b74d445c3241a0019ae59dd1be04cf9edca56d2bf54e6"
-  },
-  "THIRD-PARTY.md": {
-    "bytes": 2018,
-    "sha256": "7631a36ecd9b05a57091ca8eab7a48397281a65cdf6ad339c06bdea59182d67e"
-  },
-  "TOOLCHAIN-PACKAGES.txt": {
-    "bytes": 8855,
-    "sha256": "453b5da2dbdce21e0b193a055ec8b4896571de9c2b9377d3bf7d1fd6dc31ec27"
-  },
-  "UI-ASSETS.json": {
-    "bytes": 1032,
-    "sha256": "ee8da8162d350dfa30fb3be0a3babff21eec585bc9f8f351eaff3795f45015bd"
-  },
-  "UI-ASSETS.md": {
-    "bytes": 459,
-    "sha256": "60299f4dcb42be3c4f2ab9e0101f4e87d248d7ca670e39a3643ca4d931da6d1b"
   }
 }

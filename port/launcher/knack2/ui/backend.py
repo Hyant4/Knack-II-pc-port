@@ -27,7 +27,7 @@ DEFAULTS = {'display_mode': 'windowed', 'window_resolution': 'auto', 'vsync': '1
             'upscaler': 'off', 'preset': '0',
             'fsr1': '0', 'rcas': '0', 'rcas_strength': '50',
             'mouse_enabled': '0', 'mouse_invert_y': '0',
-            'gpu_readbacks': '2', 'eager_readback': '0'}
+            'gpu_readbacks': '2', 'eager_readback': '0', 'shader_preload': '1'}
 STATE_LABELS = {'IDLE': 'Pronto para simular', 'STARTING': 'Iniciando simulação',
                 'RUNNING': 'Simulação em execução', 'STOPPING': 'Encerrando simulação',
                 'FINISHED': 'Simulação encerrada', 'FAILED': 'Erro na simulação'}

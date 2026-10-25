@@ -1,0 +1,220 @@
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <vector>
+#include "common/serdes.h"
+#include "common/hash.h"
+#include "shader_recompiler/specialization.h"
+#include "video_core/renderer_vulkan/vk_pipeline_cache.h"
+
+static std::filesystem::path cache_directory;
+static unsigned warnings;
+static unsigned compiled_modules;
+static unsigned binary_version;
+static std::map<uintptr_t, std::vector<u32>> module_contents;
+void assert_fail_impl() { throw std::runtime_error("Production cache assertion failed"); }
+namespace Common::Log {
+bool ShouldLog(Level) { return true; }
+void Write(std::string_view, Level, const char*, int, const char*, std::string&& message) {
+    std::cerr << message << '\n';
+}
+}
+#undef LOG_WARNING
+#define LOG_WARNING(...) (++warnings)
+
+namespace Shader {
+PFN_SrtWalker RegisterWalkerCode(const u8*, size_t) { return nullptr; }
+@SHADER_SERIALIZATION@
+}
+
+namespace Serialization {
+static constexpr u32 ShaderMetaVersion = 9;
+}
+namespace Storage { enum class BlobType { ShaderBinary }; }
+struct ProbeStorage {
+    bool synthetic_only = false;
+    std::map<std::string, std::vector<u32>> synthetic;
+    void Load(Storage::BlobType, const std::string& name, std::vector<u32>& result) {
+        if (const auto it = synthetic.find(name); it != synthetic.end()) {
+            result = it->second;
+            return;
+        }
+        if (synthetic_only) return;
+        std::ifstream file(cache_directory / (name + ".spv"), std::ios::binary | std::ios::ate);
+        if (!file) return;
+        const auto size = file.tellg();
+        if (size <= 0 || size % 4) return;
+        result.resize(size_t(size) / 4);
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(result.data()), size);
+    }
+} probe_storage;
+
+namespace Vulkan {
+u32 CurrentShaderBinaryVersion() { return binary_version; }
+void Program::LogPermutationGrowth() const {}
+vk::ShaderModule CompileSPV(const std::vector<u32>& words, vk::Device) {
+    const auto handle = uintptr_t(++compiled_modules);
+    module_contents[handle] = words;
+    return vk::ShaderModule(reinterpret_cast<VkShaderModule>(handle));
+}
+@LOAD_SHADER_META@
+struct ProbeCache {
+    struct Instance { vk::Device GetDevice() { return {}; } } instance;
+    tsl::robin_map<u64, std::unique_ptr<Program>> program_cache;
+    PipelineSelection sel{};
+    bool LoadPipelineStage(Serialization::Archive& ar, size_t stage);
+};
+@LOAD_PIPELINE_STAGE@
+}
+
+static std::vector<u8> Read(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(file), {}};
+}
+
+static unsigned regression_checks;
+static void Require(bool condition, const char* description) {
+    ++regression_checks;
+    if (!condition) throw std::runtime_error(description);
+}
+static std::vector<u8> Metadata(u64 hash, size_t index, Shader::StageSpecialization spec,
+                                bool motion = false) {
+    Shader::Info info{};
+    info.pgm_hash = hash;
+    info.hw_stage = motion ? Shader::HwStage::Vertex : Shader::HwStage::Compute;
+    info.sw_stage = motion ? Shader::SwStage::Vertex : Shader::SwStage::Compute;
+    if (motion) spec.runtime_info.hw.vs.motion_vectors = true;
+    Serialization::Archive ar;
+    Serialization::Writer writer{ar};
+    writer.Write(Serialization::ShaderMetaVersion);
+    writer.Write(binary_version);
+    writer.Write(HashCombine(hash, index));
+    writer.Write(index);
+    spec.Serialize(ar);
+    info.Serialize(ar);
+    return ar.TakeOff();
+}
+static void Regressions() {
+    constexpr u64 hash = 0xfedcba9876543210;
+    Shader::Info info{};
+    Shader::StageSpecialization bound{}, unbound{};
+    bound.info = unbound.info = &info;
+    bound.buffers.emplace_back();
+    unbound.buffers.emplace_back();
+    bound.bitset.set(0);
+    bound.buffers[0].stride = 16;
+    unbound.buffers[0].stride = 32;
+    Require(bound == unbound && !(unbound == bound), "Real comparator must remain directional");
+    for (size_t index : {0, 1, 9})
+        probe_storage.synthetic[fmt::format("{:#018x}_{}", hash, index)] = {0x07230203u, u32(index)};
+    const auto zero = Metadata(hash, 0, bound);
+    const auto one = Metadata(hash, 1, unbound);
+    Vulkan::ProbeCache cache;
+    auto load = [&](const std::vector<u8>& bytes) {
+        Serialization::Archive ar{std::vector<u8>{bytes}};
+        return cache.LoadPipelineStage(ar, 0);
+    };
+    Require(load(zero), "First persisted slot must load");
+    Require(load(one), "Compatible variant at a distinct persisted index must load");
+    auto& program = *cache.program_cache.at(hash);
+    const auto module0 = program.modules[0].module, module1 = program.modules[1].module;
+    Require(module0 && module1 && module0 != module1, "Distinct slots must retain their own shader modules");
+    Require(module_contents.at(reinterpret_cast<uintptr_t>(VkShaderModule(module0))) == std::vector<u32>({0x07230203u, 0}) &&
+            module_contents.at(reinterpret_cast<uintptr_t>(VkShaderModule(module1))) == std::vector<u32>({0x07230203u, 1}),
+            "Each persisted index must load its own SPIR-V payload");
+    auto compiled = compiled_modules;
+    Require(load(one) && cache.sel.modules[0] == module1 && compiled_modules == compiled,
+            "Repeated index must reuse its exact module without compiling again");
+    auto conflict = unbound;
+    conflict.buffers[0].stride = 64;
+    Require(bound == conflict, "Synthetic collision must remain runtime-compatible");
+    Require(!load(Metadata(hash, 1, conflict)), "Different metadata at an occupied index must be rejected");
+    Require(program.modules[0].module == module0 && program.modules[1].module == module1,
+            "Rejected collision must not replace either existing module");
+    Require(program.modules[1].spec.buffers[0].stride == 32,
+            "Rejected collision must preserve existing specialization");
+    Require(program.modules[1].spec.info == &program.info,
+            "Loaded specialization must refer to the persistent Program info");
+    Require(load(Metadata(hash, 9, bound)), "Sparse persisted index must load at its own slot");
+    Require(program.modules.size() == 10 && !program.modules[8].module && program.modules[9].module,
+            "Sparse loading must not shift indices or fill absent slots");
+    auto invalid_version = one;
+    invalid_version[0] ^= 1;
+    Require(!load(invalid_version), "Incompatible metadata version must be rejected");
+    auto invalid_binary = one;
+    invalid_binary[4] ^= 1;
+    Require(!load(invalid_binary), "Incompatible shader binary version must be rejected");
+    Require(!load(Metadata(hash, 10, bound)), "Missing shader binary must be rejected");
+    compiled = compiled_modules;
+    Require(!load(Metadata(hash, 0, bound, true)) && compiled_modules == compiled,
+            "Motion shader with session addresses must remain rejected");
+    Vulkan::ProbeCache reverse;
+    Serialization::Archive ar1{std::vector<u8>{one}}, ar0{std::vector<u8>{zero}};
+    Require(reverse.LoadPipelineStage(ar1, 0) && reverse.LoadPipelineStage(ar0, 0),
+            "Distinct indices must load correctly in reverse order");
+    const auto& reversed = *reverse.program_cache.at(hash);
+    Require(reversed.modules[0].module != reversed.modules[1].module,
+            "Reverse-order preload must preserve module identity");
+}
+int main(int argc, char** argv) {
+    if (argc != 2) return 2;
+    if (std::string_view(argv[1]) == "--synthetic") {
+        binary_version = 9;
+        probe_storage.synthetic_only = true;
+        Regressions();
+        std::cout << "{\"synthetic_checks\":" << regression_checks << "}\n";
+        return 0;
+    }
+    cache_directory = argv[1];
+    std::vector<std::filesystem::path> paths;
+    for (const auto& file : std::filesystem::directory_iterator(cache_directory))
+        if (file.path().extension() == ".meta") paths.push_back(file.path());
+    std::sort(paths.begin(), paths.end());
+    unsigned accepted = 0, rejected = 0, slot_mismatch = 0, lifetime_mismatch = 0;
+    unsigned compatible_other_index = 0, motion_records = 0;
+    Vulkan::ProbeCache cache;
+    for (const auto& path : paths) {
+        auto bytes = Read(path);
+        if (bytes.size() < 24) return 3;
+        std::memcpy(&binary_version, bytes.data() + 4, 4);
+        Serialization::Archive decoded{std::vector<u8>{bytes}};
+        Shader::Info info{};
+        Shader::StageSpecialization spec{};
+        spec.info = &info;
+        std::optional<Shader::Gcn::FetchShaderData> fetch;
+        size_t index{};
+        if (!Vulkan::LoadShaderMeta(decoded, info, fetch, spec, index)) {
+            ++motion_records;
+            continue;
+        }
+        const auto existing = cache.program_cache.find(info.pgm_hash);
+        if (existing != cache.program_cache.end()) {
+            const auto& modules = existing->second->modules;
+            for (size_t n = 0; n < modules.size(); ++n)
+                if (n != index && modules[n].module && modules[n].spec == spec) {
+                    ++compatible_other_index;
+                    break;
+                }
+        }
+        Serialization::Archive ar{std::move(bytes)};
+        if (!cache.LoadPipelineStage(ar, 0)) { ++rejected; continue; }
+        ++accepted;
+        const auto& program = *cache.program_cache.at(info.pgm_hash);
+        if (index >= program.modules.size() || !program.modules[index].module ||
+            program.modules[index].module != cache.sel.modules[0]) ++slot_mismatch;
+        if (program.modules[index].spec.info != &program.info) ++lifetime_mismatch;
+    }
+    const auto replay_warnings = warnings;
+    Regressions();
+    std::cout << "{\"records\":" << paths.size() << ",\"accepted\":" << accepted
+              << ",\"rejected\":" << rejected << ",\"motion_records\":" << motion_records
+              << ",\"compatible_other_index\":" << compatible_other_index
+              << ",\"slot_mismatch\":" << slot_mismatch << ",\"lifetime_mismatch\":" << lifetime_mismatch
+              << ",\"warnings\":" << replay_warnings << ",\"compiled_modules\":" << compiled_modules
+              << ",\"regression_checks\":" << regression_checks << "}\n";
+    return slot_mismatch || lifetime_mismatch || rejected ? 1 : 0;
+}

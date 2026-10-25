@@ -873,24 +873,28 @@ bool PipelineCache::LoadPipelineStage(Serialization::Archive& ar, size_t stage) 
         module = CompileSPV(spv, instance.GetDevice());
         it_pgm.value() = std::move(program);
     } else {
-        const auto& it = std::ranges::find(it_pgm.value()->modules, spec, &Program::Module::spec);
-        if (it != it_pgm.value()->modules.end()) {
-            // A matching permutation is valid only at its original index. A different index means
-            // the store holds entries from more than one cache generation, so this pipeline is
-            // left to compile at runtime.
-            const auto idx = std::distance(it_pgm.value()->modules.begin(), it);
-            if (perm_idx != idx) {
+        const auto& modules = it_pgm.value()->modules;
+        if (perm_idx < modules.size() && modules[perm_idx].module) {
+            // Runtime specialization matching is directional compatibility, not cache identity.
+            // Other indices may legitimately be compatible; only an occupied persisted slot can
+            // conflict. Reuse it only when its serialized specialization is identical.
+            Serialization::Archive stored_spec, incoming_spec;
+            modules[perm_idx].spec.Serialize(stored_spec);
+            spec.Serialize(incoming_spec);
+            if (stored_spec.TakeOff() != incoming_spec.TakeOff()) {
                 LOG_WARNING(Render_Vulkan,
-                            "Cached permutation {} of {}_{:x} conflicts with index {}, skipping "
-                            "preload",
-                            perm_idx, program->info.hw_stage, program->info.pgm_hash, idx);
+                            "Cached permutation {} of {}_{:x} has conflicting metadata at its "
+                            "persisted index, skipping preload",
+                            perm_idx, program->info.hw_stage, program->info.pgm_hash);
                 return false;
             }
-            module = it->module;
+            module = modules[perm_idx].module;
         } else {
             module = CompileSPV(spv, instance.GetDevice());
         }
     }
+    // The temporary Program is discarded when the shader already exists in program_cache.
+    spec.info = &it_pgm.value()->info;
     it_pgm.value()->InsertPermut(module, std::move(spec), perm_idx);
 
     sel.infos[stage] = &it_pgm.value()->info;
@@ -1113,9 +1117,17 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
 }
 
 void PipelineCache::StartOnDemand() {
-    CheckCacheProfile();
+    const bool cached = CheckCacheProfile();
+    // On-demand pipelines still need their persisted shader modules. Otherwise the first draw
+    // retranslates every program even when both SPIR-V and the driver cache are available.
+    const char* lazy = std::getenv("TLG_LAZY_PROGRAMS");
+    lazy_programs = cached && !(lazy && *lazy == '0');
     Storage::DataBase::Instance().FinishPreload();
     std::printf("Pipeline startup: on demand, no bulk warm-up\n");
+    if (lazy_programs) {
+        std::printf("Pipeline cache: shaders load on first use (%zu programs on disk)\n",
+                    next_permutation.size());
+    }
 }
 
 // tlg: one cached shader stage read by the background warm-up, shared by every cached

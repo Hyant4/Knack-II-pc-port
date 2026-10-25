@@ -39,6 +39,7 @@ ALLOWED_MANAGED_KEYS = frozenset({
     'frames_queued',
     'gpu_readbacks',
     'eager_readback',
+    'shader_preload',
     'key_map',
     'mouse_enabled',
     'mouse_sensitivity',
@@ -208,7 +209,7 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
             raise ValueError(f"Modo de exibição inválido: '{val}' (esperado windowed, borderless ou fullscreen)")
         return key, lower_mode
 
-    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'eager_readback'):
+    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'eager_readback', 'shader_preload'):
         return key, _validate_bool_string(key, val)
 
     if key == 'gpu_readbacks':

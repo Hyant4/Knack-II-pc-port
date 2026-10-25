@@ -107,7 +107,7 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { text: "0.17.2"; color: "#b7bdca"; font.pixelSize: 11 }
+                Label { text: "0.17.3"; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
         StackLayout {
@@ -276,6 +276,22 @@ ApplicationWindow {
                                 anchors.margins: 20
                                 spacing: 12
                                 SectionTitle { text: qsTr("Imagem e apresentação"); glyph: "monitor" }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    SettingLabel { text: qsTr("Pré-carregamento de shaders (experimental)") }
+                                    OptionSwitch {
+                                        objectName: "shaderPreload"
+                                        checked: backend.settings.shader_preload === "1"
+                                        enabled: backend.editable
+                                        Accessible.name: qsTr("Pré-carregamento de shaders (experimental)")
+                                        onToggled: backend.setSetting("shader_preload", checked)
+                                    }
+                                }
+                                Hint {
+                                    objectName: "shaderPreloadHint"
+                                    text: qsTr("Carrega o cache antes do jogo. Pode reduzir engasgos e aumentar a espera inicial. Cache vazio ainda exige compilação. Aplica na próxima sessão.")
+                                    font.pixelSize: 12
+                                }
                                 RowLayout {
                                     Layout.fillWidth: true
                                     SettingLabel { text: qsTr("Modo de janela") }

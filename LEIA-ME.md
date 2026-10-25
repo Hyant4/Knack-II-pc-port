@@ -1,21 +1,17 @@
-# Knack II PC — V0.17.2
+# Knack II PC — V0.17.3
 
-Atualização do launcher com alternância PT / EN / RU. A interface muda na hora e guarda sua preferência. O idioma do jogo continua sendo configurado separadamente em Configurações.
 
-## Instalação
+Atualização do runtime para corrigir reaproveitamento do cache de shaders e pipelines. O launcher mantém os idiomas PT / EN / RU, com identificação da versão atualizada.
 
-Baixe `Knack-II-Windows-x64-V0.17.2.zip`, extraia a pasta inteira e abra `Knack II.exe`. Valide seu próprio dump CUSA08014 ou CUSA07670, versão 01.01. Preferências e saves ficam em `%LOCALAPPDATA%\KnackII-PC`.
+- **Pré-carregamento experimental de shaders:** ativado por padrão. Em **Configurações → Vídeo**, desligue o botão e salve as configurações para voltar ao carregamento sob demanda. A preferência vale na próxima sessão.
+- Variantes compatíveis em índices diferentes deixam de provocar falsas recusas do cache; conflitos reais continuam sendo rejeitados.
+- O modo sob demanda passa a ler os shaders já salvos quando o cache é compatível.
+- Corrigida referência temporária nos metadados dos shaders carregados.
 
-## Conteúdo
+**Limites:** pré-carregamento pode aumentar a espera antes de entrar no jogo. A melhora dos engasgos é parcial: cache vazio ainda precisa de compilação; pausas e variação de FPS podem continuar. Esta atualização não garante 60 FPS estáveis.
 
-- Launcher Qt/QML em português, inglês e russo.
-- Runtime preservado byte por byte da V0.17.1; jogo e renderer não mudam nesta atualização.
-- Salve a preferência da interface. Idioma do jogo continua independente.
-- Fontes correspondentes incluídas em `Knack-II-sources-V0.17.2.zip`.
+**Validação:** build nativa, 22 verificações sintéticas do cache aprovadas, replay local de 1.219 registros, testes do botão/persistência/modos de inicialização e sessões curtas na edição europeia 01.01, incluindo pular a abertura e movimentação. Campanha completa, outras GPUs e cooperativo não foram revalidados nesta atualização.
 
-## Validação e limites
+**Instalação:** baixe `Knack-II-Windows-x64-V0.17.3.zip`, extraia a pasta inteira e abra `Knack II.exe`. Use seu próprio dump CUSA08014 ou CUSA07670, versão 01.01. Saves e preferências continuam em `%LOCALAPPDATA%\KnackII-PC`. Não é necessário apagar o cache existente. A V0.17.2 permanece disponível para retorno à versão anterior.
 
-- Compilação PyInstaller 6.22.2 e PySide6-Essentials 6.12.0.
-- Testes focados do launcher e idiomas: 48 aprovados.
-- Smokes do pacote: demonstração QML, launcher real em idle, encerramento controlado de processo sintético, ajuda do supervisor, ajuda ISA, CPU e Vulkan. Nenhum jogo iniciado.
-- Campanha, áudio audível e desempenho em partidas reais não foram reavaliados nesta atualização. A V0.17.1 permanece disponível como rollback.
+Fontes correspondentes: `Knack-II-sources-V0.17.3.zip`. Confira `SHA256SUMS.txt`. O pacote não contém jogo, dump ou saves.

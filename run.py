@@ -133,6 +133,7 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
     settings = load_knack2_ini(settings_path) if settings_path.is_file() else {}
     readbacks = sanitize_and_validate_key_value('gpu_readbacks', settings.get('gpu_readbacks', '2'))[1]
     eager = sanitize_and_validate_key_value('eager_readback', settings.get('eager_readback', '0'))[1]
+    preload = sanitize_and_validate_key_value('shader_preload', settings.get('shader_preload', '1'))[1]
     upscaler = sanitize_and_validate_key_value('upscaler', settings.get('upscaler', 'off'))[1]
     preset = sanitize_and_validate_key_value('preset', settings.get('preset', '0'))[1]
     internal = sanitize_and_validate_key_value('internal_resolution',
@@ -161,6 +162,8 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
     env.update(game_identity_environment(ROOT))  # Fixed local identity, never inherited from another port.
     # Startup-only GPU choices come from the validated INI, after inherited overrides are filtered.
     env.update(TLG_READBACKS=readbacks, TLG_EAGER_READBACK=eager if readbacks == '2' else '0')
+    if preload == '1':
+        env.update(TLG_PIPELINE_BINARIES='0', TLG_BACKGROUND_WARMUP='0', TLG_PARALLEL_WARMUP='1')
     if pad_file is not None:
         pad_file = Path(pad_file).resolve()
         if not pad_file.is_file():
@@ -311,6 +314,7 @@ def _main(argv, lifetime):
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
               'user_data': str(user),
               'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
+              'shader_preload': env.get('TLG_BACKGROUND_WARMUP') == '0',
               'visual_verified': False, 'stages': []}
     deadline = time.monotonic() + args.timeout if args.timeout else None
     executable, guest_args = profile['entry'], []

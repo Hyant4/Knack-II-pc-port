@@ -270,6 +270,23 @@ class QtUiTests(unittest.TestCase):
         self.backend.shutdown()
         self.assertFalse(workspace.exists())
 
+    def test_shader_preload_switch_defaults_on_and_can_be_disabled(self):
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.pump(40)
+        switch = self.item('shaderPreload')
+        self.assertTrue(switch.isVisible())
+        self.assertTrue(switch.property('checked'))
+        self.assertEqual(self.backend.settings['shader_preload'], '1')
+        self.click('shaderPreload')
+        self.assertEqual(self.backend.settings['shader_preload'], '0')
+        self.assertFalse(switch.property('checked'))
+        self.backend.setUiLanguage('en-US')
+        self.pump(20)
+        self.assertIn('cold cache', self.item('shaderPreloadHint').property('text'))
+        self.click('shaderPreload')
+        self.assertEqual(self.backend.settings['shader_preload'], '1')
+
     def test_settings_reject_bad_values_and_protected_keys(self):
         old = self.backend.settings
         for key, value in [('rcas_strength', 101), ('vsync', '1\ninjected=1'), ('ngs2_atrac9_hle', 0)]:

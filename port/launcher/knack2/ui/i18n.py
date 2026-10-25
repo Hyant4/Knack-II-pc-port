@@ -485,6 +485,20 @@ MESSAGES.update({
         'Usa PT / EN / RU arriba para cambiar el idioma del launcher.',
         'Utilisez PT / EN / RU en haut pour changer la langue du lanceur.'],
 })
+MESSAGES.update({
+    'Pré-carregamento de shaders (experimental)': [
+        'Shader preloading (experimental)', 'Precarga de shaders (experimental)',
+        'Préchargement des shaders (expérimental)'],
+    'Carrega o cache antes do jogo. Pode reduzir engasgos e aumentar a espera inicial. Cache vazio ainda exige compilação. Aplica na próxima sessão.': [
+        'Loads the cache before gameplay. May reduce stutters and increase startup time. A cold cache still needs compilation. Applies next session.',
+        'Carga la caché antes de jugar. Puede reducir tirones y aumentar la espera inicial. Una caché vacía aún requiere compilación. Se aplica en la próxima sesión.',
+        'Charge le cache avant de jouer. Peut réduire les saccades et allonger le démarrage. Un cache vide nécessite toujours une compilation. Au prochain lancement.'],
+})
+RUSSIAN.update({
+    'Pré-carregamento de shaders (experimental)': 'Предзагрузка шейдеров (экспериментально)',
+    'Carrega o cache antes do jogo. Pode reduzir engasgos e aumentar a espera inicial. Cache vazio ainda exige compilação. Aplica na próxima sessão.':
+        'Загружает кэш перед игрой. Может уменьшить рывки и увеличить время запуска. Пустой кэш требует компиляции. Применяется в следующем сеансе.',
+})
 INDEX = {'en-US': 0, 'en-GB': 0, 'es-419': 1, 'es-ES': 1, 'fr-FR': 2}
 
 

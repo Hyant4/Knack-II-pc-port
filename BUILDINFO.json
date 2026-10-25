@@ -1,11 +1,15 @@
 {
-  "release": "0.17.2",
-  "tag": "knack2-Version-0.17.2",
-  "publication": "V0.17.2 launcher language update",
-  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.2",
-  "base_commit": "ef74128790d96a2e07d24c222af98d6def41efb4",
-  "branch": "experiment/gpu-small-sync-prebind-20261020",
+  "release": "0.17.3",
+  "tag": "knack2-Version-0.17.3",
+  "publication": "Experimental shader preloading and cache reuse correction",
+  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.3",
+  "base_commit": "93149abaff0792207beb88773c63c1510ab925f9",
+  "base_release": "knack2-Version-0.17.2",
+  "parent_release": "knack2-Version-0.17.2",
+  "source_base_sha256": "6d150d0c649b2e20109d4062b83747e01d6a2e394c43d904b72f1bb16dd51f7b",
+  "branch": "isolated release snapshot based on tag 0.17.2",
   "dirty_source_snapshot": false,
+  "expanded_dependency_snapshot": true,
   "submodules": [
     {
       "path": "port/gpu/third_party/fsr-vulkan",
@@ -43,16 +47,18 @@
       "local_changes": false
     }
   ],
-  "runtime_build_marker": "V0.17.1 source hotfix + MSYS2 CLANG64",
-  "runtime_original_sha256": "f4c50946cf288c8b66c78a62d4d31b68ad7f4ddc6c2ee933e4487b20667be08a",
-  "runtime_release_sha256": "882926164d2b0d78249d17513369d8403fd262e910aa93b26ab20f9fe99ca861",
-  "runtime_text_sha256": "a37141153e2ea47ef2075aaf72fa2e49e618f44356ae77b6a884a5fafcb0b675",
-  "res03_tested_runtime_sha256": "15b40a9843ad39af26fa2c891ae7a8002222390df5d5cb76312f1e22713d32b0",
-  "res03_tested_text_sha256": "16eb8d30f95deaed7bf767db1414d80d273d3986a7c199f7faf29214505a12ac",
-  "launcher_sha256": "1907e639ea8f9b6f0a591f708596748c99f6882f1d96bd9c45e90bf35c142862",
-  "supervisor_sha256": "b78b4e22db6edd25d9802c1e4aa762286c96c789dbe7e054d0b40a80db4f2ad9",
-  "windows_file_version": "0.17.2.0",
-  "binary_changes": "Runtime debug stripped and version stamped to 0.17; PE code preserved. Launcher and supervisor icon resources sanitized; PyInstaller archives preserved.",
+  "runtime_build_marker": "V0.17.3 focused cache fix; tested native code preserved during PE stamping",
+  "runtime_original_sha256": "baabffff78e210a79822961525d8ef603475a86bf9fa68eb0b7a0895443d347e",
+  "runtime_build_sha256": "baabffff78e210a79822961525d8ef603475a86bf9fa68eb0b7a0895443d347e",
+  "runtime_release_sha256": "f252df01fac6c22b878d0b4bfc6cf63d7c0774a23627b756323190096cd10b29",
+  "runtime_text_sha256": "b4fd6624973eb4e78fb1663ebe0fbfab9c0d13ff0d27e977b1c7b02f2ff784d6",
+  "runtime_file_version": "0.17.3.0",
+  "runtime_changed": true,
+  "launcher_sha256": "dd524d4e3c70202bf666deabcb9dbc1165993403442c19f34d4e19eb7b6bb75a",
+  "supervisor_sha256": "9cd74b90980b0f50becf36f648760685aa1e41626a9a8fa1e464b06b2246f7ea",
+  "launcher_file_version": "0.17.3.0",
+  "windows_file_version": "0.17.3.0",
+  "binary_changes": "Runtime debug stripped/version stamped with identical .text. Launcher/supervisor rebuilt for preload preference. Icon removal preserved code and PyInstaller archives.",
   "profiles": [
     "CUSA08014-01.01",
     "CUSA07670-01.01"
@@ -61,140 +67,99 @@
     "CUSA08014": 4,
     "CUSA07670": 14
   },
-  "launcher_translation_catalogs": [
-    "Portuguese",
-    "English",
-    "Spanish",
-    "French"
-  ],
-  "native_resolution": {
-    "status": "implemented (RES-03)",
-    "options": [
-      "auto",
-      "1280x720",
-      "1600x900",
-      "1920x1080",
-      "2560x1440",
-      "3840x2160"
-    ],
-    "qhd_native": "2560x1440 native game targets and final framebuffer",
-    "4k_native": "3840x2160 native game targets and final framebuffer",
-    "presentation": "Adaptive window presentation for user monitor (including 1080p)",
-    "extra_gpu_pool": {
-      "2560x1440": "768 MiB",
-      "3840x2160": "1536 MiB"
-    },
-    "direct_memory_mb": {
-      "2560x1440": 5824,
-      "3840x2160": 6592
-    },
-    "restart_required": true,
-    "header": "port/src/knack_native_resolution.h",
-    "validation": "Synthetic bounds and memory pool guards; US CUSA08014 Ch 3-2 sessions in QHD and 4K with 124 timeout; raw 14.7MB / 33.1MB framebuffers verified.",
-    "limitations": [
-      "Full campaign in 4K native not certified.",
-      "European CUSA07670 native high resolution has synthetic guards, no full campaign validation.",
-      "FSR combined with native high resolution is experimental."
-    ]
-  },
-  "ultrawide": {
-    "status": "experimental",
-    "options": [
-      "auto",
-      "16:9",
-      "21:9",
-      "32:9"
-    ],
-    "limitations": [
-      "Cutscenes/opening artwork may show blue side areas, incomplete bars and narrow video.",
-      "Use 16:9 if cutscene framing matters."
-    ]
-  },
-  "validation": {
-    "tests_run": 194,
-    "tests_passed": 190,
-    "tests_skipped": 4,
-    "package_smokes": 7,
-    "toolchain_required_to_play": false,
-    "temporary_saves": true,
-    "campaign_validated": false
-  },
-  "build": {
-    "native": "CLANG64, CMake/Ninja, RelWithDebInfo, TLG_PGO=off, TLG_LTO=OFF, jobs=6",
-    "launcher": "PyInstaller; existing isolated packaging dependencies; no download",
-    "native_source_prefix_map": "repository root -> ."
-  },
-  "notes": "Launcher/supervisor carried from V0.17; runtime rebuilt from V0.17 source snapshot with guarded ultrawide camera and cinematic framing fixes.",
-  "base_release": "knack2-Version-0.17",
-  "source_base_sha256": "2bc784d992fb62c04549b80acc6de65f0c686f10ccf14f10e46165beb6bd2bbe",
-  "runtime_build_sha256": "59b2abb8083635132d1be82950b1f7db1e9f0376f5e2caedae254de2637fad79",
-  "runtime_file_version": "0.17.1.0",
-  "launcher_file_version": "0.17.2.0",
-  "ultrawide_hotfix": {
-    "camera_source": "regional CUSA08014/CUSA07670 01.01 guarded signature",
-    "gameplay": "Horizontal FOV follows 21:9/32:9; vertical FOV preserved.",
-    "movies": "16:9 canvas with black side bars; skip keeps bars until a scene camera is valid.",
-    "runtime_validation": [
-      "21:9 gameplay",
-      "32:9 gameplay",
-      "opening/video",
-      "skip transition"
-    ],
-    "limitations": [
-      "Full campaign not certified.",
-      "Physical ultrawide monitor not tested.",
-      "FSR with ultrawide not certified."
-    ]
-  },
-  "release_tests": {
-    "base_release": "0.17.1",
-    "ui_interaction": 24,
-    "ui_persistence": 18,
-    "language_catalog": 6,
-    "package_smokes": 7,
-    "game_started": false
-  },
-  "parent_release": "knack2-Version-0.17.1",
   "launcher_languages": [
     "pt-BR",
     "en-US",
     "ru-RU"
   ],
+  "release_note_languages": [
+    "pt-BR",
+    "en-US"
+  ],
   "launcher_language_preference": "ui_language in launcher_settings.json",
   "game_language_remains_independent": true,
-  "runtime_changed": false,
+  "shader_cache_key": "8a478be6371f",
+  "shader_preload": {
+    "experimental": true,
+    "default_enabled": true,
+    "managed_ini_key": "shader_preload",
+    "can_disable": true,
+    "settings_tab": "Video",
+    "requires_new_session": true,
+    "loads_existing_cache": true,
+    "cold_cache_still_compiles": true
+  },
+  "release_tests": {
+    "cache_synthetic_checks": 22,
+    "local_cache_records_replayed": 1219,
+    "launcher_ui_tests_passed": 25,
+    "backend_persistence_tests_passed": 19,
+    "language_tests_passed": 6,
+    "preload_contract_tests_passed": 4,
+    "supervisor_tests_passed": 14,
+    "supervisor_tests_skipped": 1,
+    "package_smokes_passed": 7,
+    "ui_visual_languages": [
+      "pt-BR",
+      "en-US",
+      "ru-RU"
+    ],
+    "full_campaign_certified": false
+  },
+  "runtime_validation": {
+    "profile": "CUSA07670-01.01",
+    "gpu": "RX 6650 XT",
+    "output": "1920x1080",
+    "isolated_saves": true,
+    "scenarios": [
+      "continue",
+      "opening skip",
+      "movement",
+      "existing cache",
+      "empty cache"
+    ],
+    "preload_peak_after_skip_ms_observed": 264.2,
+    "preload_default_performance_guarantee": false,
+    "limitations": [
+      "Partial stutter improvement.",
+      "Preloading increases startup wait.",
+      "Cold cache still requires compilation.",
+      "Frame-rate variation remains.",
+      "Full campaign, co-op and other GPUs not revalidated."
+    ]
+  },
   "package_smokes": {
-    "version": "0.17.2",
+    "version": "0.17.3",
     "smokes": [
       {
         "name": "gui-demo",
         "exit_code": 0,
-        "seconds": 7.04
+        "seconds": 10.41
       },
       {
         "name": "gui-real-idle",
         "exit_code": 0,
-        "seconds": 6.47
+        "seconds": 8.9
       },
       {
         "name": "controlled-stop",
         "exit_code": 0,
-        "seconds": 7.71
+        "seconds": 9.21
       },
       {
         "name": "supervisor-help",
         "exit_code": 0,
-        "seconds": 0.18
+        "seconds": 0.28
       },
       {
         "name": "isa-help",
         "exit_code": 0,
-        "seconds": 0.19
+        "seconds": 0.28
       },
       {
         "name": "runtime-cpu",
         "exit_code": 0,
-        "seconds": 0.04
+        "seconds": 0.05
       },
       {
         "name": "runtime-vulkan",
@@ -204,8 +169,9 @@
     ],
     "game_started": false,
     "save_touched": false,
-    "runtime_sha256": "882926164d2b0d78249d17513369d8403fd262e910aa93b26ab20f9fe99ca861",
-    "launcher_sha256": "1907e639ea8f9b6f0a591f708596748c99f6882f1d96bd9c45e90bf35c142862",
-    "supervisor_sha256": "b78b4e22db6edd25d9802c1e4aa762286c96c789dbe7e054d0b40a80db4f2ad9"
-  }
+    "runtime_sha256": "f252df01fac6c22b878d0b4bfc6cf63d7c0774a23627b756323190096cd10b29",
+    "launcher_sha256": "dd524d4e3c70202bf666deabcb9dbc1165993403442c19f34d4e19eb7b6bb75a",
+    "supervisor_sha256": "9cd74b90980b0f50becf36f648760685aa1e41626a9a8fa1e464b06b2246f7ea"
+  },
+  "notes": "Experimental preloading is enabled by default and can be disabled/saved in Settings / Video. No saves or game data are shipped."
 }
