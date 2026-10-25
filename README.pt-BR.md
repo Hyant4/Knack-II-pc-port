@@ -1,11 +1,32 @@
-> 🇧🇷 **Documentação em português.** [English / international README](README.md).
+<p align="center">
+  <img src="docs/screenshots/knack-ii-title-screen.png" alt="Knack II rodando no PC" width="250" />
+</p>
 
-# Knack II para PC
+<h1 align="center">Knack II — Port para PC</h1>
 
-Port independente e experimental de **Knack II para Windows**, com renderização Vulkan, launcher integrado e cooperativo local para dois jogadores.
+<p align="center">
+  <strong>Jogue Knack II no Windows com gráficos Vulkan, launcher próprio e cooperativo local para dois jogadores.</strong>
+</p>
 
-**[Baixar Knack II para Windows — Hotfix V0.17.1](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip)** · [Notas do hotfix](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1)
-[☕ Apoie o desenvolvimento](https://buymeacoffee.com/hyant4)
+<p align="center">
+  <a href="https://buymeacoffee.com/hyant4"><img alt="Buy me a coffee — Apoie o projeto" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Apoie%20o%20projeto-FFDD00?style=flat-square&amp;labelColor=555555&amp;logo=buymeacoffee&amp;logoColor=white" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1"><img alt="Baixar Windows x64 v0.17.1" src="https://img.shields.io/badge/Baixar-Windows%20x64%20v0.17.1-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
+</p>
+
+<p align="center">
+  <a href="README.md">English</a>
+  · <a href="https://github.com/Hyant4/Knack-II-pc-port/releases">Versões</a>
+  · <a href="https://hyant4.github.io/Knack-II-pc-port/">Site do projeto</a>
+  · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Reportar problema</a>
+</p>
+
+<p align="center">
+  <img alt="Windows" src="https://img.shields.io/badge/Plataforma-Windows-555555?style=flat-square" />
+  <img alt="Vulkan" src="https://img.shields.io/badge/Gr%C3%A1ficos-Vulkan-555555?style=flat-square" />
+  <img alt="Cooperativo local para 2 jogadores" src="https://img.shields.io/badge/Co--op%20local-2%20jogadores-555555?style=flat-square" />
+</p>
+
+---
 
 > **Hotfix V0.17.1:** gameplay 21:9/32:9 mantém proporções; abertura e vídeos ficam centralizados em 16:9 com barras pretas. Ao pular, barras continuam durante a transição e somem ao iniciar gameplay.
 
