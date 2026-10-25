@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16"><strong>Download Windows x64 V0.16</strong></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17"><strong>Download Windows x64 V0.17</strong></a>
   · <a href="README.pt-BR.md">Português (Brasil)</a>
   · <a href="https://hyant4.github.io/Knack-II-pc-port/">Project website</a>
   · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a>
@@ -19,7 +19,7 @@
 
 ## Play it
 
-1. Download [**Knack-II-Windows-x64-V0.16.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.16/Knack-II-Windows-x64-V0.16.zip) from the [V0.16 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16).
+1. Download [**Knack-II-Windows-x64-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-Windows-x64-V0.17.zip) from the [V0.17 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17).
 2. Extract the entire ZIP; do not run the launcher from inside the archive.
 3. Open `Knack II.exe`.
 4. Choose your own Knack II game dump containing `eboot.bin`, `game.elf`, `sce_sys`, and `sce_module`, then select **Validate**.
@@ -29,19 +29,20 @@
 
 The Windows ZIP contains the launcher, runtime, and needed dependencies. It contains **no game data, dump, firmware, or saves**.
 
-## What's new in V0.16
+## What's new in V0.17
 
-| Area | V0.16 status |
+| Area | V0.17 status |
 | --- | --- |
-| European edition | Experimental CUSA07670 profile and European language recognition; tested with a short boot and temporary save, **not** a full campaign. |
-| Ultrawide | Experimental widescreen support. Gameplay may benefit, but opening artwork and cutscenes have incorrect framing, narrow images, blue side areas, or incomplete bars. **Use 16:9 if framing matters.** |
-| Windows launcher | Portuguese, English, Spanish, and French UI catalogs; other selected game languages may use English launcher text. |
-| Regional audio caveat | Some dialogue-gain address guards remain specific to US CUSA08014; do not assume identical behavior on CUSA07670. |
-| Existing features | Vulkan renderer, local two-player co-op, FSR 3.1/4 options, and previous audio improvements remain part of the port. |
+| Native QHD & 4K | Internal resolution presets (2560×1440 and 3840×2160) configuring native render targets and framebuffer up to 4K. |
+| Adaptive Presentation | High-resolution final framebuffer is adaptively presented on user displays (including 1080p). |
+| Memory Headroom | Graphics pool headroom expanded (768 MiB for QHD, 1536 MiB for 4K; `TLG_DMEM_MB=5824/6592`) preventing OOM. |
+| Launcher Selector | New internal resolution selector in launcher UI; restart required to apply settings. |
+| European edition | CUSA07670 profile and language recognition retained; native resolution guards validated. |
+| Ultrawide Caveat | Experimental widescreen retained. Cutscenes may show blue side areas; use 16:9 for exact framing. |
 
 **Known limitation:** The cutscene framing defect was **not fixed** in this release. Unsuccessful experimental patches were excluded from the validated packages.
 
-**Release validation:** 186 tests passed, 4 were skipped, with no reported test failures. Those results do not replace full gameplay testing; see the [release notes](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16) for the precise validation scope.
+**Release validation:** 190 tests passed, 4 were skipped, with no reported test failures. Those results do not replace full gameplay testing; see the [release notes](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17) for the precise validation scope.
 
 ## What works today
 
@@ -78,9 +79,9 @@ If a problem occurs, use **View logs** in the launcher and open an [issue](https
 
 ## Build from source
 
-For **V0.16**, use [**Knack-II-sources-V0.16.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.16/Knack-II-sources-V0.16.zip) from the [release page](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16). This is the matching source snapshot verified against the distributed Windows package.
+For **V0.17**, use [**Knack-II-sources-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-sources-V0.17.zip) from the [release page](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17). This is the matching source snapshot verified against the distributed Windows package.
 
-**Important:** GitHub's automatically generated *Source code (zip/tar.gz)* for the V0.16 tag reflects the repository commit pointed to by that tag; it is **not** the complete, verified V0.16 build snapshot. Use the attached `Knack-II-sources-V0.16.zip` to reproduce or inspect the released binaries.
+**Important:** GitHub's automatically generated *Source code (zip/tar.gz)* for the V0.17 tag reflects the repository commit pointed to by that tag; it is **not** the complete, verified V0.17 build snapshot. Use the attached `Knack-II-sources-V0.17.zip` to reproduce or inspect the released binaries.
 
 Development requires Windows, MSYS2 CLANG64, Python tooling, Vulkan development dependencies, and your own compatible game dump. See the [Windows development guide](docs/DESENVOLVIMENTO_WINDOWS.md). No game or firmware files are distributed with the sources.
 
@@ -99,5 +100,5 @@ This project builds on [HayatoG/iss_pc](https://github.com/HayatoG/iss_pc), shad
 
 **Independent, unofficial community project.** It is not affiliated with or endorsed by Sony Interactive Entertainment. Knack II belongs to its respective rights holders. No game assets, firmware, or game dump are included.
 
-For the exact V0.16 Windows and source archive hashes, use [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.16/SHA256SUMS.txt).
+For the exact V0.17 Windows and source archive hashes, use [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/SHA256SUMS.txt).
 
