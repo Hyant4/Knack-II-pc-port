@@ -1,20 +1,32 @@
 <p align="center">
-  <img src="docs/screenshots/knack-ii-title-screen.png" alt="Knack II title screen running in the Windows port" width="76%" />
+  <img src="docs/screenshots/knack-ii-title-screen.png" alt="Knack II running on PC" width="250" />
 </p>
 
-<h1 align="center">Knack II PC Port</h1>
+<h1 align="center">Knack II — PC Port</h1>
 
 <p align="center">
-  <strong>Independent Windows port of Knack II — native guest execution, Vulkan graphics, local co-op, and a bundled launcher.</strong>
+  <strong>Play Knack II on Windows with Vulkan graphics, a dedicated launcher and local two-player co-op.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1"><strong>Download Windows x64 Hotfix V0.17.1</strong></a>
-  · <a href="README.pt-BR.md">Português (Brasil)</a>
-  · <a href="https://hyant4.github.io/Knack-II-pc-port/">Project website</a>
+  <a href="https://buymeacoffee.com/hyant4"><img alt="Buy me a coffee — Support the project" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Support%20the%20project-FFDD00?style=flat-square&amp;labelColor=555555&amp;logo=buymeacoffee&amp;logoColor=white" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1"><img alt="Download Windows x64 v0.17.1" src="https://img.shields.io/badge/Download-Windows%20x64%20v0.17.1-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
+</p>
+
+<p align="center">
+  <a href="README.pt-BR.md">Português (Brasil)</a>
+  · <a href="https://github.com/Hyant4/Knack-II-pc-port/releases">Releases</a>
+  · <a href="https://hyant4.github.io/Knack-II-pc-port/">Website</a>
   · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a>
-  · <a href="https://buymeacoffee.com/hyant4">Support development ☕</a>
 </p>
+
+<p align="center">
+  <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows-555555?style=flat-square" />
+  <img alt="Vulkan" src="https://img.shields.io/badge/Graphics-Vulkan-555555?style=flat-square" />
+  <img alt="Two player local co-op" src="https://img.shields.io/badge/Local%20co--op-2%20players-555555?style=flat-square" />
+</p>
+
+---
 
 > **Experimental, unofficial community port.** The project owner reports that the game is playable from beginning to end, including local co-op. The published automated tests and limited hands-on checks are **not** an independent full-campaign or cross-hardware certification. Visual issues, Vulkan device loss, and crashes may still occur.
 
