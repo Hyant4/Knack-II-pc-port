@@ -191,7 +191,8 @@ static int32_t mount(int32_t user, const char *title, const DirName *dir, uint32
     memset(&slot_identity[slot],0,sizeof(slot_identity[slot]));
     slot_identity[slot].user=user;
     slot_identity[slot].mode=mode;
-    snprintf(slot_identity[slot].title.data,sizeof(slot_identity[slot].title.data),"%s",title && *title ? title : title_id);
+    snprintf(slot_identity[slot].title.data,sizeof(slot_identity[slot].title.data),"%.*s",
+             (int)sizeof(slot_identity[slot].title.data)-1,title && *title ? title : title_id);
     slot_identity[slot].dir=*dir;
     snprintf(slots[slot].host,sizeof(slots[slot].host),"%s",host);
     snprintf(slots[slot].meta,sizeof(slots[slot].meta),"%s",meta);

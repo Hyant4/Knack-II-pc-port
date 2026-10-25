@@ -1,0 +1,211 @@
+{
+  "release": "0.17.2",
+  "tag": "knack2-Version-0.17.2",
+  "publication": "V0.17.2 launcher language update",
+  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.2",
+  "base_commit": "ef74128790d96a2e07d24c222af98d6def41efb4",
+  "branch": "experiment/gpu-small-sync-prebind-20261020",
+  "dirty_source_snapshot": false,
+  "submodules": [
+    {
+      "path": "port/gpu/third_party/fsr-vulkan",
+      "commit": "c64f093404125e960813f95f1996c14780f0dd69",
+      "local_changes": true
+    },
+    {
+      "path": "port/gpu/third_party/imgui",
+      "commit": "f1cc2ae15e53a861a874c3034aae6798fde194ab",
+      "local_changes": false
+    },
+    {
+      "path": "port/gpu/third_party/magic_enum",
+      "commit": "e046b69a3736d314fad813e159b1c192eaef92cd",
+      "local_changes": false
+    },
+    {
+      "path": "port/gpu/third_party/miniz",
+      "commit": "2948eebafc5b9f1c69bebed80333e403a09bd62d",
+      "local_changes": false
+    },
+    {
+      "path": "port/gpu/third_party/vulkan-headers",
+      "commit": "01393c3df0e5285b54ee6527466513f9e614be94",
+      "local_changes": false
+    },
+    {
+      "path": "port/gpu/third_party/xbyak",
+      "commit": "cd6bad3cad2e07a3e277c23d2b1f065320024717",
+      "local_changes": false
+    },
+    {
+      "path": "port/third_party/LibAtrac9",
+      "commit": "efca2e3af35562a09a9bb6deed90e45b4b824dc4",
+      "local_changes": false
+    }
+  ],
+  "runtime_build_marker": "V0.17.1 source hotfix + MSYS2 CLANG64",
+  "runtime_original_sha256": "f4c50946cf288c8b66c78a62d4d31b68ad7f4ddc6c2ee933e4487b20667be08a",
+  "runtime_release_sha256": "882926164d2b0d78249d17513369d8403fd262e910aa93b26ab20f9fe99ca861",
+  "runtime_text_sha256": "a37141153e2ea47ef2075aaf72fa2e49e618f44356ae77b6a884a5fafcb0b675",
+  "res03_tested_runtime_sha256": "15b40a9843ad39af26fa2c891ae7a8002222390df5d5cb76312f1e22713d32b0",
+  "res03_tested_text_sha256": "16eb8d30f95deaed7bf767db1414d80d273d3986a7c199f7faf29214505a12ac",
+  "launcher_sha256": "1907e639ea8f9b6f0a591f708596748c99f6882f1d96bd9c45e90bf35c142862",
+  "supervisor_sha256": "b78b4e22db6edd25d9802c1e4aa762286c96c789dbe7e054d0b40a80db4f2ad9",
+  "windows_file_version": "0.17.2.0",
+  "binary_changes": "Runtime debug stripped and version stamped to 0.17; PE code preserved. Launcher and supervisor icon resources sanitized; PyInstaller archives preserved.",
+  "profiles": [
+    "CUSA08014-01.01",
+    "CUSA07670-01.01"
+  ],
+  "regional_languages": {
+    "CUSA08014": 4,
+    "CUSA07670": 14
+  },
+  "launcher_translation_catalogs": [
+    "Portuguese",
+    "English",
+    "Spanish",
+    "French"
+  ],
+  "native_resolution": {
+    "status": "implemented (RES-03)",
+    "options": [
+      "auto",
+      "1280x720",
+      "1600x900",
+      "1920x1080",
+      "2560x1440",
+      "3840x2160"
+    ],
+    "qhd_native": "2560x1440 native game targets and final framebuffer",
+    "4k_native": "3840x2160 native game targets and final framebuffer",
+    "presentation": "Adaptive window presentation for user monitor (including 1080p)",
+    "extra_gpu_pool": {
+      "2560x1440": "768 MiB",
+      "3840x2160": "1536 MiB"
+    },
+    "direct_memory_mb": {
+      "2560x1440": 5824,
+      "3840x2160": 6592
+    },
+    "restart_required": true,
+    "header": "port/src/knack_native_resolution.h",
+    "validation": "Synthetic bounds and memory pool guards; US CUSA08014 Ch 3-2 sessions in QHD and 4K with 124 timeout; raw 14.7MB / 33.1MB framebuffers verified.",
+    "limitations": [
+      "Full campaign in 4K native not certified.",
+      "European CUSA07670 native high resolution has synthetic guards, no full campaign validation.",
+      "FSR combined with native high resolution is experimental."
+    ]
+  },
+  "ultrawide": {
+    "status": "experimental",
+    "options": [
+      "auto",
+      "16:9",
+      "21:9",
+      "32:9"
+    ],
+    "limitations": [
+      "Cutscenes/opening artwork may show blue side areas, incomplete bars and narrow video.",
+      "Use 16:9 if cutscene framing matters."
+    ]
+  },
+  "validation": {
+    "tests_run": 194,
+    "tests_passed": 190,
+    "tests_skipped": 4,
+    "package_smokes": 7,
+    "toolchain_required_to_play": false,
+    "temporary_saves": true,
+    "campaign_validated": false
+  },
+  "build": {
+    "native": "CLANG64, CMake/Ninja, RelWithDebInfo, TLG_PGO=off, TLG_LTO=OFF, jobs=6",
+    "launcher": "PyInstaller; existing isolated packaging dependencies; no download",
+    "native_source_prefix_map": "repository root -> ."
+  },
+  "notes": "Launcher/supervisor carried from V0.17; runtime rebuilt from V0.17 source snapshot with guarded ultrawide camera and cinematic framing fixes.",
+  "base_release": "knack2-Version-0.17",
+  "source_base_sha256": "2bc784d992fb62c04549b80acc6de65f0c686f10ccf14f10e46165beb6bd2bbe",
+  "runtime_build_sha256": "59b2abb8083635132d1be82950b1f7db1e9f0376f5e2caedae254de2637fad79",
+  "runtime_file_version": "0.17.1.0",
+  "launcher_file_version": "0.17.2.0",
+  "ultrawide_hotfix": {
+    "camera_source": "regional CUSA08014/CUSA07670 01.01 guarded signature",
+    "gameplay": "Horizontal FOV follows 21:9/32:9; vertical FOV preserved.",
+    "movies": "16:9 canvas with black side bars; skip keeps bars until a scene camera is valid.",
+    "runtime_validation": [
+      "21:9 gameplay",
+      "32:9 gameplay",
+      "opening/video",
+      "skip transition"
+    ],
+    "limitations": [
+      "Full campaign not certified.",
+      "Physical ultrawide monitor not tested.",
+      "FSR with ultrawide not certified."
+    ]
+  },
+  "release_tests": {
+    "base_release": "0.17.1",
+    "ui_interaction": 24,
+    "ui_persistence": 18,
+    "language_catalog": 6,
+    "package_smokes": 7,
+    "game_started": false
+  },
+  "parent_release": "knack2-Version-0.17.1",
+  "launcher_languages": [
+    "pt-BR",
+    "en-US",
+    "ru-RU"
+  ],
+  "launcher_language_preference": "ui_language in launcher_settings.json",
+  "game_language_remains_independent": true,
+  "runtime_changed": false,
+  "package_smokes": {
+    "version": "0.17.2",
+    "smokes": [
+      {
+        "name": "gui-demo",
+        "exit_code": 0,
+        "seconds": 7.04
+      },
+      {
+        "name": "gui-real-idle",
+        "exit_code": 0,
+        "seconds": 6.47
+      },
+      {
+        "name": "controlled-stop",
+        "exit_code": 0,
+        "seconds": 7.71
+      },
+      {
+        "name": "supervisor-help",
+        "exit_code": 0,
+        "seconds": 0.18
+      },
+      {
+        "name": "isa-help",
+        "exit_code": 0,
+        "seconds": 0.19
+      },
+      {
+        "name": "runtime-cpu",
+        "exit_code": 0,
+        "seconds": 0.04
+      },
+      {
+        "name": "runtime-vulkan",
+        "exit_code": 0,
+        "seconds": 0.54
+      }
+    ],
+    "game_started": false,
+    "save_touched": false,
+    "runtime_sha256": "882926164d2b0d78249d17513369d8403fd262e910aa93b26ab20f9fe99ca861",
+    "launcher_sha256": "1907e639ea8f9b6f0a591f708596748c99f6882f1d96bd9c45e90bf35c142862",
+    "supervisor_sha256": "b78b4e22db6edd25d9802c1e4aa762286c96c789dbe7e054d0b40a80db4f2ad9"
+  }
+}

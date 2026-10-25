@@ -19,9 +19,9 @@ ComboBox {
         }
     }
     background: Rectangle {
-        color: control.hovered ? "#30515e" : "#264752"
+        color: control.hovered ? "#3b404a" : "#2d3037"
         radius: 5
-        border.color: control.activeFocus ? "#a4e8ef" : "#63838e"
+        border.color: control.activeFocus ? "#d6bb84" : "#6b7385"
         border.width: control.activeFocus ? 2 : 1
     }
 }

@@ -11,7 +11,8 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
-from port.launcher.knack2.languages import BY_CODE
+from port.launcher.knack2.languages import BY_CODE, REGION_LANGUAGES
+from port.launcher.knack2.identity import runtime_names
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('unlimited_supervisor', ROOT / 'run.py')
@@ -25,14 +26,18 @@ class UnlimitedTests(unittest.TestCase):
             root = Path(temporary)
             port = root / 'port'
             (port / 'out').mkdir(parents=True)
-            runtime_name = 'knack2-runtime.exe' if branded else 'tlg-probe.exe'
-            (port / 'out' / runtime_name).write_bytes(b'never executed')
+            runtime_name = runtime_names()[0 if branded else 1]
+            runtime = port / 'out' / runtime_name
+            runtime.write_bytes(b'never executed')
+            runtime.chmod(0o700)
             out = root / 'new-output'
             user = root / 'persistent-profile' if persistent else out / 'user'
             if persistent:
                 user.mkdir()
                 (user / 'save.sentinel').write_bytes(b'original progress')
             calls = []
+            title='CUSA07670' if language is not None and language not in REGION_LANGUAGES['CUSA08014'] else 'CUSA08014'
+            profile=run.load_profile(ROOT/'profiles'/f'{title}-01.01.json')
             if language is not None:
                 assets = root / 'dump/data/lang' / BY_CODE[language]['asset']
                 assets.mkdir(parents=True)
@@ -42,6 +47,7 @@ class UnlimitedTests(unittest.TestCase):
                 calls.append((command, dict(env), seconds))
                 self.assertEqual(Path(command[0]).name, runtime_name)
                 self.assertEqual(env['TLG_APP_NAME'], 'Knack II')
+                self.assertEqual(env['KNACK2_PROFILE'],title+'-01.01')
                 self.assertEqual(env['TLG_APP_ID'], 'KnackII.PCPort.Game')
                 self.assertEqual(command[command.index('--user') + 1], str(user))
                 if persistent:
@@ -80,6 +86,7 @@ class UnlimitedTests(unittest.TestCase):
             if language is not None:
                 options += ['--language', language]
             with patch.object(run, 'PORT', port), patch.object(run, 'validate_game'), \
+                 patch.object(run, 'load_profile', return_value=profile), \
                  patch.object(run, 'prepare_image', side_effect=lambda g, p, name, o: o / name), \
                  patch.object(run.subprocess, 'run'), patch.object(run, 'run_child', side_effect=child), \
                  patch.object(run.time, 'monotonic', side_effect=times), \

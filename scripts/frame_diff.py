@@ -116,12 +116,40 @@ def main():
     parser.add_argument("frame1")
     parser.add_argument("--top", type=int, default=40, help="groups to print (default 40)")
     parser.add_argument("--examples", type=int, default=3, help="commands shown per group")
+    parser.add_argument("--contains", help="compare only command lines containing this text")
     parser.add_argument("--common", type=float, default=0.25,
                         help="a change seen in this share of the compared commands (or in 16+ "
                              "of them) counts as frame-global (default 0.25)")
     args = parser.parse_args()
 
     frames = [parse(args.frame0), parse(args.frame1)]
+    if args.contains:
+        frames = [[cmd for cmd in frame if args.contains in cmd["line"]] for frame in frames]
+
+    verified, mismatched, incomplete = 0, [], []
+    for frame_index, frame in enumerate(frames):
+        for cmd in frame:
+            fields = cmd["fields"]
+            for key, cpu in fields.items():
+                if key.endswith(".cw"):
+                    base = key[:-3]
+                    gpu = fields.get(base + ".gw")
+                    if gpu is None:
+                        incomplete.append((frame_index, cmd["idx"], base))
+                    else:
+                        verified += 1
+                        if cpu != gpu:
+                            mismatched.append((frame_index, cmd["idx"], base))
+                elif key.endswith(".gpu"):
+                    base = key[:-4]
+                    guest = fields.get(base, "").rpartition(":")[2]
+                    if not guest.startswith("c") or not cpu.startswith("g"):
+                        incomplete.append((frame_index, cmd["idx"], base))
+                    else:
+                        verified += 1
+                        if guest[1:] != cpu[1:]:
+                            mismatched.append((frame_index, cmd["idx"], base))
+
     sigs = [[signature(c) for c in frame] for frame in frames]
     matcher = difflib.SequenceMatcher(None, sigs[0], sigs[1], autojunk=False)
     pairs, missing = [], []
@@ -188,6 +216,29 @@ def main():
     total = collections.Counter(sigs[0][i] for i, _ in pairs)
     print(f"frame 0: {len(frames[0])} commands, frame 1: {len(frames[1])} commands, "
           f"{len(pairs)} matched, {len(missing)} in one frame only")
+    if args.contains:
+        print(f"filter: {args.contains}")
+    if verified or incomplete:
+        print(f"upload verification: {verified} compared, {len(mismatched)} mismatches, "
+              f"{len(incomplete)} incomplete")
+        for frame_index, command, key in mismatched[: args.examples]:
+            print(f"  mismatch frame {frame_index} #{command} {key}")
+        for frame_index, command, key in incomplete[: args.examples]:
+            print(f"  incomplete frame {frame_index} #{command} {key}")
+
+    sample_paths = collections.Counter()
+    for frame in frames:
+        for cmd in frame:
+            fields = cmd["fields"]
+            if "rs" in fields:
+                attachments = tuple(sorted((key, value) for key, value in fields.items()
+                                           if re.match(r"^(?:rt\d+s|zs)$", key)))
+                sample_paths[(fields.get("rs"), fields.get("ds"), attachments)] += 1
+    if sample_paths:
+        print("sample paths:")
+        for (raster, depth, attachments), count in sample_paths.most_common():
+            detail = " ".join(f"{key}={value}" for key, value in attachments)
+            print(f"  {count:5}x rs={raster} ds={depth} {detail}".rstrip())
     changed = sum(1 for _, _, c in diffs if c)
     print(f"{changed} matched commands have different inputs; {len(groups)} groups")
     if common:

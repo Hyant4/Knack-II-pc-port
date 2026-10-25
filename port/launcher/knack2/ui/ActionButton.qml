@@ -24,24 +24,21 @@ Button {
                 symbol: control.glyph
                 width: 18; height: 18
                 anchors.verticalCenter: parent.verticalCenter
-                ink: !control.enabled ? "#738d94" : control.primary ? "#263b40" : control.danger ? "#efaaa0" : "#edc887"
+                ink: !control.enabled ? "#747c8a" : control.primary ? "#262013" : control.danger ? "#e3aba6" : "#d6bb84"
             }
             Text {
                 text: control.text
                 font: control.font
-                color: !control.enabled ? "#81979d" : control.primary ? "#263b40" : "#e7f0ef"
+                color: !control.enabled ? "#8d95a4" : control.primary ? "#262013" : "#f2f1ee"
                 verticalAlignment: Text.AlignVCenter
             }
         }
     }
     background: Rectangle {
         radius: 6
-        gradient: Gradient {
-            GradientStop { position: 0; color: !control.enabled ? "#243c45" : control.primary ? (control.down ? "#c49d55" : "#f5d99d") : control.hovered ? "#365762" : "#294853" }
-            GradientStop { position: 1; color: !control.enabled ? "#243c45" : control.primary ? (control.down ? "#b68d49" : "#d8af64") : "#203b46" }
-        }
+        color: !control.enabled ? "#30343c" : control.primary ? (control.down ? "#b59a66" : "#d6bb84") : control.hovered ? "#414751" : "#343941"
         border.width: control.activeFocus ? 2 : 1
-        border.color: control.activeFocus ? "#a4e8ef" : control.danger ? "#be6e6d" :
-                      control.primary ? "#efd192" : "#43606a"
+        border.color: control.activeFocus ? "#d6bb84" : control.danger ? "#b58078" :
+                      control.primary ? "#d6bb84" : "#565e6d"
     }
 }

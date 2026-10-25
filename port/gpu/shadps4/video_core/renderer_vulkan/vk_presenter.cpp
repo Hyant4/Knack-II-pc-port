@@ -33,6 +33,9 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <mutex>
+#include <map>
 #include <iomanip>
 #include <limits>
 #include <memory>
@@ -46,6 +49,20 @@
 #endif
 
 namespace Vulkan {
+
+namespace FrameSequence {
+void RegisterFrame(const Frame*, vk::Format);
+vk::Format Format(const Frame*);
+}
+
+// Private GPU-PHY-03 bridge; implementation stays in vk_rasterizer.cpp.
+namespace GpuPhy03 {
+bool Enabled();
+bool NeedsBoundary();
+void Prepare(const Instance&, Scheduler&, Runtime&, VideoCore::Image*, const void* frame);
+void Present(const void* frame, bool success, bool reused,
+             const char* failure_reason = "prepared_frame_not_presented");
+}
 
 bool CanBlitToSwapchain(const vk::PhysicalDevice physical_device, vk::Format format) {
     const vk::FormatProperties props{physical_device.getFormatProperties(format)};
@@ -278,6 +295,7 @@ void Presenter::RecreateFrame(Frame* frame, u32 width, u32 height) {
         UNREACHABLE();
     }
     frame->image = vk::Image{unsafe_image};
+    FrameSequence::RegisterFrame(frame, format);
     SetObjectName(device, frame->image, "Frame image #{}", frame->id);
 
     const vk::ImageViewCreateInfo view_info = {
@@ -372,10 +390,152 @@ static vk::Format GetFrameViewFormat(const Libraries::VideoOut::PixelFormat form
     return {};
 }
 
+// Final game frames are collected at presentation, independently of scene/shader lineage.
+namespace FrameSequence {
+struct Entry {
+    u32 index{}, width{}, height{};
+    std::string format, hash;
+    u64 bytes{}, tick{}, present_index{};
+    bool reused{}, saved{}, presented{}, published{};
+};
+struct State {
+    std::mutex mutex;
+    const char* trigger = std::getenv("TLG_FRAME_SEQUENCE_TRIGGER");
+    std::filesystem::path directory;
+    std::vector<std::shared_ptr<Entry>> entries;
+    std::map<const Frame*, std::pair<vk::Image, vk::Format>> frame_formats;
+    std::string error;
+    u32 limit = 16;
+    u64 outstanding{}, present_sequence{};
+    bool requested{}, completed{};
+    static constexpr u64 Budget = 128ull * 1024 * 1024;
+    bool Enabled() const { return trigger && *trigger; }
+    State() {
+        if (Enabled()) std::printf("Frame sequence: Armed trigger=%s\n", trigger);
+    }
+    // Caller holds mutex; callbacks never run while Vulkan submit_mutex is held.
+    void Session() {
+        if (directory.empty()) return;
+        u32 saved{}, presented{}, published{};
+        for (const auto& e : entries) { saved += e->saved; presented += e->presented; published += e->published; }
+        std::ofstream f(directory / "session.json", std::ios::trunc);
+        const char* capture_id = std::getenv("TLG_FRAME_SEQUENCE_ID");
+        f << fmt::format("{{\"schema\":1,\"contract\":\"final_game_frames_v1\",\"requested\":{},"
+            "\"staged\":{},\"saved\":{},\"presented\":{},\"published\":{},\"status\":\"{}\","
+            "\"reason\":\"{}\",\"boundary\":\"post_processed_game_image_before_window_blit\",\"capture_id\":\"{}\"}}\n",
+            limit, entries.size(), saved, presented, published,
+            !error.empty() ? "Failed" : completed ? "Completed" : "Capturing", error, capture_id ? capture_id : "");
+        f.flush();
+        if (!f && error.empty()) {
+            error = "session_write_failed"; completed = false;
+            std::printf("Frame sequence: Failed reason=%s\n", error.c_str());
+        }
+    }
+    void FailLocked(const char* reason) {
+        if (!requested || completed || !error.empty()) return;
+        error = reason;
+        std::printf("Frame sequence: Failed reason=%s\n", reason);
+        Session();
+    }
+    void Fail(const char* reason) { std::scoped_lock lock{mutex}; FailLocked(reason); }
+    void Poll() {
+        std::scoped_lock lock{mutex};
+        if (!Enabled() || requested) return;
+        std::error_code ec;
+        if (!std::filesystem::exists(trigger, ec)) return;
+        requested = true;
+        if (!std::filesystem::remove(trigger, ec) || ec) { FailLocked("trigger_remove_failed"); return; }
+        const char* output = std::getenv("TLG_FRAME_SEQUENCE_DIR");
+        if (!output || !*output) { FailLocked("output_directory_missing"); return; }
+        const auto target = std::filesystem::path(output);
+        if (!std::filesystem::create_directory(target, ec) || ec) {
+            FailLocked("output_directory_not_fresh"); return;
+        }
+        directory = target;
+        const char* count = std::getenv("TLG_FRAME_SEQUENCE_COUNT");
+        if (count) {
+            char* end{}; const auto n = std::strtoul(count, &end, 10);
+            if (!*count || *end || n < 1 || n > 16) { FailLocked("invalid_frame_count"); return; }
+            limit = u32(n);
+        }
+        std::printf("Frame sequence: Started frames=%u\n", limit);
+        Session();
+    }
+    std::shared_ptr<Entry> Begin(u32 width, u32 height, vk::Format format, u64 tick, bool reused) {
+        std::scoped_lock lock{mutex};
+        if (!requested || completed || !error.empty() || entries.size() >= limit) return {};
+        switch (format) {
+        case vk::Format::eR8G8B8A8Unorm: case vk::Format::eR8G8B8A8Srgb:
+        case vk::Format::eB8G8R8A8Unorm: case vk::Format::eB8G8R8A8Srgb:
+        case vk::Format::eA2R10G10B10UnormPack32: case vk::Format::eA2B10G10R10UnormPack32: break;
+        default: FailLocked("unsupported_output_format"); return {};
+        }
+        if (!width || !height || u64(width) > Budget / 4 / height) {
+            FailLocked("invalid_output_extent"); return {};
+        }
+        const u64 bytes = u64(width) * height * 4;
+        if (bytes > Budget - outstanding) { FailLocked("staging_budget_exceeded"); return {}; }
+        auto e = std::make_shared<Entry>();
+        e->index = u32(entries.size()); e->width = width; e->height = height;
+        e->format = vk::to_string(format); e->bytes = bytes; e->tick = tick; e->reused = reused;
+        outstanding += bytes; entries.push_back(e);
+        Session(); return e;
+    }
+    void Publish(const std::shared_ptr<Entry>& e) {
+        if (!error.empty() || e->published || !e->saved || !e->presented) return;
+        std::ofstream f(directory / fmt::format("frame_{:03}.json", e->index));
+        f << fmt::format("{{\"schema\":1,\"index\":{},\"file\":\"output_{:03}.raw\",\"width\":{},\"height\":{},"
+            "\"format\":\"{}\",\"bytes\":{},\"fnv1a64\":\"{}\",\"present_index\":{},"
+            "\"reused\":{},\"tick\":{}}}\n", e->index, e->index, e->width, e->height,
+            e->format, e->bytes, e->hash, e->present_index, e->reused ? "true" : "false", e->tick);
+        f.flush();
+        if (!f) { FailLocked("frame_manifest_write_failed"); return; }
+        e->published = true;
+        u32 published{}; for (const auto& item : entries) published += item->published;
+        if (published == limit) {
+            completed = true;
+            std::printf("Frame sequence: Completed frames=%u\n", limit);
+        }
+    }
+    void Saved(const std::shared_ptr<Entry>& e, bool success, u64 hash) {
+        std::scoped_lock lock{mutex};
+        outstanding -= e->bytes;
+        if (!success) FailLocked("readback_or_file_write_failed");
+        else { e->saved = true; e->hash = fmt::format("{:016x}", hash); Publish(e); }
+        Session();
+    }
+    void Presented(const std::shared_ptr<Entry>& e, bool success) {
+        std::scoped_lock lock{mutex};
+        if (success) ++present_sequence;
+        if (!e) return;
+        if (!success) { FailLocked("presentation_failed"); return; }
+        e->present_index = present_sequence; e->presented = true;
+        if (e->index && entries[e->index - 1]->present_index + 1 != e->present_index) {
+            FailLocked("nonconsecutive_presents"); return;
+        }
+        Publish(e); Session();
+    }
+};
+State& Get() { static State* state = new State; return *state; }
+void RegisterFrame(const Frame* frame, vk::Format format) {
+    auto& state = Get();
+    if (!state.Enabled()) return;
+    std::scoped_lock lock{state.mutex};
+    state.frame_formats[frame] = {frame->image, format};
+}
+vk::Format Format(const Frame* frame) {
+    auto& state = Get(); std::scoped_lock lock{state.mutex};
+    const auto found = state.frame_formats.find(frame);
+    return found != state.frame_formats.end() && found->second.first == frame->image
+        ? found->second.second : vk::Format::eUndefined;
+}
+} // namespace FrameSequence
+
 // tlg: raw copy of an image for TLG_FRAME_DUMP_TRIGGER, written once the GPU is done.
 static void DumpRaw(const Instance& instance, Scheduler& scheduler, vk::CommandBuffer cmdbuf,
                     vk::Image image, vk::ImageLayout layout, u32 w, u32 h, const char* name,
-                    int index) {
+                    int index, std::filesystem::path destination = {},
+                    std::function<void(bool, u64)> finished = {}) {
     const VkBufferCreateInfo buffer_ci{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                        .size = VkDeviceSize(w) * h * 4,
                                        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT};
@@ -387,6 +547,12 @@ static void DumpRaw(const Instance& instance, Scheduler& scheduler, vk::CommandB
     VmaAllocationInfo info{};
     if (vmaCreateBuffer(instance.GetAllocator(), &buffer_ci, &alloc_ci, &buffer, &allocation,
                         &info) != VK_SUCCESS) {
+        if (finished) finished(false, 0);
+        return;
+    }
+    if (!info.pMappedData) {
+        vmaDestroyBuffer(instance.GetAllocator(), buffer, allocation);
+        if (finished) finished(false, 0);
         return;
     }
     cmdbuf.copyImageToBuffer(image, layout, buffer,
@@ -396,19 +562,41 @@ static void DumpRaw(const Instance& instance, Scheduler& scheduler, vk::CommandB
     char path[512];
     std::snprintf(path, sizeof(path), "%s/%s_%03d_%ux%u.raw", dir && *dir ? dir : "out/dump", name,
                   index, w, h);
+    const vk::BufferMemoryBarrier2 host_read{
+        .srcStageMask = vk::PipelineStageFlagBits2::eCopy,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eHost,
+        .dstAccessMask = vk::AccessFlagBits2::eHostRead,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = buffer, .size = buffer_ci.size};
+    cmdbuf.pipelineBarrier2({.bufferMemoryBarrierCount = 1, .pBufferMemoryBarriers = &host_read});
+    const auto file = destination.empty() ? std::filesystem::path(path) : destination;
     scheduler.DeferPriorityOperation([allocator = instance.GetAllocator(), buffer, allocation, info,
-                                      size = buffer_ci.size, file = std::string{path}] {
-        vmaInvalidateAllocation(allocator, allocation, 0, VK_WHOLE_SIZE);
-        if (FILE* f = std::fopen(file.c_str(), "wb")) {
-            std::fwrite(info.pMappedData, 1, size, f);
-            std::fclose(f);
+                                      size = buffer_ci.size, file, finished = std::move(finished)] {
+        bool success = vmaInvalidateAllocation(allocator, allocation, 0, VK_WHOLE_SIZE) == VK_SUCCESS;
+        u64 hash = 14695981039346656037ull;
+        if (success) {
+            if (finished) for (u64 i = 0; i < size; ++i) {
+                hash ^= static_cast<const u8*>(info.pMappedData)[i]; hash *= 1099511628211ull;
+            }
+            if (FILE* f = std::fopen(file.string().c_str(), "wb")) {
+                success = std::fwrite(info.pMappedData, 1, size, f) == size;
+                success = std::fclose(f) == 0 && success;
+            } else success = false;
         }
         vmaDestroyBuffer(allocator, buffer, allocation);
+        if (finished) finished(success, hash);
     });
 }
 
 Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& attribute,
                                VAddr cpu_address) {
+    // Drain queued CPU recording before taking the diagnostic mutex or looking up the
+    // display lineage. This does not submit/wait for the GPU and runs only on a request.
+    if (GpuPhy03::Enabled() && GpuPhy03::NeedsBoundary()) [[unlikely]] {
+        rasterizer->DrainDrawPipe();
+    }
     // tlg: TLG_FRAME_DUMP_TRIGGER=<file>: when the file exists it is removed and this frame's
     // guest display buffer and presented image are written to TLG_DUMP_DIR (default out/dump)
     // as raw 32-bit pixels (menus and movies included; the upscaler dumps scene frames only).
@@ -474,6 +662,9 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     vk::ImageView image_view{};
     vk::Extent2D image_size{};
     if (upscaled) {
+        if (GpuPhy03::Enabled()) [[unlikely]] {
+            GpuPhy03::Prepare(instance, draw_scheduler, runtime, nullptr, frame);
+        }
         const auto device = instance.GetDevice();
         image_view = Check(device.createImageView({
             .image = display.image,
@@ -498,6 +689,9 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
         cmdbuf.pipelineBarrier2({.imageMemoryBarrierCount = 1, .pImageMemoryBarriers = &to_read});
     } else {
         auto& image = texture_cache.GetImage(image_id);
+        if (GpuPhy03::Enabled()) [[unlikely]] {
+            GpuPhy03::Prepare(instance, draw_scheduler, runtime, &image, frame);
+        }
         if (frame_dump) {
             runtime.Transit(&image, vk::ImageLayout::eTransferSrcOptimal,
                             vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead);
@@ -509,7 +703,8 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
         image_view = *image.FindView(view_info).image_view;
         image_size = vk::Extent2D{image.info.size.width, image.info.size.height};
         runtime.Transit(&image, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        vk::PipelineStageFlagBits2::eFragmentShader,
+                        vk::PipelineStageFlagBits2::eFragmentShader |
+                            vk::PipelineStageFlagBits2::eComputeShader,
                         vk::AccessFlagBits2::eShaderRead);
         runtime.FlushBarriers();
     }
@@ -524,12 +719,15 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     TlgSettings::Get().image_height = int(image_size.height);
     TlgSettings::Get().window_width = int(frame->width);
     TlgSettings::Get().window_height = int(frame->height);
-    TlgSettings::Get().rcas_applied =
-        fsr_settings.use_rcas &&
-        TlgGraphics::FsrPassRuns(fsr_settings.enable, true, int(image_size.width), int(image_size.height),
-                                  int(frame->width), int(frame->height));
+    const bool fsr_runs = TlgGraphics::FsrPassRuns(
+        fsr_settings.enable, fsr_settings.use_rcas, int(image_size.width), int(image_size.height),
+        int(frame->width), int(frame->height));
+    TlgSettings::Get().rcas_applied = fsr_runs && fsr_settings.use_rcas;
+    TlgSettings::Get().fsr1_applied = fsr_runs && fsr_settings.enable &&
+        (image_size.width != frame->width || image_size.height != frame->height);
     image_view = fsr_pass.Render(cmdbuf, image_view, image_size, {frame->width, frame->height},
                                  fsr_settings, frame->is_hdr);
+    if (fsr_runs) image_size = vk::Extent2D{frame->width, frame->height};
 
     // Vulkan has no sRGB variant of the 10-bit format, so an A2R10G10B10Srgb buffer reaches
     // the post process pass still sRGB encoded and has to be decoded there instead.
@@ -706,6 +904,9 @@ void Presenter::PresentLoadingFrame() {
 }
 
 void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame) {
+    const bool capture_sequence = is_game_frame && FrameSequence::Get().Enabled();
+    if (capture_sequence) FrameSequence::Get().Poll();
+    std::shared_ptr<FrameSequence::Entry> sequence_entry;
     // Free the frame for reuse
     const auto free_frame = [&] {
         if (!is_reusing_frame) {
@@ -719,6 +920,9 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
     // tlg: a minimized window has no pixels on Windows (0x0); keep the swapchain and skip
     // presenting until the window is restored.
     if (window.GetWidth() == 0 || window.GetHeight() == 0) {
+        if (capture_sequence) FrameSequence::Get().Fail("window_minimized");
+        if (GpuPhy03::Enabled() && is_game_frame) [[unlikely]]
+            GpuPhy03::Present(frame, false, is_reusing_frame, "presentation_suppressed_minimized");
         free_frame();
         return;
     }
@@ -734,6 +938,9 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
         if (!swapchain.AcquireNextImage()) {
             // User resizes the window too fast and GPU can't keep up. Skip this frame.
             LOG_WARNING(Render_Vulkan, "Skipping frame!");
+            if (capture_sequence) FrameSequence::Get().Fail("swapchain_acquire_failed");
+            if (GpuPhy03::Enabled() && is_game_frame) [[unlikely]]
+                GpuPhy03::Present(frame, false, is_reusing_frame, "prepared_frame_skipped_by_swapchain");
             free_frame();
             return;
         }
@@ -804,6 +1011,20 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
                          vk::ImageLayout::eTransferDstOptimal,
                          MakeImageBlitFit(frame->width, frame->height, extent.width, extent.height),
                          vk::Filter::eLinear);
+        // Capture the final game image using the present queue's existing ready-semaphore wait.
+        // This is after game post processing, before window letterboxing and host overlays.
+        if (capture_sequence) {
+            auto& sequence = FrameSequence::Get();
+            sequence_entry = sequence.Begin(frame->width, frame->height,
+                FrameSequence::Format(frame), scheduler.CurrentTick(), is_reusing_frame);
+            if (sequence_entry) {
+                const auto entry = sequence_entry;
+                DumpRaw(instance, scheduler, cmdbuf, frame->image,
+                    vk::ImageLayout::eTransferSrcOptimal, frame->width, frame->height, "output", entry->index,
+                    sequence.directory / fmt::format("output_{:03}.raw", entry->index),
+                    [&sequence, entry](bool success, u64 hash) { sequence.Saved(entry, success, hash); });
+            }
+        }
         // tlg: the settings menu / FPS counter over the frame, at display resolution.
         const bool overlay = TlgOverlay::Visible();
         const std::array post_barriers{
@@ -865,12 +1086,17 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
     scheduler.Flush(info);
 
     // Present to swapchain.
+    bool presented;
     {
         std::scoped_lock submit_lock{Scheduler::submit_mutex};
-        if (!swapchain.Present() && window.GetWidth() != 0 && window.GetHeight() != 0) {
+        presented = swapchain.Present();
+        if (!presented && window.GetWidth() != 0 && window.GetHeight() != 0) {
             swapchain.Recreate(window.GetWidth(), window.GetHeight());
         }
     }
+    if (capture_sequence) FrameSequence::Get().Presented(sequence_entry, presented);
+    if (GpuPhy03::Enabled() && is_game_frame) [[unlikely]]
+        GpuPhy03::Present(frame, presented, is_reusing_frame, "prepared_frame_presentation_failed");
 
     free_frame();
     if (!is_reusing_frame && is_game_frame) {
@@ -921,14 +1147,17 @@ void Presenter::SetExpectedGameSize(s32 width, s32 height) {
     if (width <= 0 || height <= 0) {
         return; // no surface (minimized window): keep the last frame size
     }
-    const float ratio = (float)width / (float)height;
-
-    expected_frame_height = height;
-    expected_frame_width = width;
-    if (ratio > expected_ratio) {
-        expected_frame_width = static_cast<s32>(height * expected_ratio);
+    const auto& graphics = TlgSettings::Get();
+    const int image_width = graphics.image_width.load(), image_height = graphics.image_height.load();
+    // Use the actual source dimensions. Wide windows keep the game's shape, including FSR output.
+    if (image_width > 0 && image_height > 0) {
+        const auto size = TlgGraphics::FitPresentation(image_width, image_height, width, height,
+                                                       graphics.active_aspect.load());
+        expected_frame_width = size.width;
+        expected_frame_height = size.height;
     } else {
-        expected_frame_height = static_cast<s32>(width / expected_ratio);
+        expected_frame_width = std::max(1, std::min(width, s32(height * expected_ratio)));
+        expected_frame_height = std::max(1, std::min(height, s32(width / expected_ratio)));
     }
 }
 

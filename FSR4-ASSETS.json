@@ -1,0 +1,1069 @@
+{
+  "upstream": "https://github.com/FireBurn/Q2RTX",
+  "source_revision": "ae8d628fae208813172446d1e49ed94150b04658",
+  "license": "port/fsr4_shaders/LICENSE-FSR4-v07.txt",
+  "windows_preparation": "windows-original-spirv-with-pass11-bounds-guard",
+  "benchmark": "Synthetic Native AA 1920x1080 on RX 6650 XT: 78.238 to 6.390 ms/frame; image bytes identical in 6-frame test.",
+  "files": {
+    "port/fsr4_shaders/fsr4_1080_pass1.spv": {
+      "bytes": 36,
+      "sha256": "188fe265823200e1e0b40fe9a7b66fb4266833cbdd188a8e31c1404911aacafd"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass10.spv": {
+      "bytes": 37,
+      "sha256": "c19d45ba44442a4b8b3ea6816ebca7067fb90525e87919885615995d4da8b080"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass11.spv": {
+      "bytes": 37,
+      "sha256": "7af83a81ac8343b21bc827e300c59c2f9bf7cc4ff36bead37d3fa1b019211936"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass12.spv": {
+      "bytes": 37,
+      "sha256": "5a6c6ca1d546c8eb03b3913e2d3b4aefa094f99d115661ac4953f636a14f6b06"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass2.spv": {
+      "bytes": 36,
+      "sha256": "7d1038e91351373a4db52aa365cf977e8f8dbee29232308fe958882f8c79df11"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass3.spv": {
+      "bytes": 36,
+      "sha256": "5b17e1aece5f8ab68b637b3f561d2ce12a68e532a9e4aa8fb51596200173ef6e"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass4.spv": {
+      "bytes": 36,
+      "sha256": "9fbf7020c7676234119783be37f25de9427903d8226ac526ec5a429f9ebd85db"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass5.spv": {
+      "bytes": 36,
+      "sha256": "6d67f943e2f110b135688176a80a1758a37f16029203480cb0435a783eef6670"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass6.spv": {
+      "bytes": 36,
+      "sha256": "a9c5b2f0c05c7d66d31c6e7c2525188802401df780b67b66e8ff57f5575b340e"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass7.spv": {
+      "bytes": 36,
+      "sha256": "2e4674e522c04ba5f877416cd8bbe9b50f37a1dce693b6b83b171abea8c9b00d"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass8.spv": {
+      "bytes": 36,
+      "sha256": "1c064319ba471e58bd1dcef523b122f9b24f5d8fba4fb947fae54162e7e232a4"
+    },
+    "port/fsr4_shaders/fsr4_1080_pass9.spv": {
+      "bytes": 36,
+      "sha256": "0476a16ef26e3ff32d43f67b97962498eeabb4677daa3e400a595d942afcf796"
+    },
+    "port/fsr4_shaders/fsr4_1080_post.spv": {
+      "bytes": 35,
+      "sha256": "1f3ce56c6e81dfc0f746ef79adc4d28a87a2c69c2d67f62ff808812ac48083bb"
+    },
+    "port/fsr4_shaders/fsr4_1080_pre.spv": {
+      "bytes": 34,
+      "sha256": "d0d6463d55b2eb51a469e8e38b685f2f02783336e5937b9772c8d8263f0edc45"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass1.spv": {
+      "bytes": 36,
+      "sha256": "1200fa77f7479542eef7154b9cbbdd81c9e6a93b9a73e8de5fe40b2367350ce8"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass10.spv": {
+      "bytes": 37,
+      "sha256": "f9b7e7e8a8cdbd89fb0b1783d4a50030c8f197c8f275e04c564962fef14a68e8"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass11.spv": {
+      "bytes": 37,
+      "sha256": "293cc284fab423f5d60987c120de8f5a7a2da2eb66bd8d4831b167f9a78b0517"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass12.spv": {
+      "bytes": 37,
+      "sha256": "e9691e6770274ebe346733c2537d8593b2c12a86b82ed2a44490933ac2bfc2bd"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass2.spv": {
+      "bytes": 36,
+      "sha256": "63b8ce69b0b47a289486d7c96f55c21301895ebeebd3ba40b8921d697fb21c21"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass3.spv": {
+      "bytes": 36,
+      "sha256": "7b9fce851e7d88b8481c2b360bf5c808b26f16ab1743a7a24b55be72cf5b66b1"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass4.spv": {
+      "bytes": 36,
+      "sha256": "2c62d3c33cf479fa2eea547682d6537dec59bc9ac5f84581a3b38b18cd850141"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass5.spv": {
+      "bytes": 36,
+      "sha256": "8cf6d5c7e526cc67243bd3aa1015fda49803bbab9c3f3cd3064eb3f0665d0965"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass6.spv": {
+      "bytes": 36,
+      "sha256": "aae9faeaa0f397799dbd6e41f0a713e990624e838bf11a7167a4c6beae180fb9"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass7.spv": {
+      "bytes": 36,
+      "sha256": "73c76468c62414e73ccc0d2fb73f8dfba54c6902bda4c8df1ce79d9d33c449ff"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass8.spv": {
+      "bytes": 36,
+      "sha256": "052d732e6173c90d715e348b602493260e4c6099e1fc17d5c26a40c7c247fa42"
+    },
+    "port/fsr4_shaders/fsr4_4320_pass9.spv": {
+      "bytes": 36,
+      "sha256": "ba91d82ccc026ee1f1c77acfaed89e2cb1f7a8f746ba519b49871d43c168693a"
+    },
+    "port/fsr4_shaders/fsr4_4320_post.spv": {
+      "bytes": 35,
+      "sha256": "b49e7847e660e3707726882817421546d77036b92ab7716250acda5f41e24690"
+    },
+    "port/fsr4_shaders/fsr4_4320_pre.spv": {
+      "bytes": 34,
+      "sha256": "9c6f68dc5473b7a85c35b5dccbe102ae8b989555f7ddacae2544df23f80d9a36"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "42ecc3732bae7cc5b22b0cf1bb25fc298963dd53a3f0233b343251d3ce43ffdf"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass10.spv": {
+      "bytes": 105464,
+      "sha256": "6a120cc64cfb7d49e4f354f8ecefdb5aedea0b639946a43f2231bcfafd11bf7c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass11.spv": {
+      "bytes": 120552,
+      "sha256": "a2d23c0f7fea57f103f0880f59b71222808a858c7a891cecf88b6fc7a20e5799"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "bea297cc9ef8f61441675c26c67bc7b7bde7021f9e533b58ab0d2e689a9ac436"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass2.spv": {
+      "bytes": 45104,
+      "sha256": "13ccbb9f1e13cd2a22102fe1b1a42583fc7f7bcf80a356c85d18974d0fc392f4"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "c6b1726c32d84cd59ae789149f0f525fefbe411eb606214f979656fb2fb02651"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "4e06a2ae4b9ec6f3b40b5b6da413f79059861a6d82e2a78a75408643abfb6e7e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "2423db5e97b0866845ccdf2533cb87f2c3bdcc30fdd0c2dca8d8530d9151c6c4"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "2d8e45dd83b2c958373d7d638e01ca7d898ac9bb8f948145f1f1541dd8ffa755"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass7.spv": {
+      "bytes": 503788,
+      "sha256": "40d1748a7d8f289683e94de53415da736cb87a7428f3e557e03aee9553043dab"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass8.spv": {
+      "bytes": 503568,
+      "sha256": "5c6ccc301813075d4a94b06501fa7554892db0b650cdc6ee48e41346507ded93"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pass9.spv": {
+      "bytes": 508540,
+      "sha256": "b91df130b7a74a1602d3d0dd50ca3ae4c816eb81812c52fbf8a74b215db0f220"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "199dbd65eb1bf6ccb907fb19552001e90e338594d1d3bc681f978b74f074bbe8"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_1080_pre.spv": {
+      "bytes": 46376,
+      "sha256": "95811aac5cc520d79437a1050b61c922b7a312922aa17f53be23566661cf212b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "c19b69b335ad04cb36a506d84cb4ad9a1849f83dacd96fecd3d835cdabad7d34"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass10.spv": {
+      "bytes": 105464,
+      "sha256": "a7173349df954d08421789ac2d47fd03adc3e6d4aed883c1e144b0526625fd76"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass11.spv": {
+      "bytes": 120552,
+      "sha256": "6b61b923d1e62b490f0c9874519f82378feff4da93bcd494ff9d45fe6d1abad3"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "9aa735543a92d150e4caf90434039707c62fb014e65e26e103224bc0fe2bcac7"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass2.spv": {
+      "bytes": 45104,
+      "sha256": "d5efcd27f47ef026e2b1b47c06d23447dcfe2fbe8dc8182ca6d339657209b893"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "a83aee19861d7631fb663ba11584212a7a6932ea48824c0146c7388d5f926c16"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "1b2474a147213da36b1e89032699989da68e081d83b9a65d5ad774678736d1e1"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "585acae8fc929497e5b6da3ba3dc6442890b2303eddf81934d133f77bf14ceae"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "c5cdce043a652b092785f790ad9a675e699362dc7264b85fdf2572ad6abc807a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass7.spv": {
+      "bytes": 503788,
+      "sha256": "6d14000a036ea46cfa88f28bf5dc036646e108015324f95bbb52312b9e1e7e94"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass8.spv": {
+      "bytes": 503568,
+      "sha256": "030c86c5ffc1c6a87d9877248e9c483adfdda8aab357e5fef4f4669a8db17b19"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pass9.spv": {
+      "bytes": 508540,
+      "sha256": "091659d99cc0f866cdc41291c71d7e9a093f78c7741bf28cfc21d2cee46b7877"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "35ca675cc9a5b1e6291090905029420878e8095189b67c9cd9c955a7f02d0552"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_4320_pre.spv": {
+      "bytes": 46376,
+      "sha256": "6feea8e9f45b5de380efb0c9a136be49a692f119090c9b904e9c44691fc38c39"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_initializers.bin": {
+      "bytes": 89216,
+      "sha256": "a8e96ddb0c2a5f937011a78381a7975e99cd6e455ce72ef92f2f7dbff742e4c2"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_post.spv": {
+      "bytes": 63408,
+      "sha256": "26ebfffbdb5e053e1ad37bb7bee408f96837e7ae83d7a2fc06a48400ff742bae"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_pre.spv": {
+      "bytes": 46376,
+      "sha256": "915e2523c6276d5f50dbe264217e78db04d43dcddf492416dd619e3678d91961"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_pre_weights.bin": {
+      "bytes": 1024,
+      "sha256": "b9dd178acdd51c4298016d037bea4e15147358b4724c1da76b2a7bbf7009b069"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_balanced_shader_manifest.json": {
+      "bytes": 40952,
+      "sha256": "9f0cac5ff61e725ec79b9ffc0f0105d64f27e154ce61583c971ade2726df85fc"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "5ae840b515608cceaf8294bb561e826d4d0ca5105d9d1d4afc2d1201580e426d"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass10.spv": {
+      "bytes": 105404,
+      "sha256": "afcb7edba8f3024dc56a2c9a19b361812bc8de6e3f36709b9c8128d1f06b6324"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass11.spv": {
+      "bytes": 120552,
+      "sha256": "99d9d0bd724a63277d810c1d571d4af947c0d6a97c6a4abf3c1003c1e6ce8d6d"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "8d265eee1462555764c67803177c7ddea752dc4e04bd29c134e8997ffc41e109"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "e124c38430559fd73a5cd3c50c62bd975b6f000f3b34c7af717f27582560b588"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "f4e0b3464bcee9fa2f1479f6804e31e8a02fb53e508d7d66f92cbe68c237ab2a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "e9bce1e23407f19abdb67a66595aefe62dcb87136ae9000810763c29ce85622a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "166d1d4e3c486cea93ac69684b6c5b3fb9fcfa8c6d8115238ff60e794144c82f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass6.spv": {
+      "bytes": 222304,
+      "sha256": "0abd301791aaf1cfcb869150e06b837a3e8bd8a23fc04c178d8db12326aef3d2"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass7.spv": {
+      "bytes": 503708,
+      "sha256": "85a88983fcadd3a56956643c8723d325048f31018e0b081053441df78f74bf51"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass8.spv": {
+      "bytes": 503472,
+      "sha256": "b542a56479a036d5c700923260c718adc39d22dfc5fa57874eadc69c4b7f46a2"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pass9.spv": {
+      "bytes": 508584,
+      "sha256": "a6a439ebaed302f4e4bd3ee3fbdaaee78e8d9bd44947c4712619bc6ce26ed9c6"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "acd6263c648a754904b8a88475500ae3bf2ec553123931defe1edcbcf1c5d14f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_1080_pre.spv": {
+      "bytes": 46376,
+      "sha256": "06b0c47dfbba5fc4f3055a8bb11b5222f8cf90b81585a9337ad3344665e5f08f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "42db7553456711b5458aa7a208b0bda7cbb4e8503d94c42de3afa7d32cac3620"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass10.spv": {
+      "bytes": 105404,
+      "sha256": "27e9d58753876dae3b491e678f8c49fe9a55028c6f3d339068a9912327760dfb"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass11.spv": {
+      "bytes": 120552,
+      "sha256": "2354cc985adf37b435dd5261f9b8bb331b37b3f91b9b118ef16c7086f70e3099"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "f14e29f419d34e04ce17d7f65c63d1efed52cb2b03f8617b27bd29f8e035cbca"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "b24954a71d1c955299e9867eb3dd69ef9ce24cf4ce2c9e8e7c872aaa1619445a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "0145ebfb38b6cbfc5dfdc2daacddc2a750339fa9dfdab9333805f0d120337164"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "2ed525433b529df7449d6486e089efa8686ca7a016665abd310d71e375738e4f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "eb342aa176b6f7e0dace8ff3d4c1447f39695f4ca6251f0b8bb016a1241bf383"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass6.spv": {
+      "bytes": 222304,
+      "sha256": "83f73b43abf98ff9b0832d755482696c514ec79f25ae9f78e27e890bb3128b21"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass7.spv": {
+      "bytes": 503708,
+      "sha256": "fa52d2f9eeaf27ca2a9a75289de776dfb0c3e271307287e3bbac569f96da832e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass8.spv": {
+      "bytes": 503472,
+      "sha256": "f105f6303aaa2b21851ab556ff2f7cd75700df37b08a5adc1e260747816fa6cb"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pass9.spv": {
+      "bytes": 508584,
+      "sha256": "42efd37515bc73c86644e29d6df238f3e905903b0c1bd062b0aa5c7f424492a0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "b33e95347016199deb5b014ce5477949114d1e7425936f3dd2fd981e33ab76ef"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_4320_pre.spv": {
+      "bytes": 46376,
+      "sha256": "2700a0a91f8a08a342583aeeffacddce2a320c3d25fde917759588f79c67c4a4"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_initializers.bin": {
+      "bytes": 89216,
+      "sha256": "00ab0bc1fd12a823bb0fc8cd227b0e2d15718fe2a2082e972c6e0b6e46c77a8c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_post.spv": {
+      "bytes": 63408,
+      "sha256": "9200841d128ca6923a7233170ee57a56e1bc7c8704ab8dd2782546f561a83ad6"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_pre.spv": {
+      "bytes": 46376,
+      "sha256": "13c2048f2ce41f040574779646b85745529a624c8b7322c3195b9e17631e58de"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_pre_weights.bin": {
+      "bytes": 1024,
+      "sha256": "6277a5d340d1e229312bf72b2fb4f3572c1a9d64e3d037be9fd93eafbad3ff3e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_drs_shader_manifest.json": {
+      "bytes": 40722,
+      "sha256": "0cb8fc2e12bf1e5d1632983420c108f9eae624c91faee5f605d3fdd6585dad7b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass1.spv": {
+      "bytes": 45072,
+      "sha256": "bb9f1bf97f1aeb4d122e4b3dfaf39e9c9abc3a6b8cd1bf6b73e4b5efc275e7d2"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass10.spv": {
+      "bytes": 105464,
+      "sha256": "908bfcbff12fb1c1753da2d88e0bba09dee2daa6bb6ea7118a7b1400940781ec"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "dd17c45788dfc9aa2e693b43ceec0f021b6d549843ca0293014bfce75e91efc6"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "17f35a3d7ea9635a01a140dc32179bdd1fec12f41f278bea800f9e97044ebe82"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass2.spv": {
+      "bytes": 45104,
+      "sha256": "a450b18536243d5b6f32d6e3e7cb056dc2bfb55333631d140fb55ef673266c08"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "6bc0cc882bec201ed6f41f8114c0fd6c9c58febdb71beeafa0659a178ef1f295"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass4.spv": {
+      "bytes": 105440,
+      "sha256": "41329fcf5d9e0fa8cda3ace81f58312ad14294db6ceeeb9eb85a21aaad59fdb6"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass5.spv": {
+      "bytes": 105288,
+      "sha256": "17a3d0a262a25f0857289f3b2a2edf6a3b93bfcaa583f48409f1f16a0fc0a34e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "e21134b8c8c402672fba8697578fc6cdb67d213bef8f3604ea1e1e464e4e0df4"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass7.spv": {
+      "bytes": 503664,
+      "sha256": "d96ae1004e5d6b6b29df36dba63de491d2724c6f35d9223e2806b03ddf9c0316"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass8.spv": {
+      "bytes": 503268,
+      "sha256": "f410d69706e81c4fa5f13781bf14434e221691ba8f8123afc93ca3c91a831253"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pass9.spv": {
+      "bytes": 508600,
+      "sha256": "b27ec22973c17ddc3ad9b784eec7b49e40528baf9ee8bce4cfb7ae50b1593985"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_post.spv": {
+      "bytes": 63316,
+      "sha256": "0c38a8229f6f8009e1facc8f1c0fe9292de2506c92d8f1141e628af1196d2eff"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_1080_pre.spv": {
+      "bytes": 46376,
+      "sha256": "f6d7d4a19209f1bd2ff894520594c11ee9b842604a2356ccde8cddcbba66562f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass1.spv": {
+      "bytes": 45072,
+      "sha256": "8fe37465f715b71428e156aae2be82e39e16cb1521fe8b9f50ab8611cab0423e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass10.spv": {
+      "bytes": 105464,
+      "sha256": "d9bc33b3b964056e0553047ce434458949e36912511009998667d9e0f968576a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "68b38ca60008c94a9ac4376f47a59734384a93d86badd9c2b8c5c52c8856929c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "160f78b474ba0c1365f6cca02f1339f34693b486a7eca1ef6bdb8bc2da55ae92"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass2.spv": {
+      "bytes": 45104,
+      "sha256": "e7e7fe23e65c84d7456805f36909c1962ca0adb8e4c73f332fab9a83df140957"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "c4837c6de71e09a55602071c72c45f555919a98ffc337d2143dd4b162fe58623"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass4.spv": {
+      "bytes": 105440,
+      "sha256": "4c47522ffc3e2418468fb73d2537a3dce9edf4e8a4733bacf1695c4f723d7c22"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass5.spv": {
+      "bytes": 105288,
+      "sha256": "4d33458bd198c232e20700a28369474ba49af19fba91361ed41f6879b672ea7f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "53374419c91d6debb99885d135698a19ef5a1d1a47486915b9fc0bf9a8388c31"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass7.spv": {
+      "bytes": 503664,
+      "sha256": "459115527ef43b3b694482987126404bcf811b81b9890913f447ee08d573fbd0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass8.spv": {
+      "bytes": 503268,
+      "sha256": "4d5a390752fe0055158dac123f4ba61dd854990a50059f3245c8629d1625ea12"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pass9.spv": {
+      "bytes": 508600,
+      "sha256": "556cddcad26885fb96aaa26fe0c29699a817b135970686d341f21b7c56a70643"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_post.spv": {
+      "bytes": 63316,
+      "sha256": "dca856f83d155107e279b0b7af366d4c7eccab78b608e3922ff69f8c4d91277e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_4320_pre.spv": {
+      "bytes": 46376,
+      "sha256": "9defd72634f8b7eae3f567b99e9d823269148f7a33d0e52f664325185b015c13"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_initializers.bin": {
+      "bytes": 89216,
+      "sha256": "629d42b1cc57432e9f003599ad0f305fb1d311669a819b4f22ebb8f504dece1e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_post.spv": {
+      "bytes": 63316,
+      "sha256": "a086677be89454986004f64d4b79f1dfdf7b2e98c222553b30d5740ce9e3f8af"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_pre.spv": {
+      "bytes": 46376,
+      "sha256": "65c760f2199baf3b40c3ad577022996c44af75f9c9b21c32b2c25384775c6f0b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_pre_weights.bin": {
+      "bytes": 1024,
+      "sha256": "b6f2e8412d462ba207c1d5c7fe944486f474149bc3ee9234d6ae3f644235b102"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_native_shader_manifest.json": {
+      "bytes": 40860,
+      "sha256": "04bc1f8d6688742bd50724e1101e072731cebf40e62c5da6531a5d23ebe7a75b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "bb86e58710ea35747d27449ae526108d4919bb2a547859111a2986112f4329c0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass10.spv": {
+      "bytes": 105404,
+      "sha256": "7b84faf394e0c6c4b8129492659e37d2b6668de282c4d7acba1db4df51e7144e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass11.spv": {
+      "bytes": 120432,
+      "sha256": "8f0d0e1726cfd4056e0df8f3c6f31336348a2b773b5282af537bd299649a53e0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "87c3f0eef91b23d15c313e15fb6791b256efd3475c1ef51a129eb7b9f2563356"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "e1986a4ab9354fe03d5657764ed295c421ca0d507137fe27418b74396a93b019"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "986a0bce8bd1f7666835477a962b81e8d75dcca1871d2a8c0d52ab65c1451743"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass4.spv": {
+      "bytes": 105396,
+      "sha256": "b0756a224d6171f0ff72b67b6c9e0a5eea48a07f5ba16366c0dc167b77b5ce03"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass5.spv": {
+      "bytes": 105380,
+      "sha256": "cfd9ebdb274c6e6c2501bbc4b5f516d069e9250090c7e40c3b13770091a3a097"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "5195a92c78ee44681193c06c5ccda3ad6ecd6a02c0d8e34b7ff1f54826ec94e0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass7.spv": {
+      "bytes": 503616,
+      "sha256": "7e8325676e00b3b943f7638c2babe49749a784becf862475c7d36b838791a1ab"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass8.spv": {
+      "bytes": 503580,
+      "sha256": "9cccd20b6089bb77c69880f5c85c8409bb37402df3154a680e39508fceec5e43"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pass9.spv": {
+      "bytes": 508540,
+      "sha256": "0e17bbf4e0747b90a69d531587776c1c7f8ede4cbfef080aaea78437cb473685"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "f27457ce9ad873ae47123267cb353aeffb265af61482b5359dd13cd46665aa72"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_1080_pre.spv": {
+      "bytes": 46376,
+      "sha256": "8d811ec4c0bf88d166d38ecadac2b2fbfb9f759ea44648ce61c86cbb7001ff01"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "6e1107991742064cf3ca3e1b2fbfc0b080c38bdf336714e733a117f4b838b076"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass10.spv": {
+      "bytes": 105404,
+      "sha256": "e7cea622d35c066d6847110e22b69c32ee2ee7daace8ff8c91c82963acb36d1c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass11.spv": {
+      "bytes": 120432,
+      "sha256": "152b996ccc2410ef0dc549ab7aac6a3ab24fa221413e0ca356fbf927f1cd7875"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "6b5b70b9b76f826ccf590a8f9175b1ae266d2fe0b792ea2465f4751c4c9a86d1"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "fef74fd3de941b36cba03588e41a5afc93f0729fb107cac6b8bfd04266c531c0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "8452e4f2e188c4edcd07d5dc3f3b78cc31b9ab59b5bbf96af378106855ad61a2"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass4.spv": {
+      "bytes": 105396,
+      "sha256": "dbe91b2670f790f923feb4340f33a937163351f21087a62c8d48e559c7c3afd3"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass5.spv": {
+      "bytes": 105380,
+      "sha256": "76e8b2ee98a3187cf128276f9e190f1ef52f27a3cc51c8f1fc7259c0b8b5bbec"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "6106e23f86aab8928b69bca684d355815d08286acf0b9bd0b785236951668b85"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass7.spv": {
+      "bytes": 503616,
+      "sha256": "0baa61518e6d38c61476639a43d2cbb7a1321e4e7f7f4bbb974ad827532cd91e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass8.spv": {
+      "bytes": 503580,
+      "sha256": "5eaadae253b2c82aafbde8ec4a7a2d3cf00baffe65faa22c5f9bd2668018e128"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pass9.spv": {
+      "bytes": 508540,
+      "sha256": "e0f35d9571d1ff11fc0929929f423ed7bd0d100037dc7927b710f6be86491d09"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "e42c683d34d662a47b292cd7ac4fb3e1dccf8933f3d96040ffbb500cf28d3184"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_4320_pre.spv": {
+      "bytes": 46376,
+      "sha256": "71a766e3e06184ec6faf1419d158c7abb3538fd4a53be32cea0a870f3110030f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_initializers.bin": {
+      "bytes": 89216,
+      "sha256": "fe2ad00e9e7fc563bd9ee01ab72c82bb557bf0d8365a085e833749547e089aab"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_post.spv": {
+      "bytes": 63408,
+      "sha256": "c4997be4034262e61bce100fadb81bf53aaefccc15a5e11dcc00f684a8f79fad"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_pre.spv": {
+      "bytes": 46376,
+      "sha256": "5cc564136eee0e72db37a2a046c65a411108d49ca5023df59479d72f6a8f65b8"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_pre_weights.bin": {
+      "bytes": 1024,
+      "sha256": "bb05b470e90f04d9eed0ea7600862992cc66be2b0d23c9d33142b907f9d50d68"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_performance_shader_manifest.json": {
+      "bytes": 41090,
+      "sha256": "9ed4b2870a6e596ae449d798ae88b11d92e4c278463007078d789ad111e7d072"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "7c1b054f4bab5aa750dbef6608375bdb68dcc54c3b70266f4a5e3c50b5ec51f8"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass10.spv": {
+      "bytes": 105448,
+      "sha256": "9c79eddfe54857763051e34f13228b30467d39e7bafa002140d7e4a9c6219b18"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "76ff5502d19bc5aa40066ef1d3dbf8b63208e1b90726ac8c40d4347203e11d8c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "2de7d93e8cf55c3cd535f162a330d9046a6e935b316a328033542ddb7203f051"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "9122d9ae53c86918459498d32f385b30183b9dd105d0e27bf112815a6c05f13a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "c873e592881004234837a6bbe6e1dba8060feea6208bde30d0ef2ac11ec05ce9"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "f837e7eacd7818c1bb5fbb1e7b8fe6ec45f7ba00e929207e97d6e7b91f5d8e74"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "4c4adf66da82ac501f7c1466e2e892f3060b6254ff62444bd292b1aac786174f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "172286386d8bf732f153641563f762a8f9ae50213aabffdac92418329e35f399"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass7.spv": {
+      "bytes": 503680,
+      "sha256": "229a50ec3a47302dc7492f5d2478bc60cf010cc451a45d010a62fe753ce7677f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass8.spv": {
+      "bytes": 503444,
+      "sha256": "03dd20e4e1998bf2b3a298a66bbb03529a2b4fffc26ce41417a45b7d733fdf9d"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pass9.spv": {
+      "bytes": 508600,
+      "sha256": "2a801fa58e8d51b3bb7635abe73bc859e07930752088ce74f41b5adb1f8ba120"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "4e012f5e7ea6eaf064f74c3d29ab05501940353a89d4eea93c056640920244be"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_1080_pre.spv": {
+      "bytes": 46376,
+      "sha256": "aec5ce1b0198acc3e18f875ce42ce8e77c6cf94ddf383837d3cbbb9252540170"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "22955d014d6e24f6937bda767d777bc423ac6eeee9bef56286ad16c96d8eb30e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass10.spv": {
+      "bytes": 105448,
+      "sha256": "b19ef7f93971f830e93851e99d0ec10952c74cd688ed48042e07ec49cd581b66"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "8c1cc610ffa073939f2d9886e80c26dd7addc4405f624efeb7a82fd917899592"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "7289310def7622d9a2b231d28df16fbe6df7615f7b53e00d21ffa23742fe5f40"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "d014c8ff54909439290b695b684a11b7088d779084ae62d340de6fe646436b99"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "22f6ce5e13c22a1bf8fca6302f3f26e523f3a4f5d8554d722b749e1c1986de78"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "048454202a3ed03f9d55435ed728d224c20b7dfce429e25f1ecba1137352fafa"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "7cb95bf001c51b07212f1631001f8ff3aca040bd5aa459ff77031166c89c7c76"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass6.spv": {
+      "bytes": 222364,
+      "sha256": "d2d75dfe4b2951e4c9585621ce9cf09c1915717bb54ceff6a68284e44dc332e8"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass7.spv": {
+      "bytes": 503680,
+      "sha256": "48a047649a642dd45948f49a4e6fa761066073cd104209f4876c66de4df09a86"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass8.spv": {
+      "bytes": 503444,
+      "sha256": "06d9c805f4c9f57a70b72d9900b86fbcc100a111a07798822bf5b23bb4a9e30c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pass9.spv": {
+      "bytes": 508600,
+      "sha256": "a7a6db2f5cf6f1a6ed57bf009dce8541845f0befe6970219c889fb7e46dc7c20"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "c9e2a4bf459214235fd83484f07910425119e750f004edeb58e9c7579c85a842"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_4320_pre.spv": {
+      "bytes": 46376,
+      "sha256": "ffca42464f78c0a4ed8bcdedce3be23104a4fea785dac3b88e01f06f0d809e4c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_initializers.bin": {
+      "bytes": 89216,
+      "sha256": "6fce93853235bbf8742210fb2bfd8653b70c90c722af17f5a37d1a3390156356"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_post.spv": {
+      "bytes": 63408,
+      "sha256": "bda72ae411984ef203a0fe09afc21340ebb79f1cbedf7e59fadf356a134cf978"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_pre.spv": {
+      "bytes": 46376,
+      "sha256": "f25d56545b170eedf61e414d4409dbcdb30180f3c4f27759e2b51b73b99ba50b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_pre_weights.bin": {
+      "bytes": 1024,
+      "sha256": "f125f216cbe7ea37ab621edf9b0c9a5ccc0e969f6a4d1d483c20637bac1fb046"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_quality_shader_manifest.json": {
+      "bytes": 40906,
+      "sha256": "7ffc906ab0aeae98ad42c3798f18948bb4a8198fdf9804d5e6a40eff403edf6f"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "6da83fd2bc2cf45b803afd11934663955703e32caf8ca3d17f7f36b7f09d0e6a"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass10.spv": {
+      "bytes": 105404,
+      "sha256": "369d6c3c511f37571e37aca6f5d2b827e3435a44b3548658f55908f4c34e8a75"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "da68362919768cfd3a46b3b5dfd42b14fa5c2e212b4d123fab81386d0595d57d"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "9ff101cf630d75b808ac3e6c1864031efc1398b385e3f491e615c07b5e7c51bd"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "34df22b89cb8b5dd33c394e2ee156588b89eae6d4c51f227c2c96fd0ba0d206b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "58c7bcc16255d4cbebaa27fa8ba13624943573579157e80275aa15b350fa1e5e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "0c191d3c7cfd955b4dbff96f7b49501d7a18bea9df909251be6c6c6d44220d07"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "fb0975554a59086c066a4dae87be5ef775fc6941cdd402918a5382f2ee34b408"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass6.spv": {
+      "bytes": 222304,
+      "sha256": "05a8cb810363187729227a9b73aef4f165437b6536e24756dd5a971142541678"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass7.spv": {
+      "bytes": 503516,
+      "sha256": "6fc9dd50a762d12d53179ecbc610f76097bd1e13f48f5728edfcb14ceaa94429"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass8.spv": {
+      "bytes": 503628,
+      "sha256": "3997d78a1236d339b756f2a6c7ebd22a9c7b05c433efdd186448a90a41b5840b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pass9.spv": {
+      "bytes": 508420,
+      "sha256": "c2227d479444faa34f5c0a4e1ce4b3b745748f67f9e0d26d52fb497804641d0b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "082c44372c1d0b41b0febef3c44e9ce51e2c590657989a67f61c16df91fa6419"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_1080_pre.spv": {
+      "bytes": 46376,
+      "sha256": "c31b7c87af1157a481f49efc366bcd268622057530fcaa8309283b977694e199"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass1.spv": {
+      "bytes": 45132,
+      "sha256": "08b29bc786f669bee0280b33a2719f951de4c209852875500f14b9cda653fd7d"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass10.spv": {
+      "bytes": 105404,
+      "sha256": "496d84fbb901fdcad2414838f83d5aa2668291f5c6ecddf1aebb10de518274ab"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "cf4c0f9a1acc8bb92933d38f79863d15867b210777552945880bbff9b86f3de6"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass12.spv": {
+      "bytes": 45128,
+      "sha256": "e741039a8543bcc438776d494dceee64b177a29b4b60af1cce4c962cecef5835"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass2.spv": {
+      "bytes": 45120,
+      "sha256": "41629afb4c3453ce0bb5e4b274fead8990fb0c077da2d032a9fb8b0f69554440"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass3.spv": {
+      "bytes": 57520,
+      "sha256": "d1543bf5bc3c9bf02f384c10a747aff7e915015787aa9c3be416d182caab733c"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass4.spv": {
+      "bytes": 105456,
+      "sha256": "e77b7b6d73eb6043b70dfe3715991a7bf8ac4d6eed5ab5c51f44ba0743d379f7"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass5.spv": {
+      "bytes": 105440,
+      "sha256": "44535de03082d2ab0c6bfd11f442c2f8abcfbd231b4496dbbeccdbcdb369f954"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass6.spv": {
+      "bytes": 222304,
+      "sha256": "f83c7c353a502452ef764bcd36c4b9812a52ae7525587c11afbb647c6a57eb85"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass7.spv": {
+      "bytes": 503516,
+      "sha256": "7030b8e80c35d5adabea9d83da2e9b7532166f55cdf02f926ea58ea765008416"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass8.spv": {
+      "bytes": 503628,
+      "sha256": "8a9e408f49fbe70ded0e660ce6ae310a2de4c95dc01d67dba3802915baf0dff0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pass9.spv": {
+      "bytes": 508420,
+      "sha256": "e5b5dc98559144cb68a25161d9145c4238318b9baf432c5eea59f28b99667019"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "efb84d0a21dcecbbe2ec9582fdbd731eb16147fde99168e1c53e73fc53f70b5e"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_4320_pre.spv": {
+      "bytes": 46376,
+      "sha256": "0824b02b93f99727f5e6aa9fcdd52abcfbc0f8602defe0eb3711190a52428d47"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_initializers.bin": {
+      "bytes": 89216,
+      "sha256": "666839fa4dd1232847a81231151f33391c4b8110a5c9808fc8c1cb7b4c5bb61b"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_post.spv": {
+      "bytes": 63408,
+      "sha256": "98155116bd0413af4e90514527e0193f606093bba6cafc026478f631a97031d0"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_pre.spv": {
+      "bytes": 46376,
+      "sha256": "bed4136dcae42ae12b9cc674c073af55145fb8c72cb9f30844a61265dbfcbc77"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_pre_weights.bin": {
+      "bytes": 1024,
+      "sha256": "18a895fc45db6a2391339ed54839c97dd7b3fb911bf306095b184271ada52c13"
+    },
+    "port/fsr4_shaders/fsr4_model_v07_i8_ultraperf_shader_manifest.json": {
+      "bytes": 40998,
+      "sha256": "045f6b34e1934ba3ed0529591282bdf2f8228ae36e88c5d57f1365d6a516ba98"
+    },
+    "port/fsr4_shaders/fsr4_post.spv": {
+      "bytes": 30,
+      "sha256": "d0a5f678cc5bf712bf7369ee106905fa87425f8bfc50a445eff81b5cc9e9eae9"
+    },
+    "port/fsr4_shaders/fsr4_pre.spv": {
+      "bytes": 29,
+      "sha256": "f585a67b177794798ec9702de748eef2de0323c0d524fe484d274303fd7fcecf"
+    },
+    "port/fsr4_shaders/fsr4_rcas.spv": {
+      "bytes": 8,
+      "sha256": "2d5583f978abcb320181dfb7271f829a4f8b353ddf6fc150c2c31e5195cf5bd7"
+    },
+    "port/fsr4_shaders/fsr4_shader_manifest.json": {
+      "bytes": 41090,
+      "sha256": "9ed4b2870a6e596ae449d798ae88b11d92e4c278463007078d789ad111e7d072"
+    },
+    "port/fsr4_shaders/fsr4_spd.spv": {
+      "bytes": 21,
+      "sha256": "a08db5d56995e01630199f153a24e7a3a08573672a3dd42bbdb8ab13c8f4e8d9"
+    },
+    "port/fsr4_shaders/LICENSE-FSR4-v07.txt": {
+      "bytes": 1841,
+      "sha256": "1ba466516fa4270690c2b6e6a65f5b4b23d7ff0d7b1346603e187c1b3ad67f2a"
+    },
+    "port/fsr4_shaders/rcas.spv": {
+      "bytes": 18908,
+      "sha256": "03aa0e0729f67bb9907667526ed2d5d5f933030e7faa3acd953e3de109a54950"
+    },
+    "port/fsr4_shaders/spd_auto_exposure.spv": {
+      "bytes": 28924,
+      "sha256": "bf97092a75dcbd04ba2976278769beab15469df0eba8b986c10c2c5553c21595"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_balanced_1080_pass11.spv": {
+      "bytes": 120732,
+      "sha256": "072384be6f7062661b1a539e4a3d5cd7991444e4143bcbfe1cb22d385ab5e4cd"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_balanced_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "199dbd65eb1bf6ccb907fb19552001e90e338594d1d3bc681f978b74f074bbe8"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_balanced_4320_pass11.spv": {
+      "bytes": 120732,
+      "sha256": "09de8fee6c825be4ec635284a57433c294599239ed61a8567dd10fae6605d9f1"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_balanced_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "35ca675cc9a5b1e6291090905029420878e8095189b67c9cd9c955a7f02d0552"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_balanced_post.spv": {
+      "bytes": 63408,
+      "sha256": "26ebfffbdb5e053e1ad37bb7bee408f96837e7ae83d7a2fc06a48400ff742bae"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_drs_1080_pass11.spv": {
+      "bytes": 120732,
+      "sha256": "564ccae00b6e40b05eb15fb857205deb8efd674f8c4d476318b108a16a16160a"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_drs_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "acd6263c648a754904b8a88475500ae3bf2ec553123931defe1edcbcf1c5d14f"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_drs_4320_pass11.spv": {
+      "bytes": 120732,
+      "sha256": "bc18de5b4d8f45904d5de6e3081db8b42f526125dba1046863c9d3da20b1d9bb"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_drs_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "b33e95347016199deb5b014ce5477949114d1e7425936f3dd2fd981e33ab76ef"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_drs_post.spv": {
+      "bytes": 63408,
+      "sha256": "9200841d128ca6923a7233170ee57a56e1bc7c8704ab8dd2782546f561a83ad6"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_native_1080_pass11.spv": {
+      "bytes": 120792,
+      "sha256": "fef28e930e3cc52ae54ebc134a209f371b0644c8cf00d81674cadf3986ff9d79"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_native_1080_post.spv": {
+      "bytes": 63316,
+      "sha256": "0c38a8229f6f8009e1facc8f1c0fe9292de2506c92d8f1141e628af1196d2eff"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_native_4320_pass11.spv": {
+      "bytes": 120792,
+      "sha256": "c92ff9f2096f52358ae3e6db9386d4429202c083d14719809de840b8c9861ef7"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_native_4320_post.spv": {
+      "bytes": 63316,
+      "sha256": "dca856f83d155107e279b0b7af366d4c7eccab78b608e3922ff69f8c4d91277e"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_native_post.spv": {
+      "bytes": 63316,
+      "sha256": "a086677be89454986004f64d4b79f1dfdf7b2e98c222553b30d5740ce9e3f8af"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_performance_1080_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "a94797003ae3dfdfdf9b7cfeac9d595f6a8e942bbdee734badb07437848cec21"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_performance_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "f27457ce9ad873ae47123267cb353aeffb265af61482b5359dd13cd46665aa72"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_performance_4320_pass11.spv": {
+      "bytes": 120612,
+      "sha256": "7a6a1f491c7cd84973ee6e7e183d340540238fe7ee63cb947dfa59943f0bd928"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_performance_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "e42c683d34d662a47b292cd7ac4fb3e1dccf8933f3d96040ffbb500cf28d3184"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_performance_post.spv": {
+      "bytes": 63408,
+      "sha256": "c4997be4034262e61bce100fadb81bf53aaefccc15a5e11dcc00f684a8f79fad"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_quality_1080_pass11.spv": {
+      "bytes": 120792,
+      "sha256": "3ad63a6b6ae7ce238f92ef85d46fff03d01a5df0d1d8be0c4c2e8d5cb0774c17"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_quality_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "4e012f5e7ea6eaf064f74c3d29ab05501940353a89d4eea93c056640920244be"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_quality_4320_pass11.spv": {
+      "bytes": 120792,
+      "sha256": "cf73e175fc04055ccbdc3c159bf76336b7c42e81147ee7b0d2dc77da03554233"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_quality_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "c9e2a4bf459214235fd83484f07910425119e750f004edeb58e9c7579c85a842"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_quality_post.spv": {
+      "bytes": 63408,
+      "sha256": "bda72ae411984ef203a0fe09afc21340ebb79f1cbedf7e59fadf356a134cf978"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_ultraperf_1080_pass11.spv": {
+      "bytes": 120792,
+      "sha256": "01cc2f85e8b50f3a5b2c8772e2210f585622ce27908703ae24b336853e88bd8f"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_ultraperf_1080_post.spv": {
+      "bytes": 63408,
+      "sha256": "082c44372c1d0b41b0febef3c44e9ce51e2c590657989a67f61c16df91fa6419"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_ultraperf_4320_pass11.spv": {
+      "bytes": 120792,
+      "sha256": "a890b85296c3ce8717b93cd7bf38e084cab0223f10a0bd3a47922d74244e2571"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_ultraperf_4320_post.spv": {
+      "bytes": 63408,
+      "sha256": "efb84d0a21dcecbbe2ec9582fdbd731eb16147fde99168e1c53e73fc53f70b5e"
+    },
+    "port/fsr4_shaders/opt/fsr4_model_v07_i8_ultraperf_post.spv": {
+      "bytes": 63408,
+      "sha256": "98155116bd0413af4e90514527e0193f606093bba6cafc026478f631a97031d0"
+    },
+    "port/fsr4_shaders/opt/KNACK2-FSR4-PREPARE.json": {
+      "bytes": 9108,
+      "sha256": "43094d2d3a080e37023d3ca8f80ce27cd475abe5dcc51ccbcfd9cad3d64731e3"
+    }
+  }
+}

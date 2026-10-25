@@ -1,8 +1,20 @@
 # Launcher Knack II no Windows
 
+## Resolução e FSR nos fontes atuais
+
+Em Configurações, **Resolução da janela** oferece presets de 720p a 4K, tamanhos ultrawide e modo
+automático. Aplica na próxima sessão, respeitando a área útil da tela. Tela cheia
+e janela sem borda usam a resolução do desktop. Esse ajuste não altera a
+renderização interna do jogo. FSR 1 e RCAS têm controles separados.
+Veja [funcionamento, limitações e diagnóstico de FSR temporal](FSR_RESOLUCAO.md).
+A versão 0.16 contém runtime e launcher recompilados. O controle **Proporção e
+campo de visão** oferece automático pelo monitor, 16:9, 21:9 e 32:9.
+Ultrawide é experimental: cutscenes ainda podem apresentar enquadramento incorreto
+e laterais azuis. Instalações anteriores não são atualizadas automaticamente.
+
 ## Abrir e jogar
 
-O pacote [alpha Windows audio-clock09](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
+O pacote [Windows 0.16](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
 
 Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 
@@ -11,7 +23,7 @@ Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 ```
 
 1. Em **Escolher pasta**, selecione a raiz do dump CUSA08014 versão 01.01,
-   contendo `sce_sys`, `sce_module`, `eboot.bin` e `game.elf`.
+   ou CUSA07670 versão 01.01, contendo `sce_sys`, `sce_module`, `eboot.bin` e `game.elf`.
 2. Clique em **Validar**. O launcher verifica identidade, hashes e módulos.
 3. Em **Configurações**, escolha idioma, jogadores e ajustes gráficos.
 4. Clique em **Jogar**. Para encerrar, use **Encerrar sessão**.
@@ -34,9 +46,12 @@ positivos e também permite zero para execução ilimitada.
 
 ## Idiomas
 
-O dump inspecionado contém português do Brasil, inglês, espanhol latino-americano
-e francês. Após validar a instalação, o seletor oferece somente idiomas cujos
-arquivos estão presentes nesse dump. A interface muda imediatamente; o jogo
+O perfil americano oferece quatro idiomas; o europeu oferece até quatorze.
+O seletor fica desativado até validar o dump e então mostra somente idiomas
+daquela região com arquivos instalados. Trocar a pasta limpa a lista anterior.
+Veja a [lista regional completa](COMPATIBILIDADE_REGIONAL.md).
+A interface usa os quatro catálogos existentes de português, inglês, espanhol
+e francês; demais idiomas do jogo usam o catálogo inglês do launcher. O jogo
 recebe a escolha no próximo lançamento. Logs externos permanecem no idioma
 original para diagnóstico.
 
@@ -48,9 +63,8 @@ essa raiz.
 
 | Conteúdo | Caminho relativo à pasta padrão |
 | --- | --- |
-| Saves de um jogador | `profiles\single\user\savedata` |
-| Saves cooperativos | `profiles\coop\user\savedata` |
-| Backups do runtime | `savedata-backups`, ao lado de `savedata` em cada perfil |
+| Saves de um jogador e cooperativos | `profiles\shared\user\savedata` |
+| Backups do runtime | `profiles\shared\user\savedata-backups` |
 | Pasta lembrada e preferências | `launcher_settings.json` |
 | Configuração de cada lançamento | `launch-configs\UUID.ini` |
 | Logs de abertura do launcher | `logs\launcher-UUID.log` |
@@ -59,10 +73,18 @@ essa raiz.
 | Preparação e logs de coop | `coop-UUID\session-*` para os logs; imagens preparadas em `coop-UUID` |
 | Ícones originais convertidos | `identity\Knack.ico` e `identity\Knack.bmp` |
 
-Os perfis P1 e coop são separados. Cada partida cooperativa cria uma saída nova
-para preparação e logs, mantendo seus saves no perfil fixo. LoadExec preserva o
-caminho do perfil entre executáveis. Um bloqueio impede uso simultâneo do mesmo
-perfil por dois supervisores com `--user-data`.
+Partidas solo e cooperativas usam o mesmo progresso. LoadExec preserva o caminho
+comum entre executáveis. Um bloqueio impede duas sessões de usarem esse save
+simultaneamente. As saídas de preparação e logs continuam próprias de cada sessão.
+
+Em instalações migradas, os caminhos antigos `profiles\single\user` e
+`profiles\coop\user` podem ser atalhos para `profiles\shared\user`, mantendo a
+compatibilidade com executáveis anteriores sem duplicar os saves.
+
+Antes de migrar uma instalação antiga, feche o jogo e faça backup dos dois saves.
+Importe o conjunto completo do save escolhido para o perfil comum, sem misturar
+arquivos de partidas diferentes. O launcher atualizado avisa quando encontra
+saves antigos sem um save comum, em vez de iniciar um perfil vazio.
 
 Use **Ver logs** ou **Logs e diagnóstico** para encontrar os registros da sessão.
 Um código de saída isolado não basta para concluir que houve crash. Por exemplo,

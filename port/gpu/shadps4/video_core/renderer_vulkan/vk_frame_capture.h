@@ -25,6 +25,8 @@ public:
     static void OnFlip(VAddr presented_address);
     /// Optional stream-ordered boundary for games that copy to the display instead of drawing.
     static void OnGpuFlip(VAddr address);
+    /// Opt-in SubmitDone boundary for profiles whose VideoOut flips run on a host thread.
+    static void OnSubmit();
 
     /// VideoOut: a display buffer the game registered. A pass drawing into one starts a frame
     /// in the GPU command stream (the flip itself runs a frame behind).

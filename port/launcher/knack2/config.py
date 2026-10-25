@@ -25,6 +25,11 @@ import uuid
 # Keys that the Knack II launcher is authorized to modify in knack2.ini
 ALLOWED_MANAGED_KEYS = frozenset({
     'display_mode',
+    'window_resolution',
+    'internal_resolution',
+    'aspect_ratio',
+    'upscaler',
+    'preset',
     'vsync',
     'fps_limit',
     'async_shaders',
@@ -32,6 +37,8 @@ ALLOWED_MANAGED_KEYS = frozenset({
     'rcas',
     'rcas_strength',
     'frames_queued',
+    'gpu_readbacks',
+    'eager_readback',
     'key_map',
     'mouse_enabled',
     'mouse_sensitivity',
@@ -45,6 +52,10 @@ ALLOWED_MANAGED_KEYS = frozenset({
 _CONTROL_CHAR_RE = re.compile(r'[\x00-\x1f\x7f]')
 
 VALID_DISPLAY_MODES = frozenset({'windowed', 'borderless', 'fullscreen'})
+VALID_WINDOW_RESOLUTIONS = ('auto', '1280x720', '1600x900', '1920x1080', '2560x1440', '3840x2160',
+                            '2560x1080', '3440x1440', '3840x1600', '5120x1440', '5120x2160', '7680x2160')
+VALID_ASPECT_RATIOS = ('auto', '16:9', '21:9', '32:9')
+VALID_INTERNAL_RESOLUTIONS = ('auto', '1280x720', '1600x900', '1920x1080', '2560x1440', '3840x2160')
 
 
 def default_app_data_dir(env: Mapping[str, str] | None = None,
@@ -170,14 +181,38 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
     val = raw_val_str.strip()
 
     # Semantic domain validation per managed key
+    if key == 'upscaler':
+        if val not in ('off', 'fsr3', 'fsr4'):
+            raise ValueError(f"FSR temporal inválido: '{val}'")
+        return key, val
+    if key == 'preset':
+        return key, _validate_int_range(key, val, 0, 3)
+
+    if key == 'internal_resolution':
+        if val not in VALID_INTERNAL_RESOLUTIONS:
+            raise ValueError(f"Resolução interna inválida: '{val}'")
+        return key, val
+
+    if key == 'window_resolution':
+        if val not in VALID_WINDOW_RESOLUTIONS:
+            raise ValueError(f"Resolução de janela inválida: '{val}'")
+        return key, val
+    if key == 'aspect_ratio':
+        if val not in VALID_ASPECT_RATIOS:
+            raise ValueError(f"Proporção inválida: '{val}'")
+        return key, val
+
     if key == 'display_mode':
         lower_mode = val.lower()
         if lower_mode not in VALID_DISPLAY_MODES:
             raise ValueError(f"Modo de exibição inválido: '{val}' (esperado windowed, borderless ou fullscreen)")
         return key, lower_mode
 
-    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y'):
+    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'eager_readback'):
         return key, _validate_bool_string(key, val)
+
+    if key == 'gpu_readbacks':
+        return key, _validate_int_range(key, val, 0, 2)
 
     if key == 'rcas_strength':
         return key, _validate_int_range(key, val, 0, 100)

@@ -3,6 +3,8 @@
 
 #include "gnm_error.h"
 #include "gnmdriver.h"
+#include <cstdlib>
+#include <string_view>
 
 #include "common/assert.h"
 #include "common/debug.h"
@@ -23,6 +25,7 @@
 #include "video_core/amdgpu/liverpool.h"
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
+#include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "tlg_freeze.h"
 
 extern Frontend::WindowSDL* g_window;
@@ -592,6 +595,7 @@ s32 PS4_SYSV_ABI sceGnmDrawIndexOffset(u32* cmdbuf, u32 size, u32 index_offset, 
     LOG_TRACE(Lib_GnmDriver, "called");
 
     if (cmdbuf && (size == 9)) {
+        const u32* const command_start = cmdbuf;
         const auto predicate = flags & 1 ? PM4Predicate::PredEnable : PM4Predicate::PredDisable;
         cmdbuf = WriteHeader<PM4ItOpcode::DrawIndexOffset2>(
             cmdbuf, 4, PM4ShaderType::ShaderGraphics, predicate);
@@ -599,6 +603,18 @@ s32 PS4_SYSV_ABI sceGnmDrawIndexOffset(u32* cmdbuf, u32 size, u32 index_offset, 
                            sceKernelIsNeoMode() ? flags & 0xe0000000u : 0u);
 
         WriteTrailingNop<3>(cmdbuf);
+        // Observe only a successful original writer. No change to its packet or return value.
+        static const bool trace_producer = [] {
+            const char* v = std::getenv("TLG_RELIC_PRODUCER_TRACE");
+            return v && std::string_view(v) == "1";
+        }();
+        if (trace_producer) {
+            if (auto* rasterizer = Core::Memory::Instance()->GetRasterizer();
+                rasterizer && rasterizer->RelicProducerTraceActive()) {
+                rasterizer->TraceRelicProducer(command_start,
+                    reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
+            }
+        }
         return ORBIS_OK;
     }
     return -1;

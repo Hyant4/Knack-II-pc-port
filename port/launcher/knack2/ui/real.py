@@ -12,12 +12,13 @@ from PySide6.QtGui import QDesktopServices, QGuiApplication
 
 from .. import config
 from ..runner import KnackRunner, RunnerState
-from ..languages import BY_CODE
+from ..languages import BY_CODE, REGION_LANGUAGES
 from ..identity import runtime_path
 from ..storage import application_data_root, profile_user
+from ..paths import project_root
 from .backend import Backend, DEFAULTS
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = project_root()
 P2_USER_ID = 4099
 # Existing B2-F2C profile, already compiled into the verified COOP-05 artifact.
 AUDIO_PROFILE = ('# Knack II audio baseline: COOP-05 / B2-F2C\n'
@@ -39,7 +40,7 @@ class RealBackend(Backend):
         self.workspace = Path(data_dir if data_dir is not None else application_data_root()).resolve()
         self._session_factory = session_factory
         self._players = 1
-        self._available_languages = None
+        self._available_languages = ()
         self._operation = None
         self._results = queue.Queue()
         self._closing = False
@@ -60,6 +61,9 @@ class RealBackend(Backend):
         self._language = saved.get('language', 'pt-BR')
         if not isinstance(self._language, str) or self._language not in BY_CODE:
             self._language = 'pt-BR'
+        ui_language = saved.get('ui_language')
+        if isinstance(ui_language, str) and ui_language in ('pt-BR', 'en-US', 'ru-RU'):
+            self._ui_language = ui_language
         # P2 is deliberately never restored. Every opt-in is explicit for this UI session.
         for key, value in saved.get('settings', {}).items() if isinstance(saved.get('settings'), dict) else ():
             try:
@@ -87,15 +91,35 @@ class RealBackend(Backend):
                 (self._runner is None or not self._runner.is_running))
 
     def _language_codes(self):
-        return self._available_languages if self._available_languages is not None else tuple(BY_CODE)
+        return self._available_languages
+
+    @Slot(str)
+    def setUiLanguage(self, code):
+        if self._closed or code not in ('pt-BR', 'en-US', 'ru-RU'):
+            return
+        super().setUiLanguage(code)
+        try:
+            self._check_data_root()
+            path = self._data_path('launcher_settings.json')
+            saved = config.load_launcher_settings(path)
+            saved['ui_language'] = self._ui_language
+            config.save_launcher_settings(saved, path=path)
+        except (OSError, ValueError) as error:
+            self._notice(str(error), True)
 
     def _on_validated(self, result):
-        self._available_languages = tuple(result.get('languages', BY_CODE))
+        regional = REGION_LANGUAGES.get(result.get('title_id'), ())
+        self._available_languages = tuple(code for code in regional
+                                          if code in result.get('languages', regional))
         if not self._available_languages:
             self._validation_state = 'invalid'
             self._validation = 'Nenhum idioma compatível encontrado no dump.'
         elif self._language not in self._available_languages:
-            self.setLanguage('en-US' if 'en-US' in self._available_languages else self._available_languages[0])
+            regional = {'pt-BR': 'pt-PT', 'pt-PT': 'pt-BR', 'en-US': 'en-GB',
+                        'en-GB': 'en-US', 'es-419': 'es-ES', 'es-ES': 'es-419'}
+            fallback = next((code for code in (regional.get(self._language), 'en-US', 'en-GB')
+                             if code in self._available_languages), self._available_languages[0])
+            self.setLanguage(fallback)
         self.changed.emit()
 
     def _can_stop(self):
@@ -111,12 +135,21 @@ class RealBackend(Backend):
     @Slot(str)
     def selectFolder(self, text):
         if self.editable:
-            self._available_languages = None
+            self._available_languages = ()
             super().selectFolder(text)
+            try:
+                self._check_data_root()
+                path = self._data_path('launcher_settings.json')
+                saved = config.load_launcher_settings(path)
+                saved['game_dir'] = self._game_dir
+                config.save_launcher_settings(saved, path=path)
+            except (OSError, ValueError) as error:
+                self._notice(str(error), True)
 
     @Slot()
     def validateFolder(self):
         if self.editable:
+            self._available_languages = ()
             super().validateFolder()
 
     def _check_data_root(self):
@@ -143,12 +176,12 @@ class RealBackend(Backend):
             self._check_data_root()
             config.update_knack2_ini(self._data_path('knack2.ini'), self._settings)
             config.save_launcher_settings({'game_dir': self._game_dir, 'settings': self._settings,
-                                           'language': self._language},
+                                           'language': self._language, 'ui_language': self._ui_language},
                                           path=self._data_path('launcher_settings.json'))
         except (OSError, ValueError) as error:
             self._notice(str(error), True)
         else:
-            self._notice('Configurações salvas na área isolada F3B. Aplicação na próxima sessão.')
+            self._notice('Configurações salvas. Aplicação na próxima partida.')
 
     def post_log(self, source, line):
         if source == 'supervisor':

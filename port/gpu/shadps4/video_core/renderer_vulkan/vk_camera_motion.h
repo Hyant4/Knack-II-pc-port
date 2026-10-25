@@ -61,16 +61,19 @@ public:
     /// Vertical field of view and near/far planes of the current camera.
     [[nodiscard]] float VerticalFov() const noexcept;
     [[nodiscard]] float Near() const noexcept;
+    [[nodiscard]] float Far() const noexcept { return far_plane; }
+    [[nodiscard]] std::array<float, 2> NativeJitter() const noexcept { return native_jitter; }
     // Current projection, previous projection, and row Z of previous-view * inverse-view.
     [[nodiscard]] std::array<std::array<float, 4>, 3> TaaDepthParameters() const noexcept;
 
     /// Records the motion vector pass: `depth_view` (depth aspect, General layout) into
     /// `motion_view` (RG16F storage, General), pixels, previous minus current.
     void RecordMotion(vk::CommandBuffer cmdbuf, vk::ImageView depth_view, vk::ImageView motion_view,
-                      u32 width, u32 height);
+                      u32 width, u32 height, vk::ImageView native_motion = {});
 
     /// A bound constant buffer of 864 bytes: checks the scene constant signature.
     void OnConstants(const float* data);
+    bool OnKnackConstants(const float* data, u64 bytes);
 
     /// The G-buffer pass (5+ color targets): its depth is the scene depth.
     void OnGBufferPass(VideoCore::ImageId depth);
@@ -104,6 +107,8 @@ private:
     bool frame_has_camera = false;
     std::array<float, 2> jitter{}, previous_jitter{};
     std::array<u32, 2> render_size{};
+    std::array<float, 2> native_jitter{};
+    float far_plane = 3000.f;
     VideoCore::ImageId depth_id{};
 
     vk::UniqueDescriptorSetLayout desc_layout;

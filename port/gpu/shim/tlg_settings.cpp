@@ -141,6 +141,12 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.graffiti_guide_seen = i != 0;
     } else if (key == "display_mode") {
         v.display_mode = TlgGraphics::ParseDisplayMode(value);
+    } else if (key == "window_resolution") {
+        v.window_resolution = TlgGraphics::ParseWindowResolution(value);
+    } else if (key == "internal_resolution") {
+        v.internal_resolution = TlgGraphics::ParseInternalResolution(value);
+    } else if (key == "aspect_ratio") {
+        v.aspect_ratio = TlgGraphics::IndexOf(TlgGraphics::AspectKeys,std::string_view(value),0);
     } else if (key == "vsync") {
         v.vsync = i != 0;
     } else if (key == "fps_limit") {
@@ -159,6 +165,10 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.render_resolution = TlgGraphics::ParseResolution(value);
     } else if (key == "engine_fps") {
         v.engine_fps = TlgGraphics::ParseEngineFps(i);
+    } else if (key == "gpu_readbacks") {
+        v.gpu_readbacks = i >= 0 && i <= 2 ? i : 2;
+    } else if (key == "eager_readback") {
+        v.eager_readback = i != 0;
     } else if (key == "deferred_readback") {
         v.deferred_readback = i != 0;
     } else if (key == "stale_readback") {
@@ -237,11 +247,13 @@ void Load() {
         }
     }
     const std::pair<const char*, const char*> env_keys[] = {
+        {"TLG_INTERNAL_RESOLUTION", "internal_resolution"},
         {"TLG_FSR_SHARPNESS", "sharpness"},        {"TLG_JITTER", "jitter"},
         {"TLG_REACTIVE", "reactive"},              {"TLG_REACTIVE_SCALE", "reactive_scale"},
         {"TLG_REACTIVE_THRESHOLD", "reactive_threshold"}, {"TLG_REACTIVE_MAX", "reactive_max"},
         {"TLG_UPSCALE_PRESET", "preset"},            {"TLG_OBJECT_MOTION", "object_motion"},
         {"TLG_ASYNC_SHADERS", "async_shaders"},      {"TLG_DEFERRED_READBACK", "deferred_readback"},
+        {"TLG_READBACKS", "gpu_readbacks"},          {"TLG_EAGER_READBACK", "eager_readback"},
         {"TLG_STALE_READBACK", "stale_readback"},     {"TLG_FSR1", "fsr1"},
         {"TLG_RCAS", "rcas"},                        {"TLG_FRAMES_AHEAD", "frames_queued"},
         {"TLG_SHOW_FPS", "show_fps"},             {"TLG_SENSOR_AIM", "sensor_aim"},
@@ -264,6 +276,7 @@ void Load() {
     v.startup_output_res = v.output_res;
     v.startup_live_resolution = v.live_resolution;
     v.startup_render_resolution = v.render_resolution;
+    v.startup_internal_resolution = v.internal_resolution;
     v.startup_engine_fps = v.engine_fps;
     const char* applied = std::getenv("TLG_ENGINE_FPS");
     v.applied_engine_fps = applied && applied[0] ? TlgGraphics::ParseEngineFps(std::atoi(applied))
@@ -334,6 +347,8 @@ void Save() {
         std::printf("Settings: cannot write %s\n", Path());
         return;
     }
+    std::fprintf(file, "gpu_readbacks=%d\neager_readback=%d\n",
+                 v.gpu_readbacks.load(), int(v.eager_readback.load()));
     std::fprintf(file,
                  "# tlg settings (in-game menu: Insert / R3+L2)\n"
                  "upscaler=%s\npreset=%d\nsharpen=%d\nsharpness=%.2f\njitter=%d\n"
@@ -346,6 +361,8 @@ void Save() {
                  v.debug_view.load(), int(v.show_fps.load()),
                  int(v.fsr4_auto_exposure.load()), int(v.fsr4_invert_jitter.load()));
     std::fprintf(file, "output_res=%dx%d\n", OutputWidths[v.output_res], OutputHeights[v.output_res]);
+    std::fprintf(file, "internal_resolution=%s\n", TlgGraphics::InternalResolutionKeys[
+        std::clamp(v.internal_resolution.load(), 0, int(TlgGraphics::InternalResolutionKeys.size()) - 1)].data());
     std::fprintf(file, "red_orb_multiplier=%.3f\n", v.red_orb_multiplier.load());
     std::fprintf(file, "damage_dealt=%.3f\n", v.damage_dealt.load());
     std::fprintf(file, "damage_taken=%.3f\n", v.damage_taken.load());
@@ -377,6 +394,11 @@ void Save() {
                  TlgGraphics::Resolutions[std::clamp(v.render_resolution.load(), 0, 5)].data(),
                  v.engine_fps.load(), int(v.deferred_readback.load()), int(v.stale_readback.load()),
                  int(v.restart_unconfirmed.load()));
+    std::fprintf(file, "window_resolution=%s\n",
+                 TlgGraphics::WindowResolutionKeys[std::clamp(v.window_resolution.load(), 0,
+                     int(TlgGraphics::WindowResolutionKeys.size()) - 1)].data());
+    std::fprintf(file, "aspect_ratio=%s\n",
+                 TlgGraphics::AspectKeys[std::clamp(v.aspect_ratio.load(),0,3)].data());
     std::fprintf(file, "sensor_aim=%d\ngraffiti_guide_seen=%d\n", v.sensor_aim.load(),
                  int(v.graffiti_guide_seen.load()));
     std::fprintf(file,

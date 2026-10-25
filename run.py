@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Prepare and supervise Knack 2's original executables on Windows."""
+"""Prepare and supervise Knack 2's original executables on Windows or Linux."""
 import argparse
 from contextlib import ExitStack
 import hashlib
@@ -24,6 +24,8 @@ import content_profile
 from port.launcher.knack2.languages import BY_CODE, discover_languages, language_environment
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
+from port.launcher.knack2.config import load_knack2_ini, sanitize_and_validate_key_value
+from port.launcher.knack2.validator import load_profile, profile_id, SUPPORTED_PROFILES
 
 
 def digest(path):
@@ -34,7 +36,7 @@ def digest(path):
 def validate_game(game, profile):
     values = prepare.load_sfo(game / 'sce_sys/param.sfo')
     if (values.get('TITLE_ID'), values.get('APP_VER')) != (profile['title_id'], profile['version']):
-        raise ValueError('This profile requires CUSA08014 version 01.01')
+        raise ValueError(f"This profile requires {profile['title_id']} version {profile['version']}")
     for name, expected in profile['executables'].items():
         if digest(prepare.executable_path(game, name)) != expected:
             raise ValueError(f'{name}: SHA-256 differs from the supported dump')
@@ -44,7 +46,9 @@ def validate_game(game, profile):
 
 
 def prepare_image(game, profile, executable, out):
-    folder = out / executable.replace('.', '_')
+    # Preserve American cache paths; European images never replace those images.
+    cache = out if profile_id(profile) == 'CUSA08014-01.01' else out / profile_id(profile)
+    folder = cache / executable.replace('.', '_')
     folder.mkdir(parents=True, exist_ok=True)
     modules = profile['modules'][executable]
     fingerprint = {name: digest(path) for name, path in [
@@ -116,26 +120,47 @@ def local_user_environment(local_users, second_user):
 
 
 def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None,
-                        config_file=None, language=None):
+                        config_file=None, language=None, profile='CUSA08014-01.01'):
+    if profile not in SUPPORTED_PROFILES:
+        raise ValueError('Unsupported Knack II runtime profile')
     users = local_user_environment(local_users, second_user)
     locale = language_environment(language)
     if config_file is not None:
         config_file = Path(config_file).resolve()
         if not config_file.is_file():
             raise ValueError('--config must name an existing INI file')
+    settings_path = config_file if config_file is not None else Path(out) / 'knack2.ini'
+    settings = load_knack2_ini(settings_path) if settings_path.is_file() else {}
+    readbacks = sanitize_and_validate_key_value('gpu_readbacks', settings.get('gpu_readbacks', '2'))[1]
+    eager = sanitize_and_validate_key_value('eager_readback', settings.get('eager_readback', '0'))[1]
+    upscaler = sanitize_and_validate_key_value('upscaler', settings.get('upscaler', 'off'))[1]
+    preset = sanitize_and_validate_key_value('preset', settings.get('preset', '0'))[1]
+    internal = sanitize_and_validate_key_value('internal_resolution',
+                                              settings.get('internal_resolution', 'auto'))[1]
     # Old launchers' title-specific overrides must not bleed into this profile.
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
-    toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
-    env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
-    system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
-    if system_font.is_file():
-        env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
-    env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
-               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
+    env = {k: v for k, v in os.environ.items()
+           if k == 'TLG_TOGGLE_FILE' or not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
+    if sys.platform == 'win32':
+        toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
+        env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
+        system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
+        if system_font.is_file():
+            env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
+    env.update(KNACK2_PROFILE=profile, TLG_UPSCALER=upscaler,
+               TLG_UPSCALE_PRESET=preset, TLG_INTERNAL_RESOLUTION=internal,
+               TLG_OBJECT_MOTION='0', TLG_FULLSCREEN='0',
+               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'),
+               TLG_RED_ZONE_REWRITE='1' if sys.platform == 'win32' else '0',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
+    # Native framebuffer storage is allocated from the game's fixed graphics pool.
+    # Match its guarded reserve increase with the runtime's existing direct-memory capacity.
+    if internal in ('2560x1440', '3840x2160'):
+        env['TLG_DMEM_MB'] = {'2560x1440': '5824', '3840x2160': '6592'}[internal]
     env.update(users)  # Only validated CLI values may enable a second local user.
     env.update(locale)  # Inherited TLG_LANGUAGE remains filtered; only explicit CLI values survive.
     env.update(game_identity_environment(ROOT))  # Fixed local identity, never inherited from another port.
+    # Startup-only GPU choices come from the validated INI, after inherited overrides are filtered.
+    env.update(TLG_READBACKS=readbacks, TLG_EAGER_READBACK=eager if readbacks == '2' else '0')
     if pad_file is not None:
         pad_file = Path(pad_file).resolve()
         if not pad_file.is_file():
@@ -147,6 +172,19 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
         env['TLG_DUMP_DIR'] = str(capture_dir)
         env['TLG_FRAME_DUMP_TRIGGER'] = str(capture_dir / 'capture.request')
     return env
+
+
+def native_resolution_arguments(executable, arguments, resolution):
+    """Use the game's native framebuffer preset only for an explicitly selected high size."""
+    result = list(arguments)
+    if executable == 'game.elf' and resolution in ('2560x1440', '3840x2160'):
+        if not result:
+            result.append('/app0/game.elf')
+        if '-2160p' not in result:
+            if len(result) >= 64:
+                raise ValueError('Native resolution requires a free guest argument slot')
+            result.append('-2160p')
+    return result
 
 
 def run_child(command, env, log, seconds):
@@ -180,6 +218,7 @@ def _main(argv, lifetime):
                         help='maximum seconds for the entire guest session; 0 disables the time limit')
     parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
     parser.add_argument('--config', type=Path, help='explicit runtime INI; defaults to OUT/knack2.ini')
+    parser.add_argument('--runtime', type=Path, help='explicit host runtime from an isolated build')
     parser.add_argument('--user-data', type=Path, help='explicit persistent user profile, separate from session output')
     parser.add_argument('--language', choices=tuple(BY_CODE), help='explicit language installed in the dump')
     parser.add_argument('--local-users', type=int, choices=(1, 2), default=1)
@@ -237,9 +276,16 @@ def _main(argv, lifetime):
                 raise ValueError('P2 user path exceeds the runtime limit of 511 UTF-8 bytes')
     except (ValueError, OSError) as error:
         parser.error(str(error))
-    profile = json.loads((ROOT / 'profiles/CUSA08014-01.01.json').read_text())
+    probe = args.runtime.resolve() if args.runtime is not None else runtime_path(PORT)
+    if not args.analyze:
+        if not probe.is_file():
+            hint = '.\\build.ps1' if sys.platform == 'win32' else 'see docs/DESENVOLVIMENTO_LINUX.md'
+            parser.error(f'Build the runtime first: {hint}')
+        if sys.platform != 'win32' and not os.access(probe, os.X_OK):
+            parser.error(f'Runtime is not executable: {probe}')
+    profile = load_profile(game_dir=game, repo_root=ROOT)
     validate_game(game, profile)
-    if args.language is not None and args.language not in discover_languages(game):
+    if args.language is not None and args.language not in discover_languages(game, title_id=profile['title_id']):
         raise ValueError('--language is not installed in this dump')
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
@@ -248,22 +294,23 @@ def _main(argv, lifetime):
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
         return 0
-    probe = runtime_path(PORT)
-    if not probe.is_file():
-        raise ValueError('Build the runtime first: .\\build.ps1')
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
-                              config_file=args.config, language=args.language)
+                              config_file=args.config, language=args.language, profile=profile_id(profile))
     user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
         for folder in images.values():
-            subprocess.run([sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
-                            '--out', str(folder), '--red-zone'], check=True)
+            rewrite = [sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
+                       '--out', str(folder)]
+            if sys.platform == 'win32':
+                rewrite.append('--red-zone')
+            subprocess.run(rewrite, check=True)
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
-    report = {'profile': 'CUSA08014-01.01', 'mode': 'imports' if args.check_imports else 'run',
+    report = {'profile': profile_id(profile), 'mode': 'imports' if args.check_imports else 'run',
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
               'user_data': str(user),
+              'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
               'visual_verified': False, 'stages': []}
     deadline = time.monotonic() + args.timeout if args.timeout else None
     executable, guest_args = profile['entry'], []
@@ -282,7 +329,8 @@ def _main(argv, lifetime):
                 command.append('--check-imports')
             else:
                 command += ['--isa-rewrite', str(folder / 'isa-rewrite.bin')]
-            for value in guest_args:
+            stage_args = native_resolution_arguments(executable, guest_args, env['TLG_INTERNAL_RESOLUTION'])
+            for value in stage_args:
                 command += ['--guest-arg', value]
             log = session / f'{stage:02d}-{executable}.log'
             with tempfile.TemporaryDirectory(prefix='exec-', dir=session) as temporary:
@@ -290,7 +338,7 @@ def _main(argv, lifetime):
                 child_env = {**env, 'KNACK2_EXEC_REQUEST': str(request)}
                 print(f'Starting {executable}; log: {log}', flush=True)
                 code = run_child(command, child_env, log, remaining + 5 if deadline is not None else None)
-                report['stages'].append({'executable': executable, 'arguments': guest_args, 'exit_code': code,
+                report['stages'].append({'executable': executable, 'arguments': stage_args, 'exit_code': code,
                                          'log': log.name})
                 print(f'{executable}: exit {code}', flush=True)
                 if args.check_imports:
@@ -304,8 +352,16 @@ def _main(argv, lifetime):
                     if deadline is not None and time.monotonic() >= deadline:
                         return 124
                     continue
+                if code == 76 and sys.platform != 'win32':
+                    # Linux overlay restart: keep the same executable, arguments, profile lock and deadline.
+                    if deadline is not None and time.monotonic() >= deadline:
+                        return 124
+                    env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
+                                              local_users=args.local_users, second_user=args.p2_user_id,
+                                              config_file=args.config, language=args.language)
+                    continue
                 return code
-        raise ValueError('LoadExec transition limit reached')
+        raise ValueError('LoadExec/restart transition limit reached')
     finally:
         (session / 'session.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
         print(f'Session evidence: {session}', flush=True)
@@ -316,6 +372,9 @@ if __name__ == '__main__':
     # terminating immediately, allowing run_child() to reap the guest and write evidence.
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, signal.default_int_handler)
+    if sys.platform != 'win32':
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        signal.signal(signal.SIGTERM, signal.default_int_handler)
     try:
         sys.exit(main())
     except (OSError, ValueError, KeyError, struct.error, subprocess.CalledProcessError) as error:

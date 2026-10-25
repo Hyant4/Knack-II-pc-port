@@ -23,6 +23,7 @@
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/texture_cache/texture_cache.h"
+#include "tlg_graphics.h"
 
 namespace AmdGpu {
 struct Liverpool;
@@ -33,6 +34,38 @@ class MemoryManager;
 }
 
 namespace Vulkan {
+
+// Host diagnostic metadata only; no guest layout or buffer ownership is changed.
+struct RelicCommandSample {
+    u64 address{}, words{}, hash{};
+    u32 status{}; // 0=not sampled, 1=sampled (including empty), 2=over budget
+};
+struct RelicSubmissionSample {
+    u64 submission{};
+    u32 kind{}, copy_mode{}; // kind 1=submit, 2=parser begin; copy 0=n/a,1=off,2=on
+    std::array<RelicCommandSample, 4> samples{}; // submit: input DCB/CCB, ready DCB/CCB; parser: DCB/CCB
+};
+struct RelicListSample {
+    u64 owner_frame{}, builder_frame{}, list{}, entries{}, sort_keys{}, cursor{};
+    u32 count{}, capacity{}, batch_count{}, status{}, scan_status{};
+    u32 scanned{}, null_records{}, null_materials{}, readable_materials{}, unreadable_materials{};
+    // Header: 0=other path,1=sampled,2=layout mismatch,3=read failed,4=invalid header,5=unsupported,6=slot mismatch.
+    // Scan: 0=none,1=complete,2=descriptor already reserved,3=budget,4=count limit,
+    //       5=entries unreadable,6=material reads partial,7=header changed,8=header reread failed.
+};
+struct RelicProducerSample {
+    u64 serial{}, command{}, thread{};
+    u64 caller{}, caller_allocation_base{}, guest_frame{}, guest_stack{};
+    // 1=matched import caller, 2=no host metadata, 3=invalid progress,
+    // 4=caller not reached, 5=unsupported, 6=non-executable expected caller.
+    u32 host_unwind{}, host_steps{};
+    RelicListSample list;
+    std::array<u32, 5> packet{};
+    // Guest frame-pointer links after host unwind; not a complete guest unwind.
+    struct Frame { u64 frame{}, caller{}, caller_allocation_base{}; };
+    std::array<Frame, 8> frames{};
+    u32 frame_count{}, stop{}; // 1=end,2=unreadable,3=invalid link,4=unsupported,5=limit,6=host unwind failed,7=non-executable return
+};
 
 class GraphicsPipeline;
 class Runtime;
@@ -65,6 +98,19 @@ public:
     }
 
     void Draw(bool is_indexed, u32 index_offset = 0, const PreparedDraw* prepared = nullptr);
+
+    // Opt-in PM4 metadata only. The condition passed here is the parser's existing result.
+    [[nodiscard]] bool RelicPm4TraceActive() const;
+    [[nodiscard]] bool RelicSubmissionTraceActive() const;
+    [[nodiscard]] bool RelicProducerTraceActive() const;
+    [[gnu::noinline]] void TraceRelicProducer(const u32* command, u64 expected_caller);
+    static RelicCommandSample SampleRelicCommands(std::span<const u32> commands);
+    void RecordRelicSubmission(const RelicSubmissionSample& sample);
+    void TraceRelicConsumption(u32 kind, std::span<const u32> dcb, std::span<const u32> ccb, u64 submission);
+    void TraceRelicPm4(u32 kind, u32 opcode, std::span<const u32> remaining, u32 packet_words,
+                      u64 buffer_base, u64 buffer_words, u64 submission,
+                      u32 before_indices, u32 before_instances, bool skipped = false,
+                      u32 skip_words = 0);
 
     /// tlg: draw preparation workers (vk_draw_prep.h), fed and consumed by Liverpool.
     DrawPreparation& GetDrawPreparation() {
@@ -224,6 +270,13 @@ private:
     void DepthStencilCopy(bool is_depth, bool is_stencil);
     void EliminateFastClear();
 
+    std::array<TlgGraphics::KnackVideoImage, 8> knack_video_images{};
+    u32 knack_video_next = 0;
+    bool knack_video_composed = false; // draw-recording thread, consumed by the native present dispatch
+    bool knack_video_scene_seen = false;
+    TlgGraphics::KnackVideoFraming knack_video_framing;
+    bool PrepareKnackVideo(const GraphicsPipeline* pipeline, const RenderState& state, bool indirect);
+    void ClearKnackVideoBars();
     void UpdateDynamicState(const GraphicsPipeline* pipeline, bool is_indexed) const;
     void UpdateViewportScissorState() const;
     void UpdateDepthStencilState() const;

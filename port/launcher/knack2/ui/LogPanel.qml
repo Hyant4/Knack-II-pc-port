@@ -7,21 +7,21 @@ Rectangle {
     required property var logModel
     required property string title
     property string emptyText: qsTr("Inicie uma simulação para acompanhar os eventos.")
-    color: "#102832"
+    color: "#202227"
     radius: 8
-    border.color: "#39515a"
+    border.color: "#424650"
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
         spacing: 12
         RowLayout {
             Layout.fillWidth: true
-            KnackIcon { symbol: panel.title === qsTr("Supervisor") ? "monitor" : "gamepad"; Layout.preferredWidth: 21; Layout.preferredHeight: 21; ink: "#dfbc7c" }
+            KnackIcon { symbol: panel.title === qsTr("Supervisor") ? "monitor" : "gamepad"; Layout.preferredWidth: 21; Layout.preferredHeight: 21; ink: "#d6bb84" }
             Label { text: panel.title; font.pixelSize: 17; font.weight: Font.DemiBold }
             Item { Layout.fillWidth: true }
-            Label { text: view.count + " / 500"; color: "#afc4c9"; font.pixelSize: 12 }
+            Label { text: view.count + " / 500"; color: "#abb6c9"; font.pixelSize: 12 }
         }
-        Rectangle { Layout.fillWidth: true; height: 1; color: "#39515a" }
+        Rectangle { Layout.fillWidth: true; height: 1; color: "#424650" }
         ListView {
             id: view
             objectName: panel.title === qsTr("Supervisor") ? "supervisorView" : "guestView"
@@ -41,7 +41,7 @@ Rectangle {
                 text: line
                 textFormat: Text.PlainText
                 wrapMode: Text.WrapAnywhere
-                color: isError ? "#ffaaa3" : "#d3e3e5"
+                color: isError ? "#e3aba6" : "#d0dae9"
                 font.family: "Consolas"
                 font.pixelSize: 12
                 lineHeight: 1.25
@@ -53,13 +53,13 @@ Rectangle {
                 wrapMode: Text.WordWrap
                 visible: view.count === 0
                 text: panel.emptyText
-                color: "#afc4c9"
+                color: "#abb6c9"
                 KnackIcon {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.top; anchors.bottomMargin: 16
                     width: 36; height: 36
                     symbol: panel.title === qsTr("Supervisor") ? "logs" : "relic"
-                    ink: "#688e99"
+                    ink: "#7d899c"
                 }
             }
         }

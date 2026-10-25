@@ -7,299 +7,214 @@ ApplicationWindow {
     id: window
     required property var backend
     property int page: 0
-    width: 1180
-    height: 810
-    minimumWidth: 980
-    minimumHeight: 700
+    property int settingsTab: 0
+    property bool gameplayArt: false
+    property bool motionAllowed: typeof launcherMotionAllowed === "undefined" ? false : launcherMotionAllowed
+    width: 1180; height: 810; minimumWidth: 980; minimumHeight: 700
     visible: true
-    title: backend.isDemo ? qsTr("Knack II PC — Demonstração") : "Knack II PC — F3B"
-    color: "#18343f"
-    font.family: "Segoe UI"
-    font.pixelSize: 14
-    palette.window: "#18343f"
-    palette.windowText: "#e7f0ef"
-    palette.text: "#e7f0ef"
-    palette.base: "#102832"
-    palette.button: "#284650"
-    palette.buttonText: "#e7f0ef"
-    palette.highlight: "#efd192"
-    palette.highlightedText: "#142e37"
-    palette.mid: "#607e87"
-    palette.placeholderText: "#90aeb8"
+    title: backend.isDemo ? qsTr("Knack II PC — Demonstração") : "Knack II PC"
+    color: "#232427"; font.family: "Segoe UI"; font.pixelSize: 13
+    palette.window: "#232427"; palette.windowText: "#f2f1ee"
+    palette.text: "#f2f1ee"; palette.base: "#2d3037"
+    palette.button: "#363941"; palette.buttonText: "#f2f1ee"
+    palette.highlight: "#d6bb84"; palette.highlightedText: "#262013"
+    palette.mid: "#545965"; palette.placeholderText: "#9ca3b2"
     onClosing: function(event) { event.accepted = backend.requestClose(); }
-    Connections {
-        target: backend
-        ignoreUnknownSignals: true
-        function onCloseReady() { window.close(); }
-    }
+    Connections { target: backend; ignoreUnknownSignals: true; function onCloseReady() { window.close(); } }
+    onPageChanged: if (motionAllowed) pageFade.restart()
+    NumberAnimation { id: pageFade; target: pages; property: "opacity"; from: 0.5; to: 1; duration: 160 }
 
-    component Heading: Label {
-        font.pixelSize: 27
-        font.weight: Font.DemiBold
-        color: "#f2f5ef"
-        leftPadding: 36
-        KnackIcon {
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: 25; height: 25
-            symbol: parent.text === qsTr("Instalação") ? "folder" : parent.text === qsTr("Configurações") ? "settings" : "logs"
-        }
-    }
-    component Hint: Label {
-        color: "#afc4c9"
-        wrapMode: Text.WordWrap
-        textFormat: Text.PlainText
-        lineHeight: 1.25
-        Layout.fillWidth: true
-    }
-    component Section: Rectangle {
-        color: "#1d3d48"
-        border.color: "#45616a"
-        radius: 8
-    }
-    component SettingLabel: Label {
-        font.pixelSize: 15
-        Layout.fillWidth: true
-    }
+    component Heading: Label { font.pixelSize: 26; font.weight: Font.DemiBold }
+    component Hint: Label { color: "#afb4c1"; wrapMode: Text.WordWrap; textFormat: Text.PlainText; lineHeight: 1.2; Layout.fillWidth: true; font.pixelSize: 12 }
+    component Section: Rectangle { color: "#282a2f"; border.color: "#424650"; radius: 6 }
+    component SettingLabel: Label { font.pixelSize: 13; Layout.fillWidth: true; wrapMode: Text.WordWrap }
     component SectionTitle: RowLayout {
         property alias text: sectionTitle.text
         property string glyph: "relic"
-        Layout.fillWidth: true
-        spacing: 10
-        KnackIcon { symbol: parent.glyph; Layout.preferredWidth: 23; Layout.preferredHeight: 23; ink: "#e5bc78" }
-        Label { id: sectionTitle; font.pixelSize: 19; font.weight: Font.DemiBold; color: "#eee5cd"; Layout.fillWidth: true }
+        Layout.fillWidth: true; spacing: 10
+        KnackIcon { symbol: parent.glyph; Layout.preferredWidth: 20; Layout.preferredHeight: 20; ink: "#c4b18b" }
+        Label { id: sectionTitle; font.pixelSize: 18; font.weight: Font.DemiBold; Layout.fillWidth: true }
     }
-
+    component SummaryItem: Button {
+        id: summary
+        property string caption: ""
+        property string detail: ""
+        Layout.fillWidth: true; implicitHeight: 78; padding: 8
+        contentItem: Column {
+            spacing: 5
+            Label { text: summary.caption; color: "#a7aab5"; font.pixelSize: 11 }
+            Label { text: summary.text; font.pixelSize: 13; font.weight: Font.DemiBold }
+            Label { text: summary.detail; color: "#9c9fab"; font.pixelSize: 11 }
+        }
+        background: Rectangle { radius: 5; color: summary.hovered ? "#2f3238" : "transparent"; border.color: summary.activeFocus ? "#d6bb84" : "transparent" }
+    }
     FolderDialog {
-        id: folderDialog
-        objectName: "folderDialog"
-        title: qsTr("Selecione a pasta do Knack II (CUSA08014)")
+        id: folderDialog; objectName: "folderDialog"
+        title: qsTr("Selecione a pasta do Knack II (CUSA08014 ou CUSA07670)")
         onAccepted: backend.selectFolder(selectedFolder.toString())
     }
     Dialog {
-        id: errorsDialog
-        objectName: "errorsDialog"
-        title: qsTr("Erros registrados")
-        modal: true
-        anchors.centerIn: parent
-        width: Math.min(window.width - 80, 720)
-        height: 350
+        id: errorsDialog; objectName: "errorsDialog"; title: qsTr("Erros registrados")
+        modal: true; anchors.centerIn: parent; width: Math.min(window.width - 80, 720); height: 350
         standardButtons: Dialog.Close
-        contentItem: ScrollView {
-            TextArea {
-                text: backend.errorText
-                textFormat: TextEdit.PlainText
-                readOnly: true
-                wrapMode: TextEdit.WrapAnywhere
-                selectByMouse: true
-            }
-        }
+        contentItem: ScrollView { TextArea { text: backend.errorText; textFormat: TextEdit.PlainText; readOnly: true; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true } }
     }
-
-    RowLayout {
-        anchors.fill: parent
-        spacing: 0
+    ColumnLayout {
+        anchors.fill: parent; spacing: 0
         Rectangle {
-            Layout.preferredWidth: 224
-            Layout.fillHeight: true
-            color: "#102a35"
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 20
-                spacing: 12
-                RowLayout {
-                    Layout.topMargin: 14
-                    spacing: 10
-                    KnackIcon { width: 27; height: 32; symbol: "relic"; ink: "#f3c677" }
-                    Label {
-                        text: "KNACK II"
-                        font.weight: Font.Bold
-                        font.pixelSize: 23
-                        font.letterSpacing: 1.5
-                        color: "#f3ce8c"
-                    }
-                }
-                Label { text: qsTr("Peças de uma grande aventura"); color: "#9fbec5"; font.pixelSize: 11 }
-                Rectangle { Layout.fillWidth: true; height: 1; color: "#36505b"; Layout.topMargin: 18; Layout.bottomMargin: 14 }
+            Layout.fillWidth: true; Layout.preferredHeight: 62; color: "#232427"; border.color: "#46474c"
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 25; spacing: 24
+                Label { text: "Knack II"; font.pixelSize: 19; font.weight: Font.DemiBold; Layout.rightMargin: 10 }
                 Repeater {
-                    model: [qsTr("Início"), qsTr("Configurações"), qsTr("Logs e diagnóstico")]
+                    model: [{text: qsTr("Início"), value: 0}, {text: qsTr("Configurações"), value: 1}, {text: qsTr("Instalação"), value: 3}, {text: qsTr("Logs e diagnóstico"), value: 2}]
                     delegate: Button {
-                        required property int index
-                        required property string modelData
-                        objectName: "navPage" + index
-                        Layout.fillWidth: true
-                        implicitHeight: 48
-                        text: modelData
-                        Accessible.name: text
-                        onClicked: window.page = index
-                        contentItem: RowLayout {
-                            spacing: 10
-                            KnackIcon {
-                                Layout.leftMargin: 8
-                                Layout.preferredWidth: 20; Layout.preferredHeight: 20
-                                symbol: ["home", "settings", "logs"][index]
-                                ink: window.page === index ? "#f2cf8d" : "#96bac4"
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: modelData
-                                color: window.page === index ? "#f4d296" : "#c0d1d6"
-                                font.pixelSize: 13
-                                font.family: window.font.family
-                                font.weight: window.page === index ? Font.DemiBold : Font.Normal
-                                elide: Text.ElideRight
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
+                        id: nav
+                        required property var modelData
+                        objectName: "navPage" + modelData.value
+                        Layout.fillHeight: true; text: modelData.text; padding: 4
+                        onClicked: window.page = modelData.value
+                        contentItem: Text { text: nav.text; font: nav.font; color: window.page === nav.modelData.value ? "#ffffff" : "#b5b7c0"; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle {
-                            radius: 6
-                            color: window.page === index ? "#284652" : parent.hovered ? "#1b3945" : "transparent"
-                            border.color: parent.activeFocus ? "#a4e8ef" : "transparent"
-                            Rectangle { width: 3; height: 22; radius: 1; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; color: "#edc37d"; visible: window.page === index }
+                            color: nav.hovered ? "#2b2e34" : "transparent"; border.color: nav.activeFocus ? "#d6bb84" : "transparent"
+                            Rectangle { anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right; height: 3; color: "#d6bb84"; visible: window.page === nav.modelData.value }
                         }
                     }
                 }
-                Item { Layout.fillHeight: true }
+                Item { Layout.fillWidth: true }
                 RowLayout {
-                    spacing: 8
-                    KnackIcon { symbol: "gamepad"; width: 21; height: 21; ink: "#8cdbdf" }
-                    Label { text: backend.isDemo ? qsTr("Demonstração") : qsTr("Knack II para PC"); color: "#efd192"; font.weight: Font.DemiBold }
+                    spacing: 2
+                    Repeater {
+                        model: [{label: "PT", code: "pt-BR", name: "Português"},
+                                {label: "EN", code: "en-US", name: "English"},
+                                {label: "RU", code: "ru-RU", name: "Русский"}]
+                        delegate: Button {
+                            id: languageButton
+                            required property var modelData
+                            objectName: "uiLanguage" + modelData.label
+                            implicitWidth: 36; implicitHeight: 34; padding: 5
+                            text: modelData.label; checkable: true; autoExclusive: true
+                            checked: backend.uiLanguage === modelData.code
+                            Accessible.name: modelData.name
+                            ToolTip.visible: hovered
+                            ToolTip.text: modelData.name
+                            onClicked: backend.setUiLanguage(modelData.code)
+                            background: Rectangle {
+                                radius: 4
+                                color: languageButton.checked ? "#45474f" : languageButton.hovered ? "#343941" : "transparent"
+                                border.color: languageButton.activeFocus ? "#d6bb84" : languageButton.checked ? "#858e9f" : "transparent"
+                            }
+                        }
+                    }
                 }
-                Hint { text: backend.isDemo ? qsTr("Sessões sintéticas.\nSem execução do jogo.") : qsTr("Dados isolados F3B.\nInício manual pelo botão Jogar."); font.pixelSize: 12 }
-                Rectangle { Layout.fillWidth: true; height: 1; color: "#36505b"; Layout.topMargin: 12; Layout.bottomMargin: 8 }
-                Label { text: qsTr("CUSA08014\nPerfil 01.01"); color: "#a9c1c9"; font.pixelSize: 12; lineHeight: 1.6 }
+                Label { text: "0.17.2"; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
-
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.margins: 30
-            spacing: 20
-            RowLayout {
-                Layout.fillWidth: true
-                Label { text: [qsTr("Sua próxima aventura"), qsTr("Prepare sua experiência"), qsTr("Acompanhe a sessão")][window.page]; color: "#afc4c9" }
-                Item { Layout.fillWidth: true }
-                Rectangle { width: 8; height: 8; radius: 4; color: backend.state === "FAILED" ? "#ffaaa3" : "#8ed2cc" }
-                Label { text: backend.stateLabel; color: "#d8e8e8"; font.pixelSize: 12 }
-            }
-
-            StackLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                currentIndex: window.page
-
-                ScrollView {
-                    id: homeScroll
-                    clip: true
-                    contentWidth: availableWidth
-                    ColumnLayout {
-                        width: homeScroll.availableWidth
-                        spacing: 20
-                        Section {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: window.height < 760 ? 206 : 252
-                            objectName: "knackHero"
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0; color: "#2c4950" }
-                                GradientStop { position: 1; color: "#153a48" }
-                            }
-                            border.color: "#6c7668"
-                            clip: true
-                            Canvas {
-                                anchors.fill: parent
-                                onWidthChanged: requestPaint()
-                                onHeightChanged: requestPaint()
-                                onPaint: {
-                                    const c=getContext("2d"); c.reset();
-                                    c.fillStyle="#354f52";
-                                    c.beginPath(); c.moveTo(0,0); c.lineTo(width*.59,0); c.lineTo(width*.42,height); c.lineTo(0,height); c.closePath(); c.fill();
-                                    c.fillStyle="#3e5654";
-                                    c.beginPath(); c.moveTo(0,height); c.lineTo(width*.2,height*.55); c.lineTo(width*.42,height); c.closePath(); c.fill();
-                                    c.strokeStyle="#61726a"; c.lineWidth=1;
-                                    c.beginPath(); c.moveTo(width*.59,0); c.lineTo(width*.42,height); c.stroke();
-                                    c.fillStyle="#eac080"; c.fillRect(0,30,3,46);
+        StackLayout {
+            id: pages
+            Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: window.page
+            ColumnLayout {
+                spacing: 0
+                Rectangle {
+                    objectName: "knackHero"; Layout.fillWidth: true
+                    Layout.preferredHeight: Math.min(390, window.height * .45)
+                    color: "#282b32"; clip: true
+                    Image { anchors.fill: parent; source: Qt.resolvedUrl(window.gameplayArt ? "art/knack-gameplay.png" : "art/knack-keyart.jpg"); fillMode: Image.PreserveAspectCrop; asynchronous: true; smooth: true }
+                    Row {
+                        anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 16; spacing: 7
+                        Repeater {
+                            model: ["knack-keyart.jpg", "knack-gameplay.png"]
+                            delegate: Button {
+                                id: artButton
+                                required property int index
+                                required property string modelData
+                                objectName: "heroArt" + index; width: 68; height: 42
+                                Accessible.name: index ? qsTr("Captura do port") : qsTr("Arte original")
+                                onClicked: window.gameplayArt = index === 1
+                                background: Rectangle {
+                                    color: "#202124"; radius: 4; border.width: 2
+                                    border.color: window.gameplayArt === (artButton.index === 1) ? "#d6bb84" : "#626670"
+                                    Image { anchors.fill: parent; anchors.margins: 3; source: Qt.resolvedUrl("art/" + artButton.modelData); fillMode: Image.PreserveAspectCrop }
                                 }
                             }
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 26
-                                spacing: 8
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-                                    Label { text: "KNACK II"; font.pixelSize: 48; font.weight: Font.Bold; font.letterSpacing: 2; color: "#f3cf8a"; style: Text.Raised; styleColor: "#493d31" }
-                                    Hint { text: qsTr("Pequenas peças. Grandes aventuras.\nPrepare-se para entrar em ação."); font.pixelSize: 16; color: "#d3e0d9" }
-                                    Item { Layout.fillHeight: true }
-                                    RowLayout {
-                                        spacing: 8
-                                        KnackIcon { symbol: "relic"; width: 16; height: 19; ink: "#e2b86d" }
-                                        Label { text: qsTr("Relíquias que ganham vida"); color: "#c2d3ce"; font.pixelSize: 12 }
-                                    }
-                                }
-                                Relic { objectName: "knackIllustration"; Layout.preferredWidth: 310; Layout.fillHeight: true }
-                            }
                         }
-                        Heading { text: qsTr("Instalação") }
-                        Hint { text: backend.isDemo ? qsTr("Selecione seu dump para conferir os arquivos. A demonstração funciona mesmo sem uma instalação.") : qsTr("Selecione seu dump CUSA08014 01.01. Metadados, hashes e módulos devem ser válidos para jogar.") }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            TextField {
-                                id: pathInput
-                                objectName: "gamePath"
-                                Layout.fillWidth: true
-                                implicitHeight: 42
-                                placeholderText: qsTr("Pasta do Knack II")
-                                text: backend.gameDir
-                                selectByMouse: true
-                                enabled: backend.editable
-                                Accessible.name: qsTr("Pasta do jogo")
-                                onEditingFinished: backend.selectFolder(text)
-                                onAccepted: { backend.selectFolder(text); backend.validateFolder(); }
-                            }
-                            ActionButton { text: qsTr("Escolher pasta"); glyph: "folder"; enabled: backend.editable; onClicked: folderDialog.open() }
-                            ActionButton { text: backend.validating ? qsTr("Validando…") : qsTr("Validar"); glyph: "check"; enabled: backend.editable; onClicked: { backend.selectFolder(pathInput.text); backend.validateFolder(); } }
-                        }
-                        Section {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: installationInfo.implicitHeight + 32
-                            border.color: backend.validationState === "invalid" ? "#b87878" : "#3b5761"
-                            ColumnLayout {
-                                id: installationInfo
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 7
-                                Label { text: backend.installation; textFormat: Text.PlainText; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Hint { objectName: "validationMessage"; text: backend.validationText; color: backend.validationState === "invalid" ? "#ffb6ae" : "#afc4c9" }
-                            }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            ActionButton { objectName: "playButton"; text: backend.isDemo ? qsTr("Jogar · simulação") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
-                            ActionButton { objectName: "stopButton"; text: backend.isDemo ? qsTr("Encerrar simulação") : qsTr("Encerrar sessão"); glyph: "stop"; enabled: backend.canStop; onClicked: backend.stop() }
-                            ActionButton { visible: !backend.isDemo; text: backend.isDemo ? "" : qsTr("Jogadores: ") + backend.players; glyph: "players"; onClicked: window.page = 1 }
-                            Item { Layout.fillWidth: true }
-                            ActionButton { text: qsTr("Ver logs"); glyph: "logs"; onClicked: window.page = 2 }
-                        }
-                        Hint { text: backend.isDemo ? qsTr("Nenhum binário do jogo é iniciado. Configurações e sessões desta demonstração são temporárias.") : qsTr("Escolha um ou dois jogadores em Configurações."); font.pixelSize: 12 }
                     }
                 }
-
-                ColumnLayout {
-                    spacing: 12
-                    ScrollView {
-                    id: settingsScroll
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    contentWidth: availableWidth
+                RowLayout {
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 28; spacing: 28
                     ColumnLayout {
-                        width: settingsScroll.availableWidth
-                        spacing: 18
-                        Heading { text: qsTr("Configurações") }
-                        Hint { text: backend.isDemo ? qsTr("Ajustes de exemplo. Salvar grava somente na área temporária da demonstração; as preferências reais permanecem intactas.") : qsTr("Ajustes aplicados à próxima sessão pelo INI do runtime. Dados e preferências F3B ficam separados do launcher habitual.") }
-                        Section {
+                        Layout.preferredWidth: 245; Layout.maximumWidth: 245; Layout.minimumWidth: 210; Layout.alignment: Qt.AlignTop; spacing: 12
+                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
+                        ActionButton { objectName: "stopButton"; Layout.fillWidth: true; visible: backend.canStop; text: backend.isDemo ? qsTr("Encerrar simulação") : qsTr("Encerrar sessão"); glyph: "stop"; danger: true; enabled: backend.canStop; onClicked: backend.stop() }
+                        RowLayout {
+                            Layout.fillWidth: true; visible: !backend.isDemo
+                            Repeater {
+                                model: [1, 2]
+                                delegate: Button {
+                                    id: playerButton
+                                    required property int modelData
+                                    objectName: "homePlayers" + modelData; Layout.fillWidth: true
+                                    text: modelData === 1 ? qsTr("Solo") : qsTr("Cooperativo"); enabled: backend.editable
+                                    onClicked: backend.setPlayers(modelData)
+                                    background: Rectangle { radius: 4; color: !backend.isDemo && backend.players === playerButton.modelData ? "#45474f" : "#2a2d33"; border.color: playerButton.activeFocus ? "#d6bb84" : "#555b68" }
+                                }
+                            }
+                        }
+                        Hint { text: backend.isDemo ? qsTr("Sessões sintéticas. Sem execução do jogo.") : qsTr("Progresso compartilhado entre solo e cooperativo."); font.pixelSize: 11 }
+                    }
+                    Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#424650" }
+                    ColumnLayout {
+                        Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: 10
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label { text: backend.validationState === "valid" && !backend.canStop ? qsTr("Instalação válida") : backend.stateLabel; font.pixelSize: 17; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                            ActionButton { text: qsTr("Escolher pasta"); glyph: "folder"; enabled: backend.editable; onClicked: { window.page = 3; folderDialog.open(); } }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            SummaryItem { caption: qsTr("Idioma"); text: backend.languageIndex >= 0 ? backend.languageOptions[backend.languageIndex].label : backend.uiLanguage; detail: qsTr("Idioma do jogo"); onClicked: { window.settingsTab = 0; window.page = 1; } }
+                            SummaryItem { caption: qsTr("Modo de janela"); text: backend.settings.display_mode === "windowed" ? backend.settings.window_resolution : qsTr("Resolução do desktop"); detail: [qsTr("Janela"), qsTr("Sem bordas"), qsTr("Tela cheia")][["windowed","borderless","fullscreen"].indexOf(backend.settings.display_mode)]; onClicked: { window.settingsTab = 1; window.page = 1; } }
+                            SummaryItem { caption: qsTr("Instalação"); text: backend.installationId || "—"; detail: backend.installationVersion; onClicked: window.page = 3 }
+                        }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#424650" }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Hint { text: backend.gameDir || qsTr("Nenhuma pasta selecionada."); font.pixelSize: 11; elide: Text.ElideMiddle; wrapMode: Text.NoWrap }
+                            ActionButton { text: qsTr("Validar"); enabled: backend.editable; onClicked: { window.page = 3; backend.validateFolder(); } }
+                        }
+                    }
+                }
+            }
+            RowLayout {
+                spacing: 0
+                Rectangle {
+                    Layout.preferredWidth: 176; Layout.fillHeight: true; color: "#292a2f"
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 14; spacing: 6
+                        Label { text: qsTr("Configurações"); color: "#aeb5c2"; font.pixelSize: 11; Layout.margins: 10 }
+                        Repeater {
+                            model: [qsTr("Geral"), qsTr("Vídeo"), qsTr("Controles")]
+                            delegate: Button {
+                                id: tabButton
+                                required property int index
+                                required property string modelData
+                                objectName: "settingsTab" + index; Layout.fillWidth: true; implicitHeight: 42; text: modelData
+                                onClicked: window.settingsTab = index
+                                background: Rectangle { radius: 4; color: window.settingsTab === tabButton.index ? "#3b3d45" : "transparent"; border.color: tabButton.activeFocus ? "#d6bb84" : "transparent" }
+                            }
+                        }
+                        Item { Layout.fillHeight: true }
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 25; spacing: 16
+                    ScrollView {
+                        id: settingsScroll; objectName: "settingsScroll"
+                        Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
+                        ColumnLayout {
+                            width: settingsScroll.availableWidth; spacing: 16
+                            Section {
+ visible: window.settingsTab === 0
                             Layout.fillWidth: true
                             Layout.preferredHeight: languageRows.implicitHeight + 40
                             ColumnLayout {
@@ -309,7 +224,7 @@ ApplicationWindow {
                                 spacing: 12
                                 SectionTitle { text: qsTr("Idioma"); glyph: "language" }
                                 RowLayout {
-                                    SettingLabel { text: qsTr("Idioma do launcher e do jogo") }
+                                    SettingLabel { text: qsTr("Idioma do jogo") }
                                     OptionSelect {
                                         objectName: "languageSelect"
                                         Layout.preferredWidth: 235
@@ -317,16 +232,17 @@ ApplicationWindow {
                                         textRole: "label"
                                         valueRole: "code"
                                         currentIndex: backend.languageIndex
-                                        enabled: backend.editable
-                                        Accessible.name: qsTr("Idioma do launcher e do jogo")
+                                        Accessible.name: qsTr("Idioma do jogo")
+                                        enabled: backend.editable && count > 0
                                         onActivated: backend.setLanguage(currentValue)
                                     }
                                 }
-                                Hint { text: qsTr("O launcher muda agora; o jogo usa o idioma na próxima sessão. Valide a pasta para conferir os idiomas instalados."); font.pixelSize: 12 }
+                                Hint { text: qsTr("Idioma do jogo aplicado na próxima sessão. Valide a pasta para conferir os idiomas instalados."); font.pixelSize: 12 }
+                                Hint { text: qsTr("Use PT / EN / RU no topo para trocar o idioma do launcher."); font.pixelSize: 12 }
                             }
                         }
-                        Section {
-                            visible: !backend.isDemo
+                            Section {
+                            visible: !backend.isDemo && window.settingsTab === 0
                             Layout.fillWidth: true
                             Layout.preferredHeight: visible ? sessionRows.implicitHeight + 40 : 0
                             ColumnLayout {
@@ -350,7 +266,8 @@ ApplicationWindow {
                                 Hint { text: qsTr("Para jogar em cooperativo, selecione dois jogadores e conecte dois controles."); font.pixelSize: 12 }
                             }
                         }
-                        Section {
+                            Section {
+ visible: window.settingsTab === 1
                             Layout.fillWidth: true
                             Layout.preferredHeight: graphicsRows.implicitHeight + 40
                             ColumnLayout {
@@ -372,6 +289,19 @@ ApplicationWindow {
                                     }
                                 }
                                 RowLayout {
+                                    SettingLabel { text: qsTr("Resolução da janela") }
+                                    OptionSelect {
+                                        objectName: "windowResolution"
+                                        Layout.preferredWidth: 280
+                                        model: [qsTr("Automática (ajustar à tela)"), "1280 × 720 (720p)", "1600 × 900 (900p)", "1920 × 1080 (1080p)", "2560 × 1440 (1440p)", "3840 × 2160 (4K)", "2560 × 1080", "3440 × 1440", "3840 × 1600", "5120 × 1440", "5120 × 2160", "7680 × 2160"]
+                                        enabled: backend.settings.display_mode === "windowed"
+                                        currentIndex: backend.windowResolutions.indexOf(backend.settings.window_resolution)
+                                        Accessible.name: qsTr("Resolução da janela")
+                                        onActivated: backend.setSetting("window_resolution", backend.windowResolutions[currentIndex])
+                                    }
+                                }
+                                Hint { text: qsTr("Aplica na próxima sessão e ajusta à área útil da tela. Tela cheia e sem borda usam a resolução do desktop."); font.pixelSize: 12 }
+                                RowLayout {
                                     SettingLabel { text: "VSync" }
                                     OptionSwitch { objectName: "vsync"; checked: backend.settings.vsync === "1"; Accessible.name: "VSync"; onToggled: backend.setSetting("vsync", checked) }
                                 }
@@ -391,6 +321,20 @@ ApplicationWindow {
                                     OptionSwitch { objectName: "fsr1"; checked: backend.settings.fsr1 === "1"; Accessible.name: qsTr("FSR1 espacial"); onToggled: backend.setSetting("fsr1", checked) }
                                 }
                                 RowLayout {
+                                    SettingLabel { text: qsTr("Proporção e campo de visão") }
+                                    OptionSelect {
+                                        objectName: "aspectRatio"
+                                        Layout.preferredWidth: 210
+                                        model: [qsTr("Automática (monitor)"), "16:9", "21:9", "32:9"]
+                                        currentIndex: ["auto", "16:9", "21:9", "32:9"].indexOf(backend.settings.aspect_ratio)
+                                        enabled: backend.editable
+                                        Accessible.name: qsTr("Proporção e campo de visão")
+                                        onActivated: backend.setSetting("aspect_ratio", ["auto", "16:9", "21:9", "32:9"][currentIndex])
+                                    }
+                                }
+                                Hint { text: qsTr("Ultrawide amplia o campo de visão horizontal e preserva a proporção da interface. Aplica na próxima sessão."); font.pixelSize: 12 }
+                                Hint { text: qsTr("FSR 1 amplia a imagem para saídas maiores, preservando a proporção. Resolução da janela não altera a renderização interna nem garante mais FPS."); font.pixelSize: 12 }
+                                RowLayout {
                                     SettingLabel { text: qsTr("Nitidez RCAS") }
                                     OptionSwitch { objectName: "rcas"; checked: backend.settings.rcas === "1"; Accessible.name: qsTr("Nitidez RCAS"); onToggled: backend.setSetting("rcas", checked) }
                                 }
@@ -407,9 +351,72 @@ ApplicationWindow {
                                     }
                                     Label { objectName: "rcasPercent"; text: backend.settings.rcas_strength + "%"; Layout.preferredWidth: 40; horizontalAlignment: Text.AlignRight }
                                 }
+                                RowLayout {
+                                    SettingLabel { text: qsTr("FSR temporal") }
+                                    OptionSelect {
+                                        objectName: "temporalUpscaler"
+                                        Layout.preferredWidth: 280
+                                        model: [qsTr("Desligado"), "FSR 3.1", "FSR 4"]
+                                        currentIndex: ["off", "fsr3", "fsr4"].indexOf(backend.settings.upscaler)
+                                        Accessible.name: qsTr("FSR temporal")
+                                        onActivated: backend.setSetting("upscaler", ["off", "fsr3", "fsr4"][currentIndex])
+                                    }
+                                }
+                                RowLayout {
+                                    SettingLabel { text: qsTr("Resolução interna (próxima sessão)") }
+                                    OptionSelect {
+                                        objectName: "internalResolution"
+                                        Layout.preferredWidth: 280
+                                        model: [qsTr("Automática (FSR / 1080p)"), "1280 × 720 (720p)", "1600 × 900 (900p)", "1920 × 1080 (1080p)", "2560 × 1440 (1440p)", "3840 × 2160 (2160p)"]
+                                        currentIndex: backend.internalResolutions.indexOf(backend.settings.internal_resolution)
+                                        Accessible.name: qsTr("Resolução interna (próxima sessão)")
+                                        onActivated: backend.setSetting("internal_resolution", backend.internalResolutions[currentIndex])
+                                    }
+                                }
+                                Hint { text: qsTr("1440p e 4K usam a resolução nativa do jogo até a imagem final. A janela se ajusta ao monitor. Opções menores reduzem a cena e mantêm saída 1080p. Uma escolha manual substitui o preset do FSR."); font.pixelSize: 12 }
+                                RowLayout {
+                                    SettingLabel { text: qsTr("Qualidade do FSR temporal") }
+                                    OptionSelect {
+                                        objectName: "temporalPreset"
+                                        Layout.preferredWidth: 280
+                                        enabled: backend.settings.upscaler !== "off" && backend.settings.internal_resolution === "auto"
+                                        model: ["Native AA", qsTr("Qualidade"), qsTr("Equilibrado"), qsTr("Desempenho")]
+                                        currentIndex: Number(backend.settings.preset)
+                                        Accessible.name: qsTr("Qualidade do FSR temporal")
+                                        onActivated: backend.setSetting("preset", currentIndex)
+                                    }
+                                }
+                                Hint { text: qsTr("FSR temporal processa a cena antes da interface. FSR 4 requer modelos locais e GPU compatível; usa FSR 3.1 se indisponível."); font.pixelSize: 12 }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    SettingLabel { text: qsTr("Precisão da GPU") }
+                                    OptionSelect {
+                                        objectName: "gpuReadbacks"
+                                        Layout.preferredWidth: 280
+                                        model: [qsTr("Rápido (sem partículas da GPU)"), qsTr("Intermediário"), qsTr("Preciso (recomendado)")]
+                                        currentIndex: Number(backend.settings.gpu_readbacks)
+                                        Accessible.name: qsTr("Precisão da GPU")
+                                        onActivated: backend.setSetting("gpu_readbacks", ["0", "1", "2"][currentIndex])
+                                    }
+                                }
+                                Hint { text: qsTr("Preciso prioriza partículas e destroços corretos. Modos mais rápidos podem causar falhas visuais. Aplica na próxima sessão."); font.pixelSize: 12 }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    SettingLabel { text: qsTr("Leitura antecipada da GPU") }
+                                    OptionSwitch {
+                                        objectName: "eagerReadback"
+                                        enabled: backend.settings.gpu_readbacks === "2"
+                                        checked: backend.settings.eager_readback === "1"
+                                        Accessible.name: qsTr("Leitura antecipada da GPU")
+                                        onToggled: backend.setSetting("eager_readback", checked)
+                                    }
+                                }
+                                Hint { text: qsTr("Antecipa a leitura dos resultados da GPU. Disponível no modo Preciso; aplica na próxima sessão."); font.pixelSize: 12 }
                             }
                         }
-                        Section {
+                            ControllerGuide { objectName: "controllerGuide"; backend: window.backend; motionAllowed: window.motionAllowed; visible: window.settingsTab === 2; Layout.fillWidth: true; Layout.preferredHeight: 640 }
+                            Section {
+ visible: window.settingsTab === 2
                             Layout.fillWidth: true
                             Layout.preferredHeight: controlsRows.implicitHeight + 40
                             ColumnLayout {
@@ -418,10 +425,10 @@ ApplicationWindow {
                                 anchors.margins: 20
                                 spacing: 12
                                 SectionTitle { text: qsTr("Controle e teclado"); glyph: "gamepad" }
-                                Hint { text: qsTr("Controle: detecção automática via SDL.\nTeclado padrão: WASD para mover; setas para câmera.\nEspaço: cruz · Shift esquerdo: círculo · E: quadrado · Q: triângulo\nEnter: Options · I / J / K / L: direcional") }
+                                Hint { text: qsTr("Controle: detecção automática via SDL.\nTeclado padrão: WASD para mover; setas para esquivar.\nEspaço: cruz · Shift esquerdo: círculo · E: quadrado · Q: triângulo\nEnter: Options · I / J / K / L: direcional") }
                                 RowLayout {
-                                    SettingLabel { text: qsTr("Mouse controla câmera") }
-                                    OptionSwitch { objectName: "mouseEnabled"; checked: backend.settings.mouse_enabled === "1"; Accessible.name: qsTr("Mouse controla câmera"); onToggled: backend.setSetting("mouse_enabled", checked) }
+                                    SettingLabel { text: qsTr("Mouse no analógico direito") }
+                                    OptionSwitch { objectName: "mouseEnabled"; checked: backend.settings.mouse_enabled === "1"; Accessible.name: qsTr("Mouse no analógico direito"); onToggled: backend.setSetting("mouse_enabled", checked) }
                                 }
                                 RowLayout {
                                     SettingLabel { text: qsTr("Inverter eixo Y do mouse") }
@@ -429,73 +436,79 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        }
                     }
-                    }
-                    ActionButton { objectName: "saveDemoSettings"; text: backend.isDemo ? qsTr("Salvar na demonstração") : qsTr("Salvar configurações"); glyph: "save"; primary: true; onClicked: backend.saveSettings() }
-                }
-
-                ColumnLayout {
-                    spacing: 16
-                    Heading { text: qsTr("Logs e diagnóstico") }
-                    Hint { text: qsTr("Sessão: ") + backend.sessionId; font.pixelSize: 13 }
-                    Hint { visible: !backend.isDemo; text: backend.isDemo ? "" : backend.sessionDetails; font.pixelSize: 12 }
-                    Hint { visible: !backend.isDemo; text: backend.isDemo ? "" : qsTr("Saída: ") + backend.outputText; font.pixelSize: 12 }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ActionButton { text: qsTr("Copiar logs"); glyph: "copy"; onClicked: backend.copyLogs() }
-                        ActionButton { objectName: "showErrors"; text: qsTr("Ver erros"); glyph: "alert"; onClicked: errorsDialog.open() }
-                        ActionButton { text: qsTr("Abrir pasta de logs"); glyph: "folder"; visible: !backend.isDemo; onClicked: backend.openLogs() }
-                        ActionButton { text: qsTr("Simular erro"); glyph: "alert"; visible: backend.isDemo; danger: true; enabled: backend.state === "RUNNING"; onClicked: backend.simulateError() }
-                        Item { Layout.fillWidth: true }
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        spacing: 14
-                        LogPanel { Layout.fillWidth: true; Layout.fillHeight: true; title: qsTr("Supervisor"); logModel: backend.supervisorLogs; emptyText: backend.isDemo ? qsTr("Inicie uma simulação para acompanhar os eventos.") : qsTr("Inicie uma sessão para acompanhar os eventos.") }
-                        LogPanel { Layout.fillWidth: true; Layout.fillHeight: true; title: backend.isDemo ? qsTr("Guest (sintético)") : qsTr("Jogo"); logModel: backend.guestLogs; emptyText: backend.isDemo ? qsTr("Inicie uma simulação para acompanhar os eventos.") : qsTr("Inicie uma sessão para acompanhar os eventos.") }
-                    }
-                    Hint { text: qsTr("500 linhas por painel. Linhas descartadas por excesso de entrada: ") + backend.droppedLogs; font.pixelSize: 12 }
+                    ActionButton { objectName: "saveDemoSettings"; text: backend.isDemo ? qsTr("Salvar na demonstração") : qsTr("Salvar configurações"); glyph: "save"; primary: true; enabled: backend.editable; Layout.alignment: Qt.AlignRight; onClicked: backend.saveSettings() }
                 }
             }
-            Rectangle {
-                objectName: "notificationBanner"
-                visible: backend.notification.length > 0
-                Layout.fillWidth: true
-                Layout.preferredHeight: visible ? Math.max(40, noticeText.implicitHeight + 24) : 0
-                color: backend.notificationError ? "#563e44" : "#254650"
-                radius: 6
-                KnackIcon {
-                    anchors.left: parent.left; anchors.leftMargin: 13
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 20; height: 20
-                    symbol: backend.notificationError ? "alert" : "relic"
-                    ink: backend.notificationError ? "#ffb6ae" : "#dfbc7a"
+            ColumnLayout {
+                Layout.margins: 25; spacing: 14
+                Heading { text: qsTr("Logs e diagnóstico") }
+                Hint { text: qsTr("Sessão: ") + backend.sessionId }
+                Hint { visible: !backend.isDemo; text: backend.isDemo ? "" : backend.sessionDetails; font.pixelSize: 12 }
+                Hint { visible: !backend.isDemo; text: backend.isDemo ? "" : qsTr("Saída: ") + backend.outputText; font.pixelSize: 11 }
+                RowLayout {
+                    ActionButton { text: qsTr("Copiar logs"); glyph: "copy"; onClicked: backend.copyLogs() }
+                    ActionButton { objectName: "showErrors"; text: qsTr("Ver erros"); glyph: "alert"; onClicked: errorsDialog.open() }
+                    ActionButton { text: qsTr("Abrir pasta de logs"); glyph: "folder"; visible: !backend.isDemo; onClicked: backend.openLogs() }
+                    ActionButton { text: qsTr("Simular erro"); visible: backend.isDemo; enabled: backend.state === "RUNNING"; onClicked: backend.simulateError() }
                 }
-                Label {
-                    id: noticeText
-                    objectName: "notificationText"
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    anchors.leftMargin: 45
-                    anchors.rightMargin: 46
-                    text: backend.notification
-                    textFormat: Text.PlainText
-                    wrapMode: Text.WordWrap
-                    color: backend.notificationError ? "#ffcdc6" : "#cee2e5"
-                    font.pixelSize: 13
+                RowLayout {
+                    Layout.fillWidth: true; Layout.fillHeight: true; spacing: 14
+                    LogPanel { Layout.fillWidth: true; Layout.fillHeight: true; title: qsTr("Supervisor"); logModel: backend.supervisorLogs; emptyText: qsTr("Inicie uma sessão para acompanhar os eventos.") }
+                    LogPanel { Layout.fillWidth: true; Layout.fillHeight: true; title: backend.isDemo ? qsTr("Guest (sintético)") : qsTr("Jogo"); logModel: backend.guestLogs; emptyText: qsTr("Inicie uma sessão para acompanhar os eventos.") }
                 }
-                ToolButton {
-                    objectName: "dismissNotification"
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 40
-                    height: 40
-                    text: "×"
-                    font.pixelSize: 20
-                    Accessible.name: qsTr("Fechar notificação")
-                    onClicked: backend.dismissNotification()
+                Hint { text: qsTr("500 linhas por painel. Linhas descartadas por excesso de entrada: ") + backend.droppedLogs; font.pixelSize: 11 }
+            }
+            ColumnLayout {
+                Layout.margins: 32; spacing: 18
+                Heading { text: qsTr("Instalação") }
+                Hint { text: qsTr("Selecione seu dump CUSA08014 ou CUSA07670, versão 01.01. Metadados, hashes e módulos devem ser válidos para jogar.") }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField {
+                        id: pathInput; objectName: "gamePath"; Layout.fillWidth: true; implicitHeight: 42
+                        placeholderText: qsTr("Pasta do Knack II"); text: backend.gameDir
+                        selectByMouse: true; enabled: backend.editable; Accessible.name: qsTr("Pasta do jogo")
+                        onEditingFinished: if (text !== backend.gameDir) backend.selectFolder(text)
+                        onAccepted: { backend.selectFolder(text); backend.validateFolder(); }
+                    }
+                    ActionButton { text: qsTr("Escolher pasta"); glyph: "folder"; enabled: backend.editable; onClicked: folderDialog.open() }
+                    ActionButton { objectName: "validateButton"; text: backend.validating ? qsTr("Validando…") : qsTr("Validar"); glyph: "check"; enabled: backend.editable; onClicked: { if (pathInput.text !== backend.gameDir) backend.selectFolder(pathInput.text); backend.validateFolder(); } }
                 }
+                Section {
+                    Layout.fillWidth: true; Layout.preferredHeight: 130
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 20; spacing: 12
+                        Label { text: backend.installation; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Hint { objectName: "validationMessage"; text: backend.validationText; color: backend.validationState === "invalid" ? "#e3aba6" : "#b4c5ae" }
+                    }
+                }
+                ActionButton { text: qsTr("Início"); enabled: backend.canPlay; primary: true; onClicked: window.page = 0 }
+                Item { Layout.fillHeight: true }
+            }
+        }
+        Rectangle {
+            objectName: "notificationBanner"; visible: backend.notification.length > 0
+            Layout.fillWidth: true; Layout.preferredHeight: visible ? Math.max(42, noticeText.implicitHeight + 22) : 0
+            color: backend.notificationError ? "#443334" : "#303640"
+            Label {
+                id: noticeText; objectName: "notificationText"
+                anchors.left: parent.left; anchors.right: dismiss.left; anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 22; anchors.rightMargin: 16
+                text: backend.notification; textFormat: Text.PlainText; wrapMode: Text.WordWrap
+                color: backend.notificationError ? "#f0c2b9" : "#d6deeb"; font.pixelSize: 12
+            }
+            ToolButton { id: dismiss; objectName: "dismissNotification"; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 42; height: 40; text: "×"; Accessible.name: qsTr("Fechar notificação"); onClicked: backend.dismissNotification() }
+        }
+        Rectangle {
+            Layout.fillWidth: true; Layout.preferredHeight: 32; color: "#292a2e"
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 20; anchors.rightMargin: 20
+                Rectangle { width: 5; height: 5; radius: 3; color: backend.state === "FAILED" ? "#ce938b" : "#a8c2a0" }
+                Label { text: backend.stateLabel; font.pixelSize: 10; color: "#aeb5c2" }
+                Item { Layout.fillWidth: true }
+                Label { text: qsTr("Projeto comunitário não oficial") + " · Knack II © Sony Interactive Entertainment"; font.pixelSize: 10; color: "#9ea8bb" }
             }
         }
     }

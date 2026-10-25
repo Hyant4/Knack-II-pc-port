@@ -21,7 +21,7 @@ def create_window(backend=None):
     # installed files explicitly; no font is copied or downloaded.
     if os.name == 'nt':
         fonts = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts'
-        for filename in ('segoeui.ttf', 'seguisb.ttf', 'consola.ttf'):
+        for filename in ('segoeui.ttf', 'seguisb.ttf', 'seguisym.ttf', 'consola.ttf'):
             path = fonts / filename
             if path.is_file():
                 QFontDatabase.addApplicationFont(str(path))
@@ -30,6 +30,14 @@ def create_window(backend=None):
     icon = identity_assets() / 'Knack.ico'
     QGuiApplication.instance().setWindowIcon(QIcon(str(icon)) if icon.is_file() else QIcon())
     engine = QQmlApplicationEngine()
+    motion_allowed = False
+    if os.name == 'nt':
+        import ctypes
+        enabled = ctypes.c_int(0)
+        # Read the Windows client-area animation preference. Failure stays static.
+        if ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(enabled), 0):
+            motion_allowed = bool(enabled.value)
+    engine.rootContext().setContextProperty('launcherMotionAllowed', motion_allowed)
     from .i18n import Translator
     translator = Translator(backend.uiLanguage)
     app = QGuiApplication.instance()
@@ -40,7 +48,11 @@ def create_window(backend=None):
         translator.locale = backend.uiLanguage
         engine.retranslate()
     backend.uiLanguageChanged.connect(retranslate)
-    engine.destroyed.connect(lambda: app.removeTranslator(translator))
+    def remove_translator():
+        from shiboken6 import isValid
+        if isValid(translator) and isValid(app):
+            app.removeTranslator(translator)
+    engine.destroyed.connect(remove_translator)
     engine.setInitialProperties({'backend': backend})
     engine.load(QUrl.fromLocalFile(str(Path(__file__).with_name('Main.qml'))))
     if not engine.rootObjects():

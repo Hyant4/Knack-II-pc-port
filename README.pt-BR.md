@@ -4,9 +4,14 @@
 
 Port independente e experimental de **Knack II para Windows**, com renderização Vulkan, launcher integrado e cooperativo local para dois jogadores.
 
-**[Baixar Knack II para Windows — V0.17](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-Windows-x64-V0.17.zip)** · [Notas completas da versão](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17)
+**[Baixar Knack II para Windows — V0.17](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.2/Knack-II-Windows-x64-V0.17.2.zip)** · [Notas completas da versão](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.2)
 
 > **Projeto experimental e não oficial.** O responsável pelo projeto relata que o jogo está jogável do início ao fim. O cooperativo local foi exercitado especificamente até o capítulo 2. Isso não equivale a uma certificação independente de toda a campanha ou de todos os computadores: ainda podem ocorrer falhas gráficas, travamentos e problemas de compatibilidade.
+
+## O que mudou na V0.17.2
+
+- Alternância PT / EN / RU no launcher, com preferência da interface separada do idioma do jogo.
+- Runtime preservado da V0.17.1.
 
 ## O que mudou na V0.17
 
@@ -14,7 +19,7 @@ Port independente e experimental de **Knack II para Windows**, com renderizaçã
 | --- | --- |
 | Versão europeia | Reconhecimento/suporte experimental à **CUSA07670**, com boot curto e save temporário validados. Campanha completa, dublagens e legendas ainda não foram certificadas. |
 | Ultrawide | Suporte **experimental**; cenas e artes de abertura podem apresentar enquadramento incorreto, laterais azuis, barras incompletas ou imagem estreita. |
-| Launcher | Interface em português, inglês, espanhol e francês; outros idiomas selecionados podem utilizar textos em inglês no launcher. |
+| Launcher | Interface PT / EN / RU, espanhol e francês; outros idiomas selecionados podem utilizar textos em inglês no launcher. |
 | Áudio regional | Algumas proteções de endereçamento para ganho de diálogos permanecem específicas da versão americana CUSA08014. |
 | Recursos existentes | Vulkan, cooperativo local, opções FSR 3.1/4 e melhorias anteriores de áudio. |
 
@@ -33,7 +38,7 @@ O pacote inclui executáveis e dependências. **Não inclui o jogo, firmware, du
 
 ## Como jogar
 
-1. Baixe [**Knack-II-Windows-x64-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-Windows-x64-V0.17.zip).
+1. Baixe [**Knack-II-Windows-x64-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.2/Knack-II-Windows-x64-V0.17.2.zip).
 2. Extraia o ZIP completo para uma pasta; não execute diretamente do arquivo compactado.
 3. Abra **`Knack II.exe`**.
 4. Selecione a pasta do seu jogo contendo `eboot.bin`, `game.elf`, `sce_sys` e `sce_module`. Clique em **Validar**.

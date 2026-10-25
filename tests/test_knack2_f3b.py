@@ -20,7 +20,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from PySide6.QtCore import QObject, QTimer, qInstallMessageHandler
+from PySide6.QtCore import QObject, QTimer, QMetaObject, Q_ARG, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
@@ -112,7 +112,8 @@ class F3BTests(unittest.TestCase):
             return session
         self.backend = RealBackend(data_dir=self.root / 'data', session_factory=factory,
                                    validate_dump=lambda path: {'app_title': 'Synthetic Knack II',
-                                   'title_id': 'CUSA08014', 'version': '01.01'})
+                                   'title_id': 'CUSA08014', 'version': '01.01',
+                                   'languages': ['pt-BR', 'en-US', 'es-419', 'fr-FR']})
         self.engine, self.window, _ = create_window(self.backend)
         self.pump()
 
@@ -176,7 +177,7 @@ class F3BTests(unittest.TestCase):
         self.assertNotIn('--local-users', command)
         self.assertEqual(command[command.index('--timeout') + 1], '0')
         self.assertNotIn('--p2-user-id', command)
-        self.assertEqual(session.contract.user_data, self.root / 'data/profiles/single/user')
+        self.assertEqual(session.contract.user_data, self.root / 'data/profiles/shared/user')
         settings = config.load_knack2_ini(session.contract.config_file)
         self.assertEqual(settings['display_mode'], 'borderless')
         self.assertEqual(settings['rcas_strength'], '100')
@@ -187,6 +188,39 @@ class F3BTests(unittest.TestCase):
         self.assertFalse(self.backend.editable)
         self.finish()
         self.assertTrue(session.closed)
+
+    def test_gpu_precision_ui_persistence_and_child_environment(self):
+        self.window.setProperty('page', 1)
+        self.pump()
+        mode = self.window.findChild(QObject, 'gpuReadbacks')
+        eager = self.window.findChild(QObject, 'eagerReadback')
+        self.assertIsNotNone(mode)
+        self.assertIsNotNone(eager)
+        self.assertEqual(mode.property('currentIndex'), 2)
+        self.assertFalse(eager.property('checked'))
+        for value in (0, 1, 2):
+            mode.setProperty('currentIndex', value)
+            self.assertTrue(QMetaObject.invokeMethod(mode, 'activated', Q_ARG(int, value)))
+            self.pump()
+            self.assertEqual(self.backend.settings['gpu_readbacks'], str(value))
+            self.assertEqual(eager.property('enabled'), value == 2)
+        eager.setProperty('checked', True)
+        self.assertTrue(QMetaObject.invokeMethod(eager, 'toggled'))
+        self.pump()
+        self.assertEqual(self.backend.settings['eager_readback'], '1')
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.settings['gpu_readbacks'], '2')
+            self.assertEqual(restored.settings['eager_readback'], '1')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        env = supervisor.runtime_environment(self.root / 'supervisor', config_file=session.contract.config_file)
+        self.assertEqual(env['TLG_READBACKS'], '2')
+        self.assertEqual(env['TLG_EAGER_READBACK'], '1')
+        self.finish()
 
     def test_p2_automatic_4099_and_fresh_out_each_launch(self):
         self.validate()
@@ -206,11 +240,61 @@ class F3BTests(unittest.TestCase):
         second = self.launch().contract
         self.assertEqual(second.second_user, 4099)
         self.assertEqual(first.user_data, second.user_data)
-        self.assertEqual(first.user_data, self.root / 'data/profiles/coop/user')
+        self.assertEqual(first.user_data, self.root / 'data/profiles/shared/user')
         self.assertNotEqual(first.out_dir, second.out_dir)
         self.assertEqual(sentinel.read_bytes(), b'preserve')
         self.assertFalse(second.out_dir.exists())
         self.finish()
+
+    def test_european_validation_updates_identity_languages_and_fallback(self):
+        languages = ['fr-FR', 'pt-PT', 'en-GB', 'es-ES', 'de-DE', 'it-IT', 'nl-NL',
+                     'ru-RU', 'fi-FI', 'sv-SE', 'da-DK', 'nb-NO', 'pl-PL', 'ar-SA']
+        self.backend._validate_dump = lambda path: {
+            'app_title': 'Synthetic European Knack II', 'title_id': 'CUSA07670',
+            'version': '01.01', 'languages': languages}
+        self.validate()
+        self.assertEqual(self.backend.installationId, 'CUSA07670')
+        self.assertEqual(self.backend.installationVersion, '01.01')
+        self.assertEqual(self.backend.uiLanguage, 'pt-PT')
+        self.assertEqual([entry['code'] for entry in self.backend.languageOptions], languages)
+        self.backend.setLanguage('en-GB')
+        self.pump()
+        self.assertEqual(self.window.findChild(QObject, 'playButton').property('text'), 'Play')
+        self.backend.setLanguage('de-DE')
+        self.pump()
+        self.assertEqual(self.window.findChild(QObject, 'playButton').property('text'), 'Play')
+        session = self.launch().contract
+        self.assertEqual(session.language, 'de-DE')
+        self.assertEqual(session.user_data, self.root / 'data/profiles/shared/user')
+        self.finish()
+        self.backend.selectFolder(str(self.root / 'another-dump'))
+        self.assertEqual(self.backend.installationId, '')
+        self.assertFalse(self.backend.canPlay)
+        self.assertEqual(self.sessions[-1].contract.language, 'de-DE')
+
+    def test_region_switch_replaces_language_choices_and_clears_validation(self):
+        from port.launcher.knack2.languages import REGION_LANGUAGES
+        self.assertEqual(self.backend.languageOptions,[])
+        combo=self.window.findChild(QObject,'languageSelect')
+        self.assertFalse(combo.property('enabled'))
+        for title in ('CUSA07670','CUSA08014','CUSA07670'):
+            codes=list(REGION_LANGUAGES[title])
+            self.backend._validate_dump=lambda path,t=title,c=codes: {
+                'app_title':'Synthetic Knack II','title_id':t,'version':'01.01','languages':c}
+            self.validate()
+            self.assertEqual(self.backend.installationId,title)
+            self.assertEqual([entry['code'] for entry in self.backend.languageOptions],codes)
+            for code in codes:
+                self.backend.setLanguage(code)
+                self.assertEqual(self.backend.uiLanguage,code)
+            self.backend.selectFolder(str(self.root/'changed-dump'))
+            self.assertEqual(self.backend.languageOptions,[])
+            self.assertFalse(self.backend.canPlay)
+        self.backend._validate_dump=lambda path: (_ for _ in ()).throw(ValueError('bad fixture'))
+        self.backend.validateFolder()
+        self.until(lambda:not self.backend.validating)
+        self.assertEqual(self.backend.languageOptions,[])
+        self.assertFalse(self.backend.canPlay)
 
     def test_language_selector_and_audio_profile_reach_official_command(self):
         self.validate()
@@ -292,8 +376,9 @@ class F3BTests(unittest.TestCase):
         session = self.launch()
         session.fail_stop = True
         self.assertFalse(self.backend.requestClose())
-        self.until(lambda: not self.backend._working())
-        self.pump()
+        # Worker completion precedes consumption of its result by the Qt timer.
+        self.until(lambda: not self.backend._working() and
+                   'controlled stop failed' in self.backend.notification)
         self.assertEqual(self.backend.state, 'STOPPING')
         self.assertFalse(self.backend.canPlay)
         self.assertTrue(self.backend.canStop)
@@ -326,12 +411,25 @@ class F3BTests(unittest.TestCase):
 
     def test_data_overlap_fails_before_writes(self):
         self.validate()
-        self.assertFalse(self.backend.workspace.exists())
+        self.assertTrue((self.backend.workspace / 'launcher_settings.json').is_file())
         self.backend.workspace = Path(self.backend.gameDir)
         self.backend.play()
         self.assertEqual(self.sessions, [])
         self.assertFalse(self.backend.workspace.exists())
         self.assertIn('sobrepõe', self.backend.notification)
+
+    def test_selected_folder_is_remembered_without_saving_other_edits(self):
+        self.backend._settings['vsync'] = '0'  # Unsaved unrelated edit must stay unsaved.
+        self.backend.selectFolder(str(self.root / 'dump'))
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gameDir, str(self.root / 'dump'))
+            self.assertEqual(restored.settings['vsync'], '1')
+            self.assertEqual(restored.players, 1)
+            self.assertFalse(restored.canPlay)
+            self.assertEqual(restored.validationState, 'empty')
+        finally:
+            restored.shutdown()
 
     def test_stale_callbacks_cannot_overwrite_new_session(self):
         self.validate()
@@ -379,12 +477,31 @@ class F3BTests(unittest.TestCase):
         self.assertIn('7', self.backend.notification)
         self.assertIn('real supervisor error', self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend._log_path.read_text())
-        self.pump()
+        self.until(lambda: all('guest from ' + name in self.backend.guest_model.lines
+                              for name in ('00-eboot.bin.log', '01-game.elf.log')))
         self.assertIn('guest from 00-eboot.bin.log', self.backend.guest_model.lines)
         self.assertIn('guest from 01-game.elf.log', self.backend.guest_model.lines)
         self.assertEqual(self.backend._runner.session_info.current_executable, 'game.elf')
         self.assertEqual(len(self.backend._runner.session_info.known_log_paths), 2)
         self.assertTrue(self.backend._runner.session_info.session_dir.is_relative_to(self.backend._out))
+
+
+    def test_launcher_language_persists_without_dump_or_game_language_change(self):
+        path = self.root / 'data' / 'launcher_settings.json'
+        config.save_launcher_settings({'language': 'fr-FR', 'custom': 'preserve'}, path=path)
+        self.backend.setUiLanguage('ru-RU')
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['ui_language'], 'ru-RU')
+        self.assertEqual(saved['language'], 'fr-FR')
+        self.assertEqual(saved['custom'], 'preserve')
+        restored = RealBackend(data_dir=path.parent)
+        try:
+            self.assertEqual(restored.uiLanguage, 'ru-RU')
+            self.assertEqual(restored._language, 'fr-FR')
+            restored.saveSettings()
+            self.assertEqual(config.load_launcher_settings(path)['ui_language'], 'ru-RU')
+        finally:
+            restored.shutdown()
 
 
 class SupervisorConfigTests(unittest.TestCase):
@@ -420,6 +537,7 @@ class SupervisorConfigTests(unittest.TestCase):
                     return 75
                 return 0
             with patch.object(supervisor, 'PORT', port), patch.object(supervisor, 'validate_game'), \
+                 patch.object(supervisor, 'load_profile', return_value=supervisor.load_profile()), \
                  patch.object(supervisor, 'prepare_image', side_effect=lambda g, p, name, out: out / name), \
                  patch.object(supervisor.subprocess, 'run'), patch.object(supervisor, 'run_child', side_effect=child), \
                  patch.dict(os.environ, {'TLG_CONFIG': 'foreign', 'TLG_LOCAL_P2_USER_ID': '99',
@@ -466,6 +584,8 @@ class SupervisorConfigTests(unittest.TestCase):
                         kernel.CloseHandle(ctypes.c_void_p(handle))
             finally:
                 runner.close()
+
+
 
 
 if __name__ == '__main__':

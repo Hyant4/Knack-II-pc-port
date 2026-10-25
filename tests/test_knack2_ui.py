@@ -128,6 +128,20 @@ class QtUiTests(unittest.TestCase):
 
     def click(self, name):
         item = self.item(name)
+        # Settings now have categories and a clipped viewport. Exercise actual
+        # visible coordinates, as a user does after scrolling to a control.
+        parent = item.parentItem()
+        while parent is not None:
+            if parent.property('contentY') is not None:
+                content = parent.property('contentItem')
+                position = item.mapToItem(content, QPointF(0, 0))
+                bottom = position.y() + item.height()
+                if position.y() < parent.property('contentY') or bottom > parent.property('contentY') + parent.height():
+                    parent.setProperty('contentY', max(0, min(position.y() - 12,
+                        parent.property('contentHeight') - parent.height())))
+                    self.pump(20)
+                break
+            parent = parent.parentItem()
         point = item.mapToScene(QPointF(item.width() / 2, item.height() / 2)).toPoint()
         QTest.mouseClick(self.window, Qt.LeftButton, Qt.NoModifier, point)
         self.pump(20)
@@ -144,6 +158,50 @@ class QtUiTests(unittest.TestCase):
         self.click('stopButton')
         self.until(lambda: self.backend.state == 'FINISHED')
         self.assertTrue(self.item('playButton').property('enabled'))
+
+    def test_native_controller_guide_front_assets_and_button_actions(self):
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 2)
+        self.pump(70)
+        expected = [('controller-ps-photo.png', 'ps'),
+                    ('controller-xbox-one-frontal.png', 'xbox'),
+                    ('controller-nintendo-front-clean.png', 'nintendo')]
+        guide = self.item('controllerGuide')
+        for index, (filename, family) in enumerate(expected):
+            with self.subTest(controller=family):
+                self.item('guideFamily').setProperty('currentIndex', index)
+                self.pump(80)
+                self.assertEqual(guide.property('family'), family)
+                self.assertTrue(self.item('controllerPhoto').property('source').toLocalFile().endswith(filename))
+                for control, title in [('square', 'Soco'), ('cross', 'Pular'),
+                                       ('circle', 'Chute'), ('triangle', 'Ação especial')]:
+                    self.click('guideControl_' + control)
+                    self.assertEqual(self.item('guideFunction').property('text'), title)
+                self.click('guideShoulder_l1')
+                self.assertEqual(self.item('guideFunction').property('text'), 'Defender')
+        self.assertEqual(self.item('guideAllCommands').property('count'), 16)
+        self.click('guideTab1')
+        self.assertEqual(guide.property('guidePage'), 1)
+        self.click('guideTab2')
+        self.assertEqual(guide.property('guidePage'), 2)
+        self.click('guideTab0')
+        self.assertEqual(guide.property('guidePage'), 0)
+
+    def test_new_categories_keep_video_and_mouse_bindings(self):
+        self.window.setProperty('page', 1)
+        self.click('settingsTab1')
+        self.assertEqual(self.window.property('settingsTab'), 1)
+        self.backend.setSetting('display_mode', 'borderless')
+        self.pump(20)
+        self.assertFalse(self.item('windowResolution').property('enabled'))
+        self.backend.setSetting('display_mode', 'windowed')
+        self.pump(20)
+        self.assertTrue(self.item('windowResolution').property('enabled'))
+        self.click('settingsTab2')
+        self.click('mouseEnabled')
+        self.assertEqual(self.backend.settings['mouse_enabled'], '1')
+        self.backend.saveSettings()
+        self.assertEqual(config.load_knack2_ini(self.backend.workspace / 'knack2.ini')['mouse_enabled'], '1')
 
     def test_folder_url_path_and_invalid_installation_are_rendered(self):
         with tempfile.TemporaryDirectory(prefix='Knack II espaço ç ') as path:
@@ -188,8 +246,9 @@ class QtUiTests(unittest.TestCase):
 
     def test_settings_widgets_and_private_f1_roundtrip(self):
         self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
         self.pump(60)
-        for name in ('displayMode', 'vsync', 'fpsLimit', 'fsr1', 'rcas', 'rcasStrength', 'mouseEnabled'):
+        for name in ('displayMode', 'vsync', 'fpsLimit', 'fsr1', 'rcas', 'rcasStrength'):
             self.assertTrue(self.item(name).property('visible'), name)
         self.click('fsr1')
         self.assertEqual(self.backend.settings['fsr1'], '1')
@@ -203,6 +262,9 @@ class QtUiTests(unittest.TestCase):
         self.assertEqual(self.item('displayMode').property('currentIndex'), 1)
         self.assertTrue(self.item('rcasStrength').property('enabled'))
         self.assertEqual(self.item('rcasStrength').property('value'), 73)
+        self.window.setProperty('settingsTab', 2)
+        self.pump(30)
+        self.assertTrue(self.item('mouseEnabled').property('visible'))
         self.assertEqual(config.load_launcher_settings(self.backend.workspace / 'launcher_settings.json')['mode'], 'demo')
         workspace = self.backend.workspace
         self.backend.shutdown()
@@ -218,6 +280,7 @@ class QtUiTests(unittest.TestCase):
     def test_rcas_slider_zero_fifty_hundred_save_and_navigation(self):
         self.window.resize(1180, 1060)
         self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
         self.backend.setSetting('rcas', True)
         self.pump(40)
         slider = self.item('rcasStrength')
@@ -428,6 +491,28 @@ class QtUiTests(unittest.TestCase):
             self.pump(60)
             self.assertTrue(self.item('playButton').property('visible'))
 
+
+
+    def test_launcher_language_switch_retranslates_without_changing_game_language(self):
+        self.window.resize(980, 700)
+        for button, locale, title, settings in (
+                ('uiLanguageEN', 'en-US', 'Knack II PC — Demo', 'Settings'),
+                ('uiLanguageRU', 'ru-RU', 'Knack II PC — Демонстрация', 'Настройки'),
+                ('uiLanguagePT', 'pt-BR', 'Knack II PC — Demonstração', 'Configurações')):
+            self.click(button)
+            self.assertEqual(self.backend.uiLanguage, locale)
+            self.assertEqual(self.backend._language, 'pt-BR')
+            self.assertEqual(self.window.title(), title)
+            self.assertEqual(self.item('navPage1').property('text'), settings)
+            self.assertTrue(self.item(button).property('checked'))
+            self.click(button)
+            self.assertTrue(self.item(button).property('checked'))
+        self.backend.setUiLanguage('ru-RU')
+        self.backend.setLanguage('fr-FR')
+        self.assertEqual(self.backend.uiLanguage, 'ru-RU')
+        self.assertEqual(self.backend._language, 'fr-FR')
+        self.backend.setUiLanguage('invalid')
+        self.assertEqual(self.backend.uiLanguage, 'ru-RU')
 
 if __name__ == '__main__':
     unittest.main()

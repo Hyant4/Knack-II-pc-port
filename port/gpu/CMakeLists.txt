@@ -223,34 +223,59 @@ else()
     target_link_libraries(tlggpu PUBLIC PkgConfig::X11)
 endif()
 
-# tlg (Windows): tlggpu is a static library there, so the loader and the HLE runtime are
-# linked here, where CMake knows its dependencies (build.sh builds them with ninja).
+# The loader shares the same runtime sources on both hosts. CMake also supports
+# Linux out-of-tree builds without build.sh's dependency patching or shared out/.
+file(GLOB TLG_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
+file(GLOB TLG_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
+add_library(atrac9 STATIC ${TLG_ATRAC9})
+target_compile_options(atrac9 PRIVATE -w)
+set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
+add_executable(tlg-probe ../src/probe.c ${TLG_RUNTIME} ../src/cpu_check.c ../src/vulkan_smoke.c
+    ../src/isa_rewrite.c ../src/isa_emulate.c)
+set_source_files_properties(../src/isa_emulate.c PROPERTIES COMPILE_OPTIONS "-mgeneral-regs-only")
+set_target_properties(tlg-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+if (DEFINED ENV{TLG_BUILD_COMMIT})
+    target_compile_definitions(tlg-probe PRIVATE TLG_BUILD_COMMIT="$ENV{TLG_BUILD_COMMIT}")
+endif()
+target_compile_options(tlg-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+target_include_directories(tlg-probe PRIVATE .. ../src)
+pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
+target_link_libraries(tlg-probe PRIVATE tlggpu atrac9 PkgConfig::FREETYPE)
+if (NOT WIN32)
+    # Guest pointers pack into 40 bits; the loader's brk heap must stay low.
+    set_target_properties(tlg-probe PROPERTIES POSITION_INDEPENDENT_CODE OFF)
+    set_target_properties(tlg-probe tlggpu PROPERTIES BUILD_RPATH_USE_ORIGIN ON)
+    target_compile_definitions(tlg-probe PRIVATE _POSIX_C_SOURCE=200809L)
+    target_link_options(tlg-probe PRIVATE -no-pie -Wl,--export-dynamic)
+    target_compile_options(tlg-probe PRIVATE -pthread)
+    target_link_libraries(tlg-probe PRIVATE Vulkan::Vulkan m ${CMAKE_DL_LIBS} -pthread)
+    # Existing synthetic runtime harnesses, built only when explicitly requested.
+    foreach(harness IN ITEMS runtime sema freeze)
+        add_executable(${harness}-test EXCLUDE_FROM_ALL ../tests/test_${harness}.c ${TLG_RUNTIME})
+        set_target_properties(${harness}-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF
+            POSITION_INDEPENDENT_CODE OFF)
+        target_compile_definitions(${harness}-test PRIVATE _POSIX_C_SOURCE=200809L)
+        target_compile_options(${harness}-test PRIVATE -UNDEBUG -Wall -Wextra -Werror -pthread)
+        target_include_directories(${harness}-test PRIVATE .. ../src)
+        target_link_options(${harness}-test PRIVATE -no-pie -Wl,--export-dynamic)
+        target_link_libraries(${harness}-test PRIVATE tlggpu atrac9 PkgConfig::FREETYPE
+            Vulkan::Vulkan m ${CMAKE_DL_LIBS} -pthread)
+    endforeach()
+endif()
+
+add_executable(knack-loadexec-test EXCLUDE_FROM_ALL ../../tests/test_knack_loadexec.c ../src/runtime_knack.c)
+target_include_directories(knack-loadexec-test PRIVATE ../src)
+
 if (WIN32)
     enable_language(RC)
-    file(GLOB TLG_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
-    add_executable(knack-loadexec-test EXCLUDE_FROM_ALL ../../tests/test_knack_loadexec.c ../src/runtime_knack.c)
-    target_include_directories(knack-loadexec-test PRIVATE ../src)
-    file(GLOB TLG_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
-    add_library(atrac9 STATIC ${TLG_ATRAC9})
-    target_compile_options(atrac9 PRIVATE -w)
-    set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
-    add_executable(tlg-probe ../src/probe.c ${TLG_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
-        ../src/isa_rewrite.c ../src/isa_emulate.c
-        ../packaging/windows/tlg-probe.rc)
-    set_target_properties(tlg-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
-    if (DEFINED ENV{TLG_BUILD_COMMIT})
-        target_compile_definitions(tlg-probe PRIVATE TLG_BUILD_COMMIT="$ENV{TLG_BUILD_COMMIT}")
-    endif()
-    target_compile_options(tlg-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
-    target_include_directories(tlg-probe PRIVATE .. ../src)
-    # tlg: libSceFont (runtime_gr2_font.c) renders glyphs with FreeType.
-    pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
-    target_link_libraries(tlg-probe PRIVATE tlggpu atrac9 PkgConfig::FREETYPE onecore bcrypt ws2_32 -pthread)
+    target_sources(tlg-probe PRIVATE ../src/compat_win.c ../packaging/windows/tlg-probe.rc)
+    target_link_libraries(tlg-probe PRIVATE onecore bcrypt ws2_32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     target_link_options(tlg-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
     # tlg: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test).
-    add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
+    add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c
+        ../src/runtime_atrac9.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)
     add_executable(services-test EXCLUDE_FROM_ALL ../tests/test_services.c ../src/compat_win.c)
     foreach(test mp3-test videodec-test services-test)

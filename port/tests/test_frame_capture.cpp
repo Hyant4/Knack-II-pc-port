@@ -19,9 +19,11 @@ int main() {
             std::chrono::steady_clock::now().time_since_epoch().count()));
 #ifdef _WIN32
     _putenv_s("TLG_CAPTURE_GPU_FLIP", "1");
+    _putenv_s("TLG_CAPTURE_SUBMIT_BOUNDARY", "1");
     _putenv_s("TLG_CAPTURE_DIR", directory.string().c_str());
 #else
     setenv("TLG_CAPTURE_GPU_FLIP", "1", 1);
+    setenv("TLG_CAPTURE_SUBMIT_BOUNDARY", "1", 1);
     setenv("TLG_CAPTURE_DIR", directory.string().c_str(), 1);
 #endif
     Vulkan::FrameCapture::Request();
@@ -52,6 +54,15 @@ int main() {
         ++files;
     }
     assert(files == 1);
+    Vulkan::FrameCapture::Request();
+    Vulkan::FrameCapture::OnFlip(0x3000);
+    Vulkan::FrameCapture::OnSubmit();
+    assert(Vulkan::FrameCapture::IsRecording());
+    Vulkan::FrameCapture::BeginPass(nullptr, 0, nullptr, "submit-boundary");
+    Vulkan::FrameCapture::Draw(0x1234, 0x5678, 3, 1);
+    Vulkan::FrameCapture::OnSubmit();
+    assert(!Vulkan::FrameCapture::Active());
+    for (const auto& item : fs::directory_iterator(directory)) fs::remove(item.path());
     fs::remove(directory);
     std::puts("frame-capture-test ok");
     return 0;

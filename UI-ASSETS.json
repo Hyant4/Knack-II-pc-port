@@ -1,0 +1,22 @@
+{
+  "knack-keyart.jpg": {
+    "source": "https://image.api.playstation.com/vulcan/img/rnd/202011/0522/smbAFHCsSHKeuiGfOH8Cr4Dk.jpg",
+    "sha256": "2a9be97c513ee7c4b96b60d3f1cb472eceb4ddcfa75cffc844e2a1833c9b6c72"
+  },
+  "knack-gameplay.png": {
+    "source": "Repository screenshot: docs/screenshots/knack-ii-combat.png",
+    "sha256": "18e5f0eae9b8805b84747c16c8580df25abff0c6aba07743a9990f5b4d37d511"
+  },
+  "controller-ps-photo.png": {
+    "source": "https://gmedia.playstation.com/is/image/SIEPDC/dualsense-controller-product-thumbnail-03-en-29may23?$1200px--t$",
+    "sha256": "0239bf00b99aaef30ee14fbbe4ce17e2530a69ba02b5ca43648fb324161552ed"
+  },
+  "controller-xbox-one-frontal.png": {
+    "source": "https://pngimg.com/image/17527",
+    "sha256": "c825b7109dd6455afcea3eb49c7c8897f6bcbaf4c8e855287a265c12fd0d5a97"
+  },
+  "controller-nintendo-front-clean.png": {
+    "source": "https://www.pngaaa.com/detail/1360602",
+    "sha256": "409237e8fee39f1f89bc868b7a7e6eb23e2479ac084690afe7d3734c06745529"
+  }
+}

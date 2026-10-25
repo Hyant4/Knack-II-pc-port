@@ -199,6 +199,16 @@ void FrameCapture::OnGpuFlip(VAddr address) {
     state.store(current == Armed ? Recording : Idle, std::memory_order_release);
 }
 
+void FrameCapture::OnSubmit() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_CAPTURE_SUBMIT_BOUNDARY");
+        return value && value[0] == '1';
+    }();
+    if (!enabled || !GpuFlipBoundary()) return;
+    // Called after draining the draw recorder, so all entries belong to a completed submit.
+    OnGpuFlip(last_presented.load(std::memory_order_acquire));
+}
+
 std::string FrameCapture::LastResult() {
     std::scoped_lock lk{result_mutex};
     return result;

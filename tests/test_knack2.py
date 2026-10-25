@@ -11,11 +11,14 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from port.launcher.knack2.identity import runtime_names
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('knack_run', ROOT / 'run.py')
 run = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run)
+LOAD_EXEC_TEST = Path(os.environ.get('KNACK2_TEST_BUILD_DIR', ROOT / 'out')) / (
+    'knack-loadexec-test.exe' if os.name == 'nt' else 'knack-loadexec-test')
 
 
 def request(target='/app0/game.elf', args=()):
@@ -73,8 +76,31 @@ class KnackTests(unittest.TestCase):
         self.assertNotIn('GOW3_FPS', env)
         self.assertEqual(env['KNACK2_PROFILE'], 'CUSA08014-01.01')
 
+    def test_toggle_file_only_external_override_reaches_child(self):
+        toggle_file = self.root / 'toggle mask with spaces.txt'
+        toggle_file.write_text('68719476736\n')
+        absolute_path = str(toggle_file.resolve())
+        blocked = {'TLG_PATCHES': 'unsafe', 'TLG_DRAW_PIPE': 'override',
+                   'TLG_PAD_FILE': 'unrelated.txt', 'ISS_FORCE_PATCHES': '1',
+                   'GR2_CUSTOM': '1', 'GOW3_FPS': '240', 'BB_CUSTOM': '1'}
+        with patch.dict(os.environ, {'TLG_TOGGLE_FILE': absolute_path, **blocked}):
+            env = run.runtime_environment(self.root)
+            self.assertEqual(env['TLG_TOGGLE_FILE'], absolute_path)
+            for name in blocked:
+                self.assertNotIn(name, env)
+            self.assertEqual(env['TLG_UPSCALER'], 'off')
+
+            log = self.root / 'toggle-child.log'
+            code = ('import os; print(os.environ.get("TLG_TOGGLE_FILE", "")); '
+                    'print(os.environ.get("TLG_PATCHES", "filtered"))')
+            self.assertEqual(run.run_child([sys.executable, '-c', code], env, log, 5), 0)
+            self.assertEqual(log.read_text().splitlines(), [absolute_path, 'filtered'])
+
+            del os.environ['TLG_TOGGLE_FILE']
+            self.assertNotIn('TLG_TOGGLE_FILE', run.runtime_environment(self.root))
+
     def test_empty_toolchain_variable_uses_default(self):
-        with patch.dict(os.environ, {'MSYS2_ROOT': ''}):
+        with patch.object(run.sys, 'platform', 'win32'), patch.dict(os.environ, {'MSYS2_ROOT': ''}):
             env = run.runtime_environment(self.root)
         self.assertEqual(Path(env['PATH'].split(os.pathsep)[0]),
                          Path.home() / 'AppData/Local/knack2-toolchain/msys64/clang64/bin')
@@ -155,7 +181,9 @@ class KnackTests(unittest.TestCase):
                 game = self.root / 'synthetic dump'
                 port = self.root / 'synthetic port'
                 (port / 'out').mkdir(parents=True, exist_ok=True)
-                (port / 'out/tlg-probe.exe').write_bytes(b'not an executable')
+                runtime = port / 'out' / runtime_names()[1]
+                runtime.write_bytes(b'not an executable')
+                runtime.chmod(0o700)
                 stages = []
 
                 def fake_child(command, env, log, seconds):
@@ -183,6 +211,7 @@ class KnackTests(unittest.TestCase):
                     options += ['--local-users', '2', '--p2-user-id', '0004099',
                                 '--capture-dir', str(out / 'frames')]
                 with patch.object(run, 'PORT', port), patch.object(run, 'validate_game'), \
+                     patch.object(run, 'load_profile', return_value=self.profile), \
                      patch.object(run, 'prepare_image', side_effect=lambda g, p, name, o: o / name), \
                      patch.object(run.subprocess, 'run') as rewrite, \
                      patch.object(run, 'run_child', side_effect=fake_child), \
@@ -218,9 +247,9 @@ class KnackTests(unittest.TestCase):
         command = [sys.executable, '-c', 'import time; time.sleep(20)']
         self.assertEqual(run.run_child(command, os.environ.copy(), log, 0.1), 124)
 
-    @unittest.skipUnless((ROOT / 'out/knack-loadexec-test.exe').is_file(), 'native harness has not been built')
+    @unittest.skipUnless(LOAD_EXEC_TEST.is_file(), 'native harness has not been built')
     def test_native_loadexec_roundtrip_and_rejection(self):
-        exe = ROOT / 'out/knack-loadexec-test.exe'
+        exe = LOAD_EXEC_TEST
         path = self.root / 'request.bin'
         env = {**run.runtime_environment(self.root), 'KNACK2_EXEC_REQUEST': str(path)}
         values = ['game.elf', 'argument with spaces', '--option', '']
