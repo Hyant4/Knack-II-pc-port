@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17"><strong>Download Windows x64 V0.17</strong></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1"><strong>Download Windows x64 Hotfix V0.17.1</strong></a>
   · <a href="README.pt-BR.md">Português (Brasil)</a>
   · <a href="https://hyant4.github.io/Knack-II-pc-port/">Project website</a>
   · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a>
@@ -19,7 +19,9 @@
 
 ## Play it
 
-1. Download [**Knack-II-Windows-x64-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-Windows-x64-V0.17.zip) from the [V0.17 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17).
+1. Download [**Knack-II-Windows-x64-V0.17.1.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip) from the [V0.17.1 hotfix](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1).
+
+> **Hotfix V0.17.1:** gameplay ultrawide keeps object proportions at 21:9/32:9. Opening and pre-rendered cutscenes use centered 16:9 framing with black side bars; gameplay aspect returns after loading.
 2. Extract the entire ZIP; do not run the launcher from inside the archive.
 3. Open `Knack II.exe`.
 4. Choose your own Knack II game dump containing `eboot.bin`, `game.elf`, `sce_sys`, and `sce_module`, then select **Validate**.
