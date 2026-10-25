@@ -167,6 +167,9 @@ class Backend(QObject):
     def _on_validated(self, result):
         pass
 
+    def _on_validation_finished(self, result, error, *, auto_play=False):
+        """Hook for real launchers that persist validation state or request play."""
+
     def _can_play(self):
         return not self._closed and self._state in ('IDLE', 'FINISHED', 'FAILED')
 
@@ -224,17 +227,19 @@ class Backend(QObject):
                 if 'error' in line.lower() or 'erro' in line.lower():
                     self._errors.append(line)
         try:
-            result, error = self._validation_results.get_nowait()
+            result, error, auto_play = self._validation_results.get_nowait()
         except queue.Empty:
             pass
         else:
             self._validating = False
             self._validation_state = 'invalid' if error else 'valid'
-            self._validation = error or 'Instalação válida: metadados, executáveis e módulos conferidos.'
+            error_text = validator.describe_validation_failure(error) if error else ''
+            self._validation = error_text or 'Instalação válida: metadados, executáveis e módulos conferidos.'
             if not error:
                 self._installation = f"{result['app_title']} · {result['title_id']} · {result['version']}"
                 self._on_validated(result)
-            self._notice(error or self._validation, bool(error))
+            self._notice(error_text or self._validation, bool(error_text))
+            self._on_validation_finished(result, error_text, auto_play=auto_play)
         if any(batch.values()):
             self.changed.emit()
 
@@ -251,6 +256,9 @@ class Backend(QObject):
 
     @Slot()
     def validateFolder(self):
+        self._start_validation()
+
+    def _start_validation(self, *, auto_play=False):
         if self._closed or self._validating:
             return
         if not self._game_dir:
@@ -268,9 +276,9 @@ class Backend(QObject):
             try:
                 result, error = self._validate_dump(path), ''
             except Exception as exc:
-                result, error = None, (str(exc) or type(exc).__name__)[:MAX_LINE]
+                result, error = None, exc
             if not self._validation_cancel.is_set():
-                self._validation_results.put_nowait((result, error))
+                self._validation_results.put_nowait((result, error, auto_play))
 
         self._validation_thread = threading.Thread(target=work, name='Knack2-Validation', daemon=True)
         self._validation_thread.start()

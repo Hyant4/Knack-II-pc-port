@@ -326,11 +326,14 @@ class F3BTests(unittest.TestCase):
 
     def test_data_overlap_fails_before_writes(self):
         self.validate()
-        self.assertFalse(self.backend.workspace.exists())
+        validation_path = self.backend.workspace / 'launcher_settings.json'
+        self.assertTrue(validation_path.is_file())
+        original_settings = validation_path.read_bytes()
         self.backend.workspace = Path(self.backend.gameDir)
         self.backend.play()
         self.assertEqual(self.sessions, [])
-        self.assertFalse(self.backend.workspace.exists())
+        self.assertFalse((self.backend.workspace / 'launcher_settings.json').exists())
+        self.assertEqual(validation_path.read_bytes(), original_settings)
         self.assertIn('sobrepõe', self.backend.notification)
 
     def test_stale_callbacks_cannot_overwrite_new_session(self):
