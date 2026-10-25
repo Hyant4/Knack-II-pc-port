@@ -59,6 +59,24 @@ class KnackModuleError(KnackDumpError, ValueError):
     """Required sce_module file missing or invalid ELF structure."""
 
 
+def describe_validation_failure(error: BaseException) -> str:
+    """Return a user-facing reason for a failed validation without hiding detail."""
+    detail = str(error).strip() or type(error).__name__
+    if isinstance(error, KnackDumpNotFoundError):
+        reason = 'A pasta selecionada não contém todos os arquivos obrigatórios do dump.'
+    elif isinstance(error, KnackVersionMismatchError):
+        reason = 'O título ou a versão instalada não pertence a um perfil suportado pelo launcher.'
+    elif isinstance(error, KnackHashMismatchError):
+        reason = 'Um executável não corresponde ao dump validado para este perfil.'
+    elif isinstance(error, KnackModuleError):
+        reason = 'Um módulo obrigatório está ausente, corrompido ou não pôde ser lido.'
+    elif isinstance(error, KnackProfileError):
+        reason = 'O perfil local do launcher está incompleto ou incompatível.'
+    else:
+        reason = 'A verificação não conseguiu comprovar que este dump é compatível.'
+    return f'Falha de validação: {detail}\nMotivo: {reason}'
+
+
 def digest_file(path: Path | str) -> str:
     """Compute the SHA-256 digest of a file."""
     with Path(path).open('rb') as stream:
