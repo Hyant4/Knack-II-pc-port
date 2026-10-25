@@ -9,48 +9,51 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.14"><strong>Download Windows x64 V0.14</strong></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16"><strong>Download Windows x64 V0.16</strong></a>
   · <a href="README.pt-BR.md">Português (Brasil)</a>
   · <a href="https://hyant4.github.io/Knack-II-pc-port/">Project website</a>
   · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a>
 </p>
 
-> **Experimental project.** Early solo play and local co-op have been exercised; the project owner has reported reaching Chapter 2 in local co-op. The full campaign, every hardware configuration, and later chapters are still not validated.
+> **Experimental, unofficial community port.** The project owner reports that the game is playable from beginning to end, including local co-op. The published automated tests and limited hands-on checks are **not** an independent full-campaign or cross-hardware certification. Visual issues, Vulkan device loss, and crashes may still occur.
 
 ## Play it
 
-1. Download [**Knack-II-Windows-x64-V0.14.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.14/Knack-II-Windows-x64-V0.14.zip).
-2. Extract the entire ZIP. Do not run it from inside the archive.
+1. Download [**Knack-II-Windows-x64-V0.16.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.16/Knack-II-Windows-x64-V0.16.zip) from the [V0.16 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16).
+2. Extract the entire ZIP; do not run the launcher from inside the archive.
 3. Open `Knack II.exe`.
-4. Select your own **Knack II CUSA08014, version 01.01** dump and choose **Validate**.
-5. Set language, graphics, and one or two local players, then select **Play**.
+4. Choose your own Knack II game dump containing `eboot.bin`, `game.elf`, `sce_sys`, and `sce_module`, then select **Validate**.
+5. Configure language, graphics, and one or two local players, then select **Play**.
 
-Your selected folder must contain `eboot.bin`, `game.elf`, `sce_sys`, and `sce_module`.
+**Game versions:** CUSA08014 (US, version 01.01) remains the primary tested target. V0.16 adds experimental recognition/support for **CUSA07670 (European)**; only a short boot with a temporary save was validated for that edition. Extended European gameplay and complete voice/subtitle compatibility are **not certified**.
 
-The package includes its Windows runtime dependencies. It does **not** include the game, firmware, saves, or game assets.
+The Windows ZIP contains the launcher, runtime, and needed dependencies. It contains **no game data, dump, firmware, or saves**.
 
-## What V0.14 adds
+## What's new in V0.16
 
-| Area | Current release behavior |
+| Area | V0.16 status |
 | --- | --- |
-| Dialogue | The game's explicit Voice category receives an additional 50% gain. Music and effects keep their own category gains. |
-| Overall audio | SDL output gain is 30% higher. |
-| Simultaneous sounds | Normal mixer path combines up to 256 sources per block, avoiding prior cuts caused by rotating 32-source selection. |
-| Pause and resume | Synthetic contracts cover voice queues and sample clocks across pause/resume and cancelled renders. |
-| Graphics | FSR 3.1/4 options and corrected Windows FSR 4 shaders remain available. |
+| European edition | Experimental CUSA07670 profile and European language recognition; tested with a short boot and temporary save, **not** a full campaign. |
+| Ultrawide | Experimental widescreen support. Gameplay may benefit, but opening artwork and cutscenes have incorrect framing, narrow images, blue side areas, or incomplete bars. **Use 16:9 if framing matters.** |
+| Windows launcher | Portuguese, English, Spanish, and French UI catalogs; other selected game languages may use English launcher text. |
+| Regional audio caveat | Some dialogue-gain address guards remain specific to US CUSA08014; do not assume identical behavior on CUSA07670. |
+| Existing features | Vulkan renderer, local two-player co-op, FSR 3.1/4 options, and previous audio improvements remain part of the port. |
 
-The dialogue gain and continuity changes passed native and synthetic validation. The V0.14 dialogue change has not yet had an independent listening test in gameplay. Initial audio-feed gaps observed in an earlier manual session remain a separate investigation.
+**Known limitation:** The cutscene framing defect was **not fixed** in this release. Unsuccessful experimental patches were excluded from the validated packages.
+
+**Release validation:** 186 tests passed, 4 were skipped, with no reported test failures. Those results do not replace full gameplay testing; see the [release notes](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16) for the precise validation scope.
 
 ## What works today
 
 | Area | Evidence and limit |
 | --- | --- |
-| Launcher | Windows launcher validates a selected dump, remembers its location, and starts the supervised runtime. |
-| Early game | Boot, title, menus, Chapter 1-1 movement, combat, and transition work have been exercised locally. |
-| Local co-op | Two-player local co-op has been exercised by the project owner through Chapter 2. This is not a full-campaign certification. |
-| Saves | Saves and preferences live in `%LOCALAPPDATA%\KnackII-PC`; solo and co-op share the selected profile. |
-| Graphics | Vulkan support and a current graphics driver are required. Visual defects, device loss, and crashes can still occur. |
-| Campaign | Not fully validated. Treat every new area, cutscene, and hardware combination as experimental. |
+| Launcher | Validates a local dump, remembers its location, and starts the supervised runtime. |
+| Game and co-op | The project owner reports playability from start to finish; local two-player co-op was specifically exercised through Chapter 2. Full end-to-end regression and all hardware combinations were not independently certified. |
+| US game edition | CUSA08014 / version 01.01 is the primary supported configuration. |
+| European edition | CUSA07670 support is experimental and had only a short boot/save validation. Full campaign, languages, and audio are not yet certified. |
+| Graphics | Vulkan-capable GPU and up-to-date drivers required. Ultrawide and cutscene presentation remain experimental. |
+| Saves | Saves and preferences live in `%LOCALAPPDATA%\KnackII-PC`; solo and co-op use the selected profile. |
+| Stability | Graphical defects, Vulkan device loss, or crashes may still occur. |
 
 <p align="center">
   <img src="docs/screenshots/knack-ii-combat.png" alt="Early Knack II combat in the experimental Windows port" width="76%" />
@@ -59,11 +62,11 @@ The dialogue gain and continuity changes passed native and synthetic validation.
 ## Requirements
 
 - Recent 64-bit Windows.
-- Vulkan-capable GPU with an updated driver.
-- Your own Knack II dump: **CUSA08014 / 01.01**.
-- Two controllers for local co-op.
+- Vulkan-capable GPU with an up-to-date driver.
+- Your own Knack II dump: **CUSA08014 / 01.01** (primary target), or **CUSA07670** (European, limited testing).
+- Two controllers if you want local two-player co-op.
 
-No Python, Qt, or MSYS2 installation is needed for the released Windows ZIP.
+The Windows release ZIP bundles its runtime dependencies. No separate Python, Qt, or MSYS2 installation is required to play.
 
 ## Saves, settings, and logs
 
@@ -75,9 +78,11 @@ If a problem occurs, use **View logs** in the launcher and open an [issue](https
 
 ## Build from source
 
-The release source snapshot is attached to each release. For V0.14, download [**Knack-II-sources-V0.14.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.14/Knack-II-sources-V0.14.zip); it matches the distributed binaries more closely than GitHub's automatic source archives.
+For **V0.16**, use [**Knack-II-sources-V0.16.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.16/Knack-II-sources-V0.16.zip) from the [release page](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16). This is the matching source snapshot verified against the distributed Windows package.
 
-Development requires Windows, MSYS2 CLANG64, Python tooling, a Vulkan stack, and your own supported dump. Start with the [Windows development guide](docs/DESENVOLVIMENTO_WINDOWS.md). The build process never distributes game files.
+**Important:** GitHub's automatically generated *Source code (zip/tar.gz)* for the V0.16 tag reflects the repository commit pointed to by that tag; it is **not** the complete, verified V0.16 build snapshot. Use the attached `Knack-II-sources-V0.16.zip` to reproduce or inspect the released binaries.
+
+Development requires Windows, MSYS2 CLANG64, Python tooling, Vulkan development dependencies, and your own compatible game dump. See the [Windows development guide](docs/DESENVOLVIMENTO_WINDOWS.md). No game or firmware files are distributed with the sources.
 
 ## How it works
 
@@ -94,5 +99,5 @@ This project builds on [HayatoG/iss_pc](https://github.com/HayatoG/iss_pc), shad
 
 **Independent, unofficial community project.** It is not affiliated with or endorsed by Sony Interactive Entertainment. Knack II belongs to its respective rights holders. No game assets, firmware, or game dump are included.
 
-For the exact V0.14 download hashes, use [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.14/SHA256SUMS.txt).
+For the exact V0.16 Windows and source archive hashes, use [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.16/SHA256SUMS.txt).
 
