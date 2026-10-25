@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://buymeacoffee.com/hyant4"><img alt="Buy me a coffee — Apoie o projeto" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Apoie%20o%20projeto-FFDD00?style=flat-square&amp;labelColor=555555&amp;logo=buymeacoffee&amp;logoColor=white" /></a>
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1"><img alt="Baixar Windows x64 v0.17.1" src="https://img.shields.io/badge/Baixar-Windows%20x64%20v0.17.1-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1"><img alt="Baixar Windows x64 v0.17.2" src="https://img.shields.io/badge/Baixar-Windows%20x64%20v0.17.1-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
 </p>
 
 <p align="center">
@@ -28,11 +28,11 @@
 
 ---
 
-> **Hotfix V0.17.1:** gameplay 21:9/32:9 mantém proporções; abertura e vídeos ficam centralizados em 16:9 com barras pretas. Ao pular, barras continuam durante a transição e somem ao iniciar gameplay.
+> **V0.17.2:** launcher com interface PT / EN / RU. Escolha fica salva separadamente do idioma do jogo; runtime permanece idêntico à V0.17.1.\n\n> **Hotfix V0.17.1:** gameplay 21:9/32:9 mantém proporções; abertura e vídeos ficam centralizados em 16:9 com barras pretas. Ao pular, barras continuam durante a transição e somem ao iniciar gameplay.
 
 > **Projeto experimental e não oficial.** O responsável pelo projeto relata que o jogo está jogável do início ao fim. O cooperativo local foi exercitado especificamente até o capítulo 2. Isso não equivale a uma certificação independente de toda a campanha ou de todos os computadores: ainda podem ocorrer falhas gráficas, travamentos e problemas de compatibilidade.
 
-## O que mudou na V0.17
+## O que mudou na V0.17.2\n\n- Alternância PT / EN / RU no launcher, com preferência independente do idioma do jogo.\n- Runtime preservado da V0.17.1.\n\n## O que mudou na V0.17
 
 | Recurso | Situação |
 | --- | --- |
@@ -57,7 +57,7 @@ O pacote inclui executáveis e dependências. **Não inclui o jogo, firmware, du
 
 ## Como jogar
 
-1. Baixe [**Knack-II-Windows-x64-V0.17.1.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip).
+1. Baixe [**Knack-II-Windows-x64-V0.17.2.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.2/Knack-II-Windows-x64-V0.17.2.zip).
 2. Extraia o ZIP completo para uma pasta; não execute diretamente do arquivo compactado.
 3. Abra **`Knack II.exe`**.
 4. Selecione a pasta do seu jogo contendo `eboot.bin`, `game.elf`, `sce_sys` e `sce_module`. Clique em **Validar**.
@@ -90,11 +90,11 @@ Mais informações: [guia do launcher](docs/LAUNCHER_WINDOWS.md).
 
 ## Código-fonte da versão publicada
 
-Baixe [**Knack-II-sources-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-sources-V0.17.zip), anexado à release. Esse é o **pacote de fontes correspondente ao binário Windows publicado**.
+Baixe [**Knack-II-sources-V0.17.2.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.2/Knack-II-sources-V0.17.2.zip), anexado à release. Esse é o **pacote de fontes correspondente ao binário Windows publicado**.
 
 **Importante:** os arquivos automáticos *Source code (zip/tar.gz)* gerados pelo GitHub a partir da tag V0.17 representam o commit apontado pela tag, **não** o snapshot completo da compilação validada. Para reproduzir a V0.17 distribuída, utilize o pacote de fontes anexado.
 
-Para compilar ou contribuir, veja o [guia de desenvolvimento](docs/DESENVOLVIMENTO_WINDOWS.md). Confira os hashes no [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/SHA256SUMS.txt).
+Para compilar ou contribuir, veja o [guia de desenvolvimento](docs/DESENVOLVIMENTO_WINDOWS.md). Confira os hashes no [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.2/SHA256SUMS.txt).
 
 ## Apoie o projeto
 
