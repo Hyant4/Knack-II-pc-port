@@ -4,7 +4,9 @@
 
 Port independente e experimental de **Knack II para Windows**, com renderização Vulkan, launcher integrado e cooperativo local para dois jogadores.
 
-**[Baixar Knack II para Windows — V0.17](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-Windows-x64-V0.17.zip)** · [Notas completas da versão](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17)
+**[Baixar Knack II para Windows — Hotfix V0.17.1](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip)** · [Notas do hotfix](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1)
+
+> **Hotfix V0.17.1:** gameplay 21:9/32:9 mantém proporções; abertura e vídeos ficam centralizados em 16:9 com barras pretas. Ao pular, barras continuam durante a transição e somem ao iniciar gameplay.
 
 > **Projeto experimental e não oficial.** O responsável pelo projeto relata que o jogo está jogável do início ao fim. O cooperativo local foi exercitado especificamente até o capítulo 2. Isso não equivale a uma certificação independente de toda a campanha ou de todos os computadores: ainda podem ocorrer falhas gráficas, travamentos e problemas de compatibilidade.
 
@@ -33,7 +35,7 @@ O pacote inclui executáveis e dependências. **Não inclui o jogo, firmware, du
 
 ## Como jogar
 
-1. Baixe [**Knack-II-Windows-x64-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/Knack-II-Windows-x64-V0.17.zip).
+1. Baixe [**Knack-II-Windows-x64-V0.17.1.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip).
 2. Extraia o ZIP completo para uma pasta; não execute diretamente do arquivo compactado.
 3. Abra **`Knack II.exe`**.
 4. Selecione a pasta do seu jogo contendo `eboot.bin`, `game.elf`, `sce_sys` e `sce_module`. Clique em **Validar**.
