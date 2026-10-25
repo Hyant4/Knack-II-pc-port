@@ -13,6 +13,7 @@
   · <a href="README.pt-BR.md">Português (Brasil)</a>
   · <a href="https://hyant4.github.io/Knack-II-pc-port/">Project website</a>
   · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a>
+  · <a href="https://buymeacoffee.com/hyant4">Support development ☕</a>
 </p>
 
 > **Experimental, unofficial community port.** The project owner reports that the game is playable from beginning to end, including local co-op. The published automated tests and limited hands-on checks are **not** an independent full-campaign or cross-hardware certification. Visual issues, Vulkan device loss, and crashes may still occur.
@@ -95,6 +96,10 @@ Development requires Windows, MSYS2 CLANG64, Python tooling, Vulkan development 
 | Graphics | Translates the game's Gnm/GCN graphics work through a Vulkan backend derived from shadPS4 work. |
 | Audio | Provides AudioOut, codec paths, source mixing, and Windows device delivery. |
 | Launcher | Validates the dump, keeps local settings, manages players, and starts the supervised session. |
+
+## Support the project
+
+Knack II PC Port is a free, unofficial community project. If you'd like to support its continued development, you can [**buy me a coffee ☕**](https://buymeacoffee.com/hyant4). Donations are entirely optional and do not include game files or exclusive access.
 
 ## Credits and legal notice
 
