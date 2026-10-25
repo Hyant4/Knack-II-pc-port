@@ -5,6 +5,7 @@
 Port independente e experimental de **Knack II para Windows**, com renderização Vulkan, launcher integrado e cooperativo local para dois jogadores.
 
 **[Baixar Knack II para Windows — Hotfix V0.17.1](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip)** · [Notas do hotfix](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1)
+[☕ Apoie o desenvolvimento](https://buymeacoffee.com/hyant4)
 
 > **Hotfix V0.17.1:** gameplay 21:9/32:9 mantém proporções; abertura e vídeos ficam centralizados em 16:9 com barras pretas. Ao pular, barras continuam durante a transição e somem ao iniciar gameplay.
 
@@ -73,6 +74,10 @@ Baixe [**Knack-II-sources-V0.17.zip**](https://github.com/Hyant4/Knack-II-pc-por
 **Importante:** os arquivos automáticos *Source code (zip/tar.gz)* gerados pelo GitHub a partir da tag V0.17 representam o commit apontado pela tag, **não** o snapshot completo da compilação validada. Para reproduzir a V0.17 distribuída, utilize o pacote de fontes anexado.
 
 Para compilar ou contribuir, veja o [guia de desenvolvimento](docs/DESENVOLVIMENTO_WINDOWS.md). Confira os hashes no [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17/SHA256SUMS.txt).
+
+## Apoie o projeto
+
+Knack II para PC é um projeto comunitário, gratuito e não oficial. Se quiser apoiar a continuidade do desenvolvimento, você pode [**me pagar um café ☕**](https://buymeacoffee.com/hyant4). As doações são totalmente opcionais e não incluem arquivos do jogo nem acesso exclusivo.
 
 ## Créditos e avisos legais
 
