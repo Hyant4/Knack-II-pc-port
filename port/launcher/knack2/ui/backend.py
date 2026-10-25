@@ -24,7 +24,7 @@ MAX_LINE = 2048
 MAX_PENDING = 1000
 DEFAULTS = {'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '60',
             'fsr1': '0', 'rcas': '0', 'rcas_strength': '50',
-            'mouse_enabled': '0', 'mouse_invert_y': '0'}
+            'mouse_enabled': '0', 'mouse_invert_y': '0', 'shader_preload': '1'}
 STATE_LABELS = {'IDLE': 'Pronto para simular', 'STARTING': 'Iniciando simulação',
                 'RUNNING': 'Simulação em execução', 'STOPPING': 'Encerrando simulação',
                 'FINISHED': 'Simulação encerrada', 'FAILED': 'Erro na simulação'}

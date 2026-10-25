@@ -180,6 +180,7 @@ class F3BTests(unittest.TestCase):
         settings = config.load_knack2_ini(session.contract.config_file)
         self.assertEqual(settings['display_mode'], 'borderless')
         self.assertEqual(settings['rcas_strength'], '100')
+        self.assertEqual(settings['shader_preload'], '1')
         self.assertIn('supervisor only', self.backend.supervisor_model.lines)
         self.assertNotIn('guest only', self.backend.supervisor_model.lines)
         self.assertIn('guest only', self.backend.guest_model.lines)

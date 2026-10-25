@@ -201,6 +201,15 @@ class TestKnack2Config(unittest.TestCase):
         with self.assertRaises(ValueError):
             update_knack2_ini(ini_file, {'display_mode': {'nested': 'dict'}})
 
+    def test_shader_preload_is_a_managed_boolean_for_direct_play(self) -> None:
+        ini_file = self.root / 'knack2.ini'
+        ini_file.write_text('shader_preload=1\n', encoding='utf-8')
+        update_knack2_ini(ini_file, {'shader_preload': '0'})
+        self.assertEqual(load_knack2_ini(ini_file)['shader_preload'], '0')
+        for value in ('2', 'maybe', ''):
+            with self.assertRaises(ValueError):
+                update_knack2_ini(ini_file, {'shader_preload': value})
+
     def test_update_knack2_ini_preserves_crlf_and_lf(self) -> None:
         # 1. Test CRLF preservation
         crlf_file = self.root / 'knack2_crlf.ini'

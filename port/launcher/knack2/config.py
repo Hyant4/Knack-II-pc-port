@@ -36,6 +36,7 @@ ALLOWED_MANAGED_KEYS = frozenset({
     'mouse_enabled',
     'mouse_sensitivity',
     'mouse_invert_y',
+    'shader_preload',
     'mouse_smoothing',
     'mouse_accel',
     'mouse_deadzone',
@@ -176,7 +177,7 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
             raise ValueError(f"Modo de exibição inválido: '{val}' (esperado windowed, borderless ou fullscreen)")
         return key, lower_mode
 
-    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y'):
+    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'shader_preload'):
         return key, _validate_bool_string(key, val)
 
     if key == 'rcas_strength':
