@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://buymeacoffee.com/hyant4"><img alt="Buy me a coffee — Support the project" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Support%20the%20project-FFDD00?style=flat-square&amp;labelColor=555555&amp;logo=buymeacoffee&amp;logoColor=white" /></a>
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.2"><img alt="Download Windows x64 v0.17.2" src="https://img.shields.io/badge/Download-Windows%20x64%20v0.17.1-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.2"><img alt="Download Windows x64 v0.17.2" src="https://img.shields.io/badge/Download-Windows%20x64%20v0.17.2-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
 </p>
 
 <p align="center">
@@ -32,9 +32,11 @@
 
 ## Play it
 
-1. Download [**Knack-II-Windows-x64-V0.17.2.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.1/Knack-II-Windows-x64-V0.17.1.zip) from the [V0.17.1 hotfix](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.1).
+1. Download [**Knack-II-Windows-x64-V0.17.2.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.2/Knack-II-Windows-x64-V0.17.2.zip) from the [V0.17.2 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.2).
 
-> **Hotfix V0.17.1:** gameplay ultrawide keeps object proportions at 21:9/32:9. Opening and pre-rendered cutscenes use centered 16:9 framing with black side bars; gameplay aspect returns after loading.\n\n> **V0.17.2 launcher update:** choose PT / EN / RU from the launcher header. The selection is saved separately from the game language. Runtime remains byte-identical to V0.17.1.
+> **Hotfix V0.17.1:** gameplay ultrawide keeps object proportions at 21:9/32:9. Opening and pre-rendered cutscenes use centered 16:9 framing with black side bars; gameplay aspect returns after loading.
+
+> **V0.17.2 launcher update:** choose PT / EN / RU from the launcher header. The selection is saved separately from the game language. Runtime remains byte-identical to V0.17.1.
 2. Extract the entire ZIP; do not run the launcher from inside the archive.
 3. Open `Knack II.exe`.
 4. Choose your own Knack II game dump containing `eboot.bin`, `game.elf`, `sce_sys`, and `sce_module`, then select **Validate**.
