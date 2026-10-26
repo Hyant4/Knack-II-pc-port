@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://buymeacoffee.com/hyant4"><img alt="Buy me a coffee — Apoie o projeto" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-Apoie%20o%20projeto-FFDD00?style=flat-square&amp;labelColor=555555&amp;logo=buymeacoffee&amp;logoColor=white" /></a>
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.6"><img alt="Baixar Windows x64 v0.17.6" src="https://img.shields.io/badge/Baixar-Windows%20x64%20v0.17.6-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.5"><img alt="Baixar Windows x64 v0.17.5" src="https://img.shields.io/badge/Baixar-Windows%20x64%20v0.17.5-2ea44f?style=flat-square&amp;logo=windows&amp;logoColor=white" /></a>
 </p>
 
 <p align="center">
@@ -27,8 +27,6 @@
 </p>
 
 ---
-
-> **V0.17.6:** predefinição manual experimental GTX 1060 black texture. Salve e reinicie após aplicar; a correção gráfica ainda não foi confirmada.
 
 > **V0.17.3:** pré-carregamento experimental de shaders ativado por padrão; desative em Configurações / Vídeo. A abertura pode demorar mais e engasgos ainda podem ocorrer. Sem garantia de 60 FPS estáveis.
 
@@ -68,7 +66,7 @@ O pacote inclui executáveis e dependências. **Não inclui o jogo, firmware, du
 
 ## Como jogar
 
-1. Baixe [**Knack-II-Windows-x64-V0.17.6.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.6/Knack-II-Windows-x64-V0.17.6.zip).
+1. Baixe [**Knack-II-Windows-x64-V0.17.5.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.5/Knack-II-Windows-x64-V0.17.5.zip).
 2. Extraia o ZIP completo para uma pasta; não execute diretamente do arquivo compactado.
 3. Abra **`Knack II.exe`**.
 4. Selecione a pasta do seu jogo contendo `eboot.bin`, `game.elf`, `sce_sys` e `sce_module`. Clique em **Validar**.
@@ -101,11 +99,9 @@ Mais informações: [guia do launcher](docs/LAUNCHER_WINDOWS.md).
 
 ## Código-fonte da versão publicada
 
-Baixe [**Knack-II-sources-V0.17.6.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.6/Knack-II-sources-V0.17.6.zip), anexado à release. Esse é o **pacote de fontes correspondente ao binário Windows publicado**.
+**Disponibilidade dos fontes:** a V0.17.5 não possui um ZIP de fontes específico anexado. O último pacote anterior é [**Knack-II-sources-V0.17.3.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.3/Knack-II-sources-V0.17.3.zip), mas ele **não** corresponde integralmente aos binários do launcher V0.17.5. Consulte o histórico do repositório para as alterações posteriores.
 
-**Importante:** os arquivos automáticos *Source code (zip/tar.gz)* gerados pelo GitHub a partir da tag V0.17.6 representam o commit apontado pela tag, **não** o snapshot completo da compilação validada. Para reproduzir a V0.17.6 distribuída, utilize o pacote de fontes anexado.
-
-Para compilar ou contribuir, veja o [guia de desenvolvimento](docs/DESENVOLVIMENTO_WINDOWS.md). Confira os hashes no [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.6/SHA256SUMS.txt).
+Para compilar ou contribuir, veja o [guia de desenvolvimento](docs/DESENVOLVIMENTO_WINDOWS.md). Confira os hashes da V0.17.5 no [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.5/SHA256SUMS.txt).
 
 ## Apoie o projeto
 
