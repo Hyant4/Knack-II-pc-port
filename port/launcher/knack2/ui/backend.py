@@ -14,6 +14,7 @@ from PySide6.QtCore import (QAbstractListModel, QModelIndex, QObject, Property,
 from PySide6.QtGui import QGuiApplication
 
 from .. import config, validator
+from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset
 from ..runner import RunnerState
 from .demo import DemoRunnerPort, SimulatedRunner
 from ..languages import LANGUAGES, BY_CODE
@@ -27,7 +28,8 @@ DEFAULTS = {'display_mode': 'windowed', 'window_resolution': 'auto', 'vsync': '1
             'upscaler': 'off', 'preset': '0',
             'fsr1': '0', 'rcas': '0', 'rcas_strength': '50',
             'mouse_enabled': '0', 'mouse_invert_y': '0',
-            'gpu_readbacks': '2', 'eager_readback': '0', 'shader_preload': '1'}
+            'gpu_readbacks': '2', 'eager_readback': '0', 'shader_preload': '1',
+            **{key: 'auto' for key in config.GPU_DIAGNOSTIC_ENV}}
 STATE_LABELS = {'IDLE': 'Pronto para simular', 'STARTING': 'Iniciando simulação',
                 'RUNNING': 'Simulação em execução', 'STOPPING': 'Encerrando simulação',
                 'FINISHED': 'Simulação encerrada', 'FAILED': 'Erro na simulação'}
@@ -129,6 +131,11 @@ class Backend(QObject):
                              if entry['code'] == self._language), -1), notify=changed)
     isDemo = Property(bool, lambda self: not getattr(self, '_real_mode', False), constant=True)
     editable = Property(bool, lambda self: self._editable(), notify=changed)
+    gpuPresets = Property('QVariantList', lambda self: [
+        {'id': profile['id'], 'experimental': profile['experimental'],
+         **{key: self._translate(profile[key]) for key in ('label', 'when', 'changes')}}
+        for profile in GPU_PRESETS], notify=uiLanguageChanged)
+    gpuPresetId = Property(str, lambda self: matching_gpu_preset(self._settings), notify=settingsChanged)
     stateLabel = Property(str, lambda self: self._state_label(), notify=changed)
     sessionId = Property(str, lambda self: self._session or self._translate('Nenhuma sessão'), notify=changed)
     gameDir = Property(str, lambda self: self._game_dir, notify=changed)
@@ -184,6 +191,9 @@ class Backend(QObject):
 
     def _on_validated(self, result):
         pass
+
+    def _on_validation_finished(self, result, error, *, auto_play=False):
+        """Hook for real launchers that persist validation state or request play."""
 
     def _can_play(self):
         return not self._closed and self._state in ('IDLE', 'FINISHED', 'FAILED')
@@ -242,19 +252,21 @@ class Backend(QObject):
                 if 'error' in line.lower() or 'erro' in line.lower():
                     self._errors.append(line)
         try:
-            result, error = self._validation_results.get_nowait()
+            result, error, auto_play = self._validation_results.get_nowait()
         except queue.Empty:
             pass
         else:
             self._validating = False
             self._validation_state = 'invalid' if error else 'valid'
-            self._validation = error or 'Instalação válida: metadados, executáveis e módulos conferidos.'
+            error_text = validator.describe_validation_failure(error) if error else ''
+            self._validation = error_text or 'Instalação válida: metadados, executáveis e módulos conferidos.'
             if not error:
                 self._installation = f"{result['app_title']} · {result['title_id']} · {result['version']}"
                 self._installation_id = result['title_id']
                 self._installation_version = result['version']
                 self._on_validated(result)
-            self._notice(error or self._validation, bool(error))
+            self._notice(error_text or self._validation, bool(error_text))
+            self._on_validation_finished(result, error_text, auto_play=auto_play)
         if any(batch.values()):
             self.changed.emit()
 
@@ -273,6 +285,9 @@ class Backend(QObject):
 
     @Slot()
     def validateFolder(self):
+        self._start_validation()
+
+    def _start_validation(self, *, auto_play=False):
         if self._closed or self._validating:
             return
         if not self._game_dir:
@@ -290,9 +305,9 @@ class Backend(QObject):
             try:
                 result, error = self._validate_dump(path), ''
             except Exception as exc:
-                result, error = None, (str(exc) or type(exc).__name__)[:MAX_LINE]
+                result, error = None, exc
             if not self._validation_cancel.is_set():
-                self._validation_results.put_nowait((result, error))
+                self._validation_results.put_nowait((result, error, auto_play))
 
         self._validation_thread = threading.Thread(target=work, name='Knack2-Validation', daemon=True)
         self._validation_thread.start()
@@ -309,6 +324,20 @@ class Backend(QObject):
         except ValueError as error:
             self._notice(str(error), True)
         self.settingsChanged.emit()
+
+    @Slot(str)
+    def applyGpuPreset(self, preset_id):
+        if self._closed or not self.editable:
+            return
+        try:
+            targets = gpu_preset_targets(preset_id)
+        except ValueError as error:
+            self._notice(str(error), True)
+            return
+        self._settings.update(targets)
+        self.settingsChanged.emit()
+        if 'gpu_readbacks' in targets:
+            self._notice('Predefinição experimental aplicada. Salve as configurações e reinicie o jogo para comparar.')
 
     @Slot(float)
     def setRcasStrength(self, value):

@@ -1,14 +1,12 @@
 {
-  "release": "0.17.3",
-  "tag": "knack2-Version-0.17.3",
-  "publication": "Experimental shader preloading and cache reuse correction",
-  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.3",
-  "base_commit": "93149abaff0792207beb88773c63c1510ab925f9",
-  "base_release": "knack2-Version-0.17.2",
-  "parent_release": "knack2-Version-0.17.2",
-  "source_base_sha256": "6d150d0c649b2e20109d4062b83747e01d6a2e394c43d904b72f1bb16dd51f7b",
-  "branch": "isolated release snapshot based on tag 0.17.2",
-  "dirty_source_snapshot": false,
+  "release": "0.17.6",
+  "tag": "knack2-Version-0.17.6",
+  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.6",
+  "parent_release": "knack2-Version-0.17.5",
+  "native_source_base_commit": "980b2f7d9db76d28247c3f865f80aa510af61f26",
+  "native_runtime_inherited_from": "V0.17.5 package / V0.17.3 native build",
+  "native_source_archive_sha256": "85676185da78218d9da0d237da8ea71af0a9e1bc24d051ed72729128112a2028",
+  "base_package_sha256": "5c0603781239a552123d3233aaa38bb5080d4094be64f35764346ee809aaaaaf",
   "expanded_dependency_snapshot": true,
   "submodules": [
     {
@@ -47,131 +45,106 @@
       "local_changes": false
     }
   ],
-  "runtime_build_marker": "V0.17.3 focused cache fix; tested native code preserved during PE stamping",
-  "runtime_original_sha256": "baabffff78e210a79822961525d8ef603475a86bf9fa68eb0b7a0895443d347e",
-  "runtime_build_sha256": "baabffff78e210a79822961525d8ef603475a86bf9fa68eb0b7a0895443d347e",
-  "runtime_release_sha256": "f252df01fac6c22b878d0b4bfc6cf63d7c0774a23627b756323190096cd10b29",
-  "runtime_text_sha256": "b4fd6624973eb4e78fb1663ebe0fbfab9c0d13ff0d27e977b1c7b02f2ff784d6",
+  "runtime_unchanged": true,
+  "runtime_sha256": "f252df01fac6c22b878d0b4bfc6cf63d7c0774a23627b756323190096cd10b29",
   "runtime_file_version": "0.17.3.0",
-  "runtime_changed": true,
-  "launcher_sha256": "dd524d4e3c70202bf666deabcb9dbc1165993403442c19f34d4e19eb7b6bb75a",
-  "supervisor_sha256": "9cd74b90980b0f50becf36f648760685aa1e41626a9a8fa1e464b06b2246f7ea",
-  "launcher_file_version": "0.17.3.0",
-  "windows_file_version": "0.17.3.0",
-  "binary_changes": "Runtime debug stripped/version stamped with identical .text. Launcher/supervisor rebuilt for preload preference. Icon removal preserved code and PyInstaller archives.",
-  "profiles": [
-    "CUSA08014-01.01",
-    "CUSA07670-01.01"
-  ],
-  "regional_languages": {
-    "CUSA08014": 4,
-    "CUSA07670": 14
-  },
+  "launcher_file_version": "0.17.6.0",
+  "launcher_sha256": "1a71d5a3faf94e61e022ec3e084aa4bc272234d9a7164d1f05a220616d3608f1",
+  "supervisor_sha256": "6182d2f40b908c39a4033847008976e8881cbdd248cfd1b352d5b52fbc7663c5",
+  "play_launcher_sha256": "b6eb72dbffdeecf095ccc0d78db71bc920d41eb0492b60c7bd04195b048e82c1",
+  "play_launcher_unchanged": true,
+  "pyinstaller": "6.22.3",
+  "pyside6": "6.12.0",
   "launcher_languages": [
     "pt-BR",
     "en-US",
     "ru-RU"
   ],
-  "release_note_languages": [
-    "pt-BR",
-    "en-US"
-  ],
-  "launcher_language_preference": "ui_language in launcher_settings.json",
-  "game_language_remains_independent": true,
-  "shader_cache_key": "8a478be6371f",
-  "shader_preload": {
+  "preset": {
+    "id": "gtx_1060_black_texture",
     "experimental": true,
-    "default_enabled": true,
-    "managed_ini_key": "shader_preload",
-    "can_disable": true,
-    "settings_tab": "Video",
-    "requires_new_session": true,
-    "loads_existing_cache": true,
-    "cold_cache_still_compiles": true
+    "manual": true,
+    "overrides": {
+      "gpu_readbacks": "2",
+      "eager_readback": "0"
+    },
+    "preserves_other_settings": true,
+    "save_and_restart_required": true,
+    "rendering_fix_confirmed": false
   },
-  "release_tests": {
-    "cache_synthetic_checks": 22,
-    "local_cache_records_replayed": 1219,
-    "launcher_ui_tests_passed": 25,
-    "backend_persistence_tests_passed": 19,
-    "language_tests_passed": 6,
-    "preload_contract_tests_passed": 4,
-    "supervisor_tests_passed": 14,
-    "supervisor_tests_skipped": 1,
-    "package_smokes_passed": 7,
-    "ui_visual_languages": [
-      "pt-BR",
-      "en-US",
-      "ru-RU"
-    ],
-    "full_campaign_certified": false
-  },
-  "runtime_validation": {
-    "profile": "CUSA07670-01.01",
-    "gpu": "RX 6650 XT",
-    "output": "1920x1080",
-    "isolated_saves": true,
-    "scenarios": [
-      "continue",
-      "opening skip",
-      "movement",
-      "existing cache",
-      "empty cache"
-    ],
-    "preload_peak_after_skip_ms_observed": 264.2,
-    "preload_default_performance_guarantee": false,
-    "limitations": [
-      "Partial stutter improvement.",
-      "Preloading increases startup wait.",
-      "Cold cache still requires compilation.",
-      "Frame-rate variation remains.",
-      "Full campaign, co-op and other GPUs not revalidated."
-    ]
-  },
-  "package_smokes": {
-    "version": "0.17.3",
-    "smokes": [
+  "validation": {
+    "python_tests_passed": 92,
+    "tests": [
       {
-        "name": "gui-demo",
-        "exit_code": 0,
-        "seconds": 10.41
+        "pattern": "test_knack2_f3b.py",
+        "keywords": [
+          "gtx1060"
+        ],
+        "run": 1,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       },
       {
-        "name": "gui-real-idle",
-        "exit_code": 0,
-        "seconds": 8.9
+        "pattern": "test_knack2_gpu_diagnostics.py",
+        "keywords": [
+          "gtx1060"
+        ],
+        "run": 1,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       },
       {
-        "name": "controlled-stop",
-        "exit_code": 0,
-        "seconds": 9.21
+        "pattern": "test_knack2_ui.py",
+        "keywords": [],
+        "run": 24,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       },
       {
-        "name": "supervisor-help",
-        "exit_code": 0,
-        "seconds": 0.28
+        "pattern": "test_knack2_languages.py",
+        "run": 6,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       },
       {
-        "name": "isa-help",
-        "exit_code": 0,
-        "seconds": 0.28
+        "pattern": "test_knack2_launcher.py",
+        "keywords": [],
+        "run": 27,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       },
       {
-        "name": "runtime-cpu",
-        "exit_code": 0,
-        "seconds": 0.05
+        "pattern": "test_knack2_runner.py",
+        "keywords": [],
+        "run": 28,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       },
       {
-        "name": "runtime-vulkan",
-        "exit_code": 0,
-        "seconds": 0.54
+        "pattern": "test_knack2_readbacks.py",
+        "run": 3,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
+        "pattern": "test_knack2_validation_autoplay.py",
+        "run": 2,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
       }
     ],
+    "package_smokes_passed": 7,
     "game_started": false,
-    "save_touched": false,
-    "runtime_sha256": "f252df01fac6c22b878d0b4bfc6cf63d7c0774a23627b756323190096cd10b29",
-    "launcher_sha256": "dd524d4e3c70202bf666deabcb9dbc1165993403442c19f34d4e19eb7b6bb75a",
-    "supervisor_sha256": "9cd74b90980b0f50becf36f648760685aa1e41626a9a8fa1e464b06b2246f7ea"
+    "frozen_baseline_modules_matched": 23,
+    "native_source_files_unchanged": 2128
   },
-  "notes": "Experimental preloading is enabled by default and can be disabled/saved in Settings / Video. No saves or game data are shipped."
+  "source_notice": "Use the attached complete source ZIP. The V0.17.5 git tree differs from its distributed launcher; this snapshot matches all 23 frozen launcher/preparation modules before the focused preset change."
 }

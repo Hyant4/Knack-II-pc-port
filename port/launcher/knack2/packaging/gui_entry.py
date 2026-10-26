@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Compiled Knack II launcher entrypoint. Opening it never starts gameplay."""
+"""Compiled Knack II launcher entrypoint; --play remains validation-gated."""
 import ctypes
 import os
 import sys

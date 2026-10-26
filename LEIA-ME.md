@@ -1,17 +1,17 @@
-# Knack II PC — V0.17.3
+# Knack II PC — V0.17.6
 
 
-Atualização do runtime para corrigir reaproveitamento do cache de shaders e pipelines. O launcher mantém os idiomas PT / EN / RU, com identificação da versão atualizada.
+Adiciona a predefinição manual **GTX 1060 black texture (experimental)** em
+**Configurações > Vídeo > Predefinições de compatibilidade**.
 
-- **Pré-carregamento experimental de shaders:** ativado por padrão. Em **Configurações → Vídeo**, desligue o botão e salve as configurações para voltar ao carregamento sob demanda. A preferência vale na próxima sessão.
-- Variantes compatíveis em índices diferentes deixam de provocar falsas recusas do cache; conflitos reais continuam sendo rejeitados.
-- O modo sob demanda passa a ler os shaders já salvos quando o cache é compatível.
-- Corrigida referência temporária nos metadados dos shaders carregados.
+- Aplica `gpu_readbacks=2` (Preciso) e `eager_readback=0` (leitura antecipada desligada).
+- Preserva resolução, FSR, controles e os demais ajustes. Salve as configurações e reinicie o jogo para comparar a mesma cena.
+- Não detecta a GPU automaticamente. Para reverter, escolha os valores anteriores nas opções de leitura e salve novamente.
+- Mantém o início por `Play Knack II.exe`, a validação obrigatória do dump e a preferência de pré-carregamento da V0.17.5.
+- Launcher recompilado com identificação 0.17.6 e interface PT/EN/RU. Runtime nativo e `Play Knack II.exe` preservados byte a byte do pacote V0.17.5.
 
-**Limites:** pré-carregamento pode aumentar a espera antes de entrar no jogo. A melhora dos engasgos é parcial: cache vazio ainda precisa de compilação; pausas e variação de FPS podem continuar. Esta atualização não garante 60 FPS estáveis.
+**Limite:** é uma configuração experimental para investigar o relato da issue #12. A correção das superfícies pretas na GTX 1060 ainda não foi confirmada. Não inclui patch de shader/driver nem ampliação dos perfis de dump suportados.
 
-**Validação:** build nativa, 22 verificações sintéticas do cache aprovadas, replay local de 1.219 registros, testes do botão/persistência/modos de inicialização e sessões curtas na edição europeia 01.01, incluindo pular a abertura e movimentação. Campanha completa, outras GPUs e cooperativo não foram revalidados nesta atualização.
-
-**Instalação:** baixe `Knack-II-Windows-x64-V0.17.3.zip`, extraia a pasta inteira e abra `Knack II.exe`. Use seu próprio dump CUSA08014 ou CUSA07670, versão 01.01. Saves e preferências continuam em `%LOCALAPPDATA%\KnackII-PC`. Não é necessário apagar o cache existente. A V0.17.2 permanece disponível para retorno à versão anterior.
-
-Fontes correspondentes: `Knack-II-sources-V0.17.3.zip`. Confira `SHA256SUMS.txt`. O pacote não contém jogo, dump ou saves.
+Baixe `Knack-II-Windows-x64-V0.17.6.zip`, extraia a pasta inteira e abra `Knack II.exe`.
+O pacote não inclui jogo, firmware ou saves. A V0.17.5 permanece disponível para retorno.
+Fontes correspondentes e SHA-256 acompanham a release. Validações desta publicação são sintéticas e de pacote; nenhum jogo real foi iniciado.

@@ -151,3 +151,18 @@ idioma efetivo dentro do jogo e gameplay usando este novo EXE ainda precisam
 de confirmação real; build e smoke não demonstram esses resultados.
 
 Documentação pública: [identidade e proveniência](KNACK_IDENTITY.md), [créditos](CREDITS.md) e [guia de publicação](PUBLICACAO.md). Handoffs de desenvolvimento permanecem locais.
+
+## Predefinição experimental para superfícies pretas na GTX 1060
+
+Em **Configurações > Vídeo > Predefinições de compatibilidade**, aplique
+**GTX 1060 black texture** para testar superfícies pretas nessa placa.
+A ação seleciona **Precisão da GPU: Preciso** (`gpu_readbacks=2`) e desliga
+**Leitura antecipada da GPU** (`eager_readback=0`). Os demais ajustes, inclusive
+diagnósticos avançados, são preservados. O perfil de diagnóstico exibido como
+atual continua sendo o anterior; esta ação só aplica as duas opções de leitura.
+
+Clique em **Salvar configurações** e reinicie o jogo para comparar a mesma cena.
+A predefinição é manual e experimental: não detecta a placa nem confirma uma
+correção para a GTX 1060. Para reverter, escolha os valores anteriores nas duas
+opções de leitura e salve novamente. O padrão de novas configurações permanece
+Preciso, com leitura antecipada desligada.

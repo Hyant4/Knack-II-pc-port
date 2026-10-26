@@ -5,6 +5,86 @@ from .i18n_ru import RUSSIAN
 
 # Source Portuguese, followed by English, Latin American Spanish and French.
 MESSAGES = {
+    'GTX 1060 black texture': ['GTX 1060 black texture', 'GTX 1060 black texture', 'GTX 1060 black texture'],
+    'Teste superfícies pretas na GTX 1060. Correção ainda não confirmada.': [
+        'Try for black surfaces on the GTX 1060. A fix has not been confirmed yet.',
+        'Prueba para superficies negras en la GTX 1060. La solución aún no está confirmada.',
+        'À essayer pour les surfaces noires sur GTX 1060. La correction reste à confirmer.'],
+    'Ativa leitura precisa da GPU e desliga leitura antecipada. Salve e reinicie o jogo; demais ajustes são preservados.': [
+        'Enables precise GPU readbacks and disables early readback. Save and restart the game; other settings are preserved.',
+        'Activa la lectura precisa de la GPU y desactiva la lectura anticipada. Guarda y reinicia el juego; conserva los demás ajustes.',
+        'Active la lecture précise du GPU et désactive la lecture anticipée. Enregistrez et redémarrez le jeu ; les autres réglages sont conservés.'],
+    'Predefinição experimental aplicada. Salve as configurações e reinicie o jogo para comparar.': [
+        'Experimental preset applied. Save settings and restart the game to compare.',
+        'Preajuste experimental aplicado. Guarda los ajustes y reinicia el juego para comparar.',
+        'Préréglage expérimental appliqué. Enregistrez les réglages et redémarrez le jeu pour comparer.'],
+    'Predefinições de compatibilidade': ['Compatibility presets', 'Preajustes de compatibilidad', 'Préréglages de compatibilité'],
+    'Escolha pelo sintoma e reinicie o jogo para comparar. Resolução, qualidade e controles continuam como você escolheu.': [
+        'Choose by symptom and restart the game to compare. Resolution, quality and controls keep your choices.',
+        'Elige según el síntoma y reinicia el juego para comparar. La resolución, calidad y controles conservan tus ajustes.',
+        'Choisissez selon le symptôme et redémarrez le jeu pour comparer. Résolution, qualité et commandes conservent vos choix.'],
+    'Predefinição atual: ': ['Current preset: ', 'Preajuste actual: ', 'Préréglage actuel : '],
+    'Personalizado': ['Custom', 'Personalizado', 'Personnalisé'],
+    'Experimental': ['Experimental', 'Experimental', 'Expérimental'],
+    'Uso normal': ['Normal use', 'Uso normal', 'Utilisation normale'],
+    'Selecionado': ['Selected', 'Seleccionado', 'Sélectionné'],
+    'Aplicar perfil': ['Apply profile', 'Aplicar perfil', 'Appliquer le profil'],
+    'Padrão do port': ['Port defaults', 'Valores predeterminados del port', 'Valeurs par défaut du port'],
+    'Comece aqui se o jogo abre e funciona normalmente.': [
+        'Start here if the game opens and runs normally.',
+        'Empieza aquí si el juego abre y funciona normalmente.',
+        'Commencez ici si le jeu démarre et fonctionne normalement.'],
+    'Usa os padrões de compatibilidade do port e remove os ajustes de teste.': [
+        'Uses the port compatibility defaults and removes test overrides.',
+        'Usa los valores de compatibilidad del port y elimina los ajustes de prueba.',
+        'Utilise les valeurs de compatibilité du port et supprime les réglages de test.'],
+    'AMD: falha ao iniciar': ['AMD: startup crash', 'AMD: fallo al iniciar', 'AMD : plantage au démarrage'],
+    'Teste se o jogo fecha logo após clicar em Jogar em uma placa AMD.': [
+        'Try if the game closes just after clicking Play on an AMD card.',
+        'Prueba si el juego se cierra justo después de pulsar Jugar con una tarjeta AMD.',
+        'À essayer si le jeu se ferme juste après avoir cliqué sur Jouer avec une carte AMD.'],
+    'Desativa duas opções avançadas para comparar a inicialização. Pode aumentar pausas e alterar efeitos visuais.': [
+        'Disables two advanced options to compare startup behavior. May increase pauses and change visual effects.',
+        'Desactiva dos opciones avanzadas para comparar el inicio. Puede aumentar pausas y cambiar efectos visuales.',
+        'Désactive deux options avancées pour comparer le démarrage. Peut augmenter les pauses et modifier les effets visuels.'],
+    'Inicialização conservadora': ['Conservative startup', 'Inicio conservador', 'Démarrage conservateur'],
+    'Teste se o perfil AMD não ajudar ou se outra GPU fechar ao iniciar.': [
+        'Try if the AMD profile does not help or another GPU crashes at startup.',
+        'Prueba si el perfil AMD no ayuda o si otra GPU falla al iniciar.',
+        'À essayer si le profil AMD ne suffit pas ou si un autre GPU plante au démarrage.'],
+    'Também desliga a compilação compute em segundo plano. Pode causar mais pausas ao carregar conteúdo.': [
+        'Also disables background compute compilation. May cause more pauses when loading content.',
+        'También desactiva la compilación compute en segundo plano. Puede causar más pausas al cargar contenido.',
+        'Désactive aussi la compilation compute en arrière-plan. Peut provoquer davantage de pauses au chargement.'],
+    'Perfis de teste não garantem corrigir falhas. Para manter a escolha após fechar o launcher, salve as configurações.': [
+        'Test profiles do not guarantee a fix. Save settings to keep your choice after closing the launcher.',
+        'Los perfiles de prueba no garantizan corregir fallos. Guarda los ajustes para conservar tu elección al cerrar el launcher.',
+        'Les profils de test ne garantissent pas de correction. Enregistrez les paramètres pour conserver votre choix après fermeture.'],
+    'Diagnóstico avançado': ['Advanced diagnostics', 'Diagnóstico avanzado', 'Diagnostic avancé'],
+    'Mostrar ajustes': ['Show settings', 'Mostrar ajustes', 'Afficher les réglages'],
+    'Ocultar ajustes': ['Hide settings', 'Ocultar ajustes', 'Masquer les réglages'],
+    'O cache reutiliza programas gráficos compilados pelo driver. Desligar pode aumentar pausas de compilação.': [
+        'The cache reuses graphics programs compiled by the driver. Disabling it may increase compilation pauses.',
+        'La caché reutiliza programas gráficos compilados por el controlador. Desactivarla puede aumentar las pausas de compilación.',
+        'Le cache réutilise les programmes graphiques compilés par le pilote. Le désactiver peut augmenter les pauses de compilation.'],
+    'BP06 muda como tarefas de shaders voltam a executar juntas. Desligar pode alterar efeitos visuais.': [
+        'BP06 changes how shader tasks resume execution together. Disabling it may change visual effects.',
+        'BP06 cambia cómo las tareas de shaders vuelven a ejecutarse juntas. Desactivarlo puede cambiar efectos visuales.',
+        'BP06 modifie la façon dont les tâches des shaders reprennent ensemble. Le désactiver peut modifier les effets visuels.'],
+    'Desligar a compilação compute em segundo plano pode aumentar pausas ao carregar conteúdo.': [
+        'Disabling background compute compilation may increase pauses when loading content.',
+        'Desactivar la compilación compute en segundo plano puede aumentar las pausas al cargar contenido.',
+        'Désactiver la compilation compute en arrière-plan peut augmenter les pauses au chargement.'],
+    'Predefinição de compatibilidade inválida.': ['Invalid compatibility preset.', 'Preajuste de compatibilidad inválido.', 'Préréglage de compatibilité invalide.'],
+    'Diagnóstico da GPU': ['GPU diagnostics', 'Diagnóstico de GPU', 'Diagnostic du GPU'],
+    'Mude uma opção por vez e reinicie o jogo para comparar. Padrão mantém o comportamento do port.': [
+        'Change one option at a time and restart the game to compare. Default keeps the port behavior.',
+        'Cambia una opción a la vez y reinicia el juego para comparar. Predeterminado conserva el comportamiento del port.',
+        'Modifiez une option à la fois et redémarrez le jeu pour comparer. Par défaut conserve le comportement du port.'],
+    'Cache binário de pipelines': ['Pipeline binary cache', 'Caché de binarios de pipelines', 'Cache binaire des pipelines'],
+    'Reconvergência de shaders (BP06)': ['Shader reconvergence (BP06)', 'Reconvergencia de shaders (BP06)', 'Reconvergence des shaders (BP06)'],
+    'Compilação compute em segundo plano': ['Background compute compilation', 'Compilación compute en segundo plano', 'Compilation compute en arrière-plan'],
+    'Padrão': ['Default', 'Predeterminado', 'Par défaut'],
     'Resolução interna (próxima sessão)': ['Internal resolution (next session)', 'Resolución interna (próxima sesión)', 'Résolution interne (prochaine session)'],
     'Automática (FSR / 1080p)': ['Automatic (FSR / 1080p)', 'Automática (FSR / 1080p)', 'Automatique (FSR / 1080p)'],
     '1440p e 4K usam a resolução nativa do jogo até a imagem final. A janela se ajusta ao monitor. Opções menores reduzem a cena e mantêm saída 1080p. Uma escolha manual substitui o preset do FSR.': [
@@ -474,6 +554,7 @@ MESSAGES.update({
         'Selecciona tu dump CUSA08014 o CUSA07670 versión 01.01. Los archivos deben superar la validación para jugar.',
         'Sélectionnez votre dump CUSA08014 ou CUSA07670 version 01.01. Les fichiers doivent être validés pour jouer.'],
 })
+INDEX = {'en-US': 0, 'en-GB': 0, 'es-419': 1, 'es-ES': 1, 'fr-FR': 2}
 MESSAGES.update({
     'Idioma do jogo': ['Game language', 'Idioma del juego', 'Langue du jeu'],
     'Idioma do jogo aplicado na próxima sessão. Valide a pasta para conferir os idiomas instalados.': [
@@ -485,21 +566,6 @@ MESSAGES.update({
         'Usa PT / EN / RU arriba para cambiar el idioma del launcher.',
         'Utilisez PT / EN / RU en haut pour changer la langue du lanceur.'],
 })
-MESSAGES.update({
-    'Pré-carregamento de shaders (experimental)': [
-        'Shader preloading (experimental)', 'Precarga de shaders (experimental)',
-        'Préchargement des shaders (expérimental)'],
-    'Carrega o cache antes do jogo. Pode reduzir engasgos e aumentar a espera inicial. Cache vazio ainda exige compilação. Aplica na próxima sessão.': [
-        'Loads the cache before gameplay. May reduce stutters and increase startup time. A cold cache still needs compilation. Applies next session.',
-        'Carga la caché antes de jugar. Puede reducir tirones y aumentar la espera inicial. Una caché vacía aún requiere compilación. Se aplica en la próxima sesión.',
-        'Charge le cache avant de jouer. Peut réduire les saccades et allonger le démarrage. Un cache vide nécessite toujours une compilation. Au prochain lancement.'],
-})
-RUSSIAN.update({
-    'Pré-carregamento de shaders (experimental)': 'Предзагрузка шейдеров (экспериментально)',
-    'Carrega o cache antes do jogo. Pode reduzir engasgos e aumentar a espera inicial. Cache vazio ainda exige compilação. Aplica na próxima sessão.':
-        'Загружает кэш перед игрой. Может уменьшить рывки и увеличить время запуска. Пустой кэш требует компиляции. Применяется в следующем сеансе.',
-})
-INDEX = {'en-US': 0, 'en-GB': 0, 'es-419': 1, 'es-ES': 1, 'fr-FR': 2}
 
 
 def translate(locale, source):

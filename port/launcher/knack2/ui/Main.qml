@@ -8,6 +8,13 @@ ApplicationWindow {
     required property var backend
     property int page: 0
     property int settingsTab: 0
+    property bool gpuAdvanced: false
+    readonly property string gpuPresetLabel: {
+        for (const profile of backend.gpuPresets) {
+            if (profile.id === backend.gpuPresetId) return profile.label;
+        }
+        return qsTr("Personalizado");
+    }
     property bool gameplayArt: false
     property bool motionAllowed: typeof launcherMotionAllowed === "undefined" ? false : launcherMotionAllowed
     width: 1180; height: 810; minimumWidth: 980; minimumHeight: 700
@@ -107,7 +114,7 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { text: "0.17.3"; color: "#b7bdca"; font.pixelSize: 11 }
+                Label { text: "0.17.6"; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
         StackLayout {
@@ -172,7 +179,7 @@ ApplicationWindow {
                         }
                         RowLayout {
                             Layout.fillWidth: true
-                            SummaryItem { caption: qsTr("Idioma"); text: backend.languageIndex >= 0 ? backend.languageOptions[backend.languageIndex].label : backend.uiLanguage; detail: qsTr("Idioma do jogo"); onClicked: { window.settingsTab = 0; window.page = 1; } }
+                            SummaryItem { caption: qsTr("Idioma"); text: backend.languageIndex >= 0 ? backend.languageOptions[backend.languageIndex].label : "—"; detail: qsTr("Idioma do jogo"); onClicked: { window.settingsTab = 0; window.page = 1; } }
                             SummaryItem { caption: qsTr("Modo de janela"); text: backend.settings.display_mode === "windowed" ? backend.settings.window_resolution : qsTr("Resolução do desktop"); detail: [qsTr("Janela"), qsTr("Sem bordas"), qsTr("Tela cheia")][["windowed","borderless","fullscreen"].indexOf(backend.settings.display_mode)]; onClicked: { window.settingsTab = 1; window.page = 1; } }
                             SummaryItem { caption: qsTr("Instalação"); text: backend.installationId || "—"; detail: backend.installationVersion; onClicked: window.page = 3 }
                         }
@@ -267,6 +274,59 @@ ApplicationWindow {
                             }
                         }
                             Section {
+                                objectName: "gpuPresetSection"
+                                visible: window.settingsTab === 1
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: profileRows.implicitHeight + 40
+                                ColumnLayout {
+                                    id: profileRows
+                                    anchors.fill: parent; anchors.margins: 20; spacing: 12
+                                    SectionTitle { text: qsTr("Predefinições de compatibilidade"); glyph: "monitor" }
+                                    Hint { text: qsTr("Escolha pelo sintoma e reinicie o jogo para comparar. Resolução, qualidade e controles continuam como você escolheu.") }
+                                    Label {
+                                        objectName: "gpuPresetCurrent"
+                                        text: qsTr("Predefinição atual: ") + window.gpuPresetLabel
+                                        color: "#d6bb84"; font.pixelSize: 13
+                                        wrapMode: Text.WordWrap; Layout.fillWidth: true
+                                    }
+                                    GridLayout {
+                                        Layout.fillWidth: true; columnSpacing: 12; rowSpacing: 12
+                                        columns: width >= 700 ? 3 : 1
+                                        Repeater {
+                                            model: backend.gpuPresets
+                                            delegate: Button {
+                                                id: profileCard
+                                                required property var modelData
+                                                objectName: "gpuPreset_" + modelData.id
+                                                Layout.fillWidth: true; Layout.fillHeight: true
+                                                Layout.preferredWidth: 1
+                                                implicitHeight: profileText.implicitHeight + 32
+                                                padding: 16; enabled: backend.editable
+                                                Accessible.name: modelData.label + ". " + modelData.when + " " + modelData.changes
+                                                onClicked: backend.applyGpuPreset(modelData.id)
+                                                contentItem: ColumnLayout {
+                                                    id: profileText
+                                                    spacing: 10
+                                                    Label { text: profileCard.modelData.label; font.pixelSize: 16; font.weight: Font.DemiBold; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                                    Label { text: profileCard.modelData.experimental ? qsTr("Experimental") : qsTr("Uso normal"); color: profileCard.modelData.experimental ? "#d6bb84" : "#afb4c1"; font.pixelSize: 11 }
+                                                    Hint { text: profileCard.modelData.when }
+                                                    Hint { text: profileCard.modelData.changes }
+                                                    Item { Layout.fillHeight: true }
+                                                    Label { text: backend.gpuPresetId === profileCard.modelData.id ? qsTr("Selecionado") : qsTr("Aplicar perfil"); color: "#d6bb84"; font.pixelSize: 12 }
+                                                }
+                                                background: Rectangle {
+                                                    radius: 5
+                                                    color: backend.gpuPresetId === profileCard.modelData.id ? "#39372f" : profileCard.hovered ? "#32353c" : "#23262c"
+                                                    border.width: profileCard.activeFocus ? 2 : 1
+                                                    border.color: profileCard.activeFocus || backend.gpuPresetId === profileCard.modelData.id ? "#d6bb84" : "#555b68"
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Hint { text: qsTr("Perfis de teste não garantem corrigir falhas. Para manter a escolha após fechar o launcher, salve as configurações."); font.pixelSize: 11 }
+                                }
+                            }
+                            Section {
  visible: window.settingsTab === 1
                             Layout.fillWidth: true
                             Layout.preferredHeight: graphicsRows.implicitHeight + 40
@@ -276,22 +336,6 @@ ApplicationWindow {
                                 anchors.margins: 20
                                 spacing: 12
                                 SectionTitle { text: qsTr("Imagem e apresentação"); glyph: "monitor" }
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    SettingLabel { text: qsTr("Pré-carregamento de shaders (experimental)") }
-                                    OptionSwitch {
-                                        objectName: "shaderPreload"
-                                        checked: backend.settings.shader_preload === "1"
-                                        enabled: backend.editable
-                                        Accessible.name: qsTr("Pré-carregamento de shaders (experimental)")
-                                        onToggled: backend.setSetting("shader_preload", checked)
-                                    }
-                                }
-                                Hint {
-                                    objectName: "shaderPreloadHint"
-                                    text: qsTr("Carrega o cache antes do jogo. Pode reduzir engasgos e aumentar a espera inicial. Cache vazio ainda exige compilação. Aplica na próxima sessão.")
-                                    font.pixelSize: 12
-                                }
                                 RowLayout {
                                     Layout.fillWidth: true
                                     SettingLabel { text: qsTr("Modo de janela") }
@@ -430,6 +474,67 @@ ApplicationWindow {
                                 Hint { text: qsTr("Antecipa a leitura dos resultados da GPU. Disponível no modo Preciso; aplica na próxima sessão."); font.pixelSize: 12 }
                             }
                         }
+                            Section {
+                                visible: window.settingsTab === 1
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: diagnosticRows.implicitHeight + 40
+                                ColumnLayout {
+                                    id: diagnosticRows
+                                    anchors.fill: parent; anchors.margins: 20; spacing: 12
+                                    RowLayout {
+                                        SectionTitle { text: qsTr("Diagnóstico avançado"); glyph: "monitor" }
+                                        Button {
+                                            objectName: "gpuAdvancedToggle"
+                                            text: window.gpuAdvanced ? qsTr("Ocultar ajustes") : qsTr("Mostrar ajustes")
+                                            checkable: true; checked: window.gpuAdvanced
+                                            onToggled: window.gpuAdvanced = checked
+                                        }
+                                    }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("Mude uma opção por vez e reinicie o jogo para comparar. Padrão mantém o comportamento do port.") }
+                                    RowLayout {
+                                        visible: window.gpuAdvanced
+                                        SettingLabel { text: qsTr("Cache binário de pipelines") }
+                                        OptionSelect {
+                                            objectName: "gpuDiagnosticPipelineBinaries"
+                                            Layout.preferredWidth: 210
+                                            model: [qsTr("Padrão"), qsTr("Desligado"), qsTr("Ligado")]
+                                            currentIndex: ["auto", "0", "1"].indexOf(backend.settings.pipeline_binaries)
+                                            enabled: backend.editable
+                                            Accessible.name: qsTr("Cache binário de pipelines")
+                                            onActivated: backend.setSetting("pipeline_binaries", ["auto", "0", "1"][currentIndex])
+                                        }
+                                    }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("O cache reutiliza programas gráficos compilados pelo driver. Desligar pode aumentar pausas de compilação."); font.pixelSize: 11 }
+                                    RowLayout {
+                                        visible: window.gpuAdvanced
+                                        SettingLabel { text: qsTr("Reconvergência de shaders (BP06)") }
+                                        OptionSelect {
+                                            objectName: "gpuDiagnosticBp06"
+                                            Layout.preferredWidth: 210
+                                            model: [qsTr("Padrão"), qsTr("Desligado"), qsTr("Ligado")]
+                                            currentIndex: ["auto", "0", "1"].indexOf(backend.settings.bp06)
+                                            enabled: backend.editable
+                                            Accessible.name: qsTr("Reconvergência de shaders (BP06)")
+                                            onActivated: backend.setSetting("bp06", ["auto", "0", "1"][currentIndex])
+                                        }
+                                    }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("BP06 muda como tarefas de shaders voltam a executar juntas. Desligar pode alterar efeitos visuais."); font.pixelSize: 11 }
+                                    RowLayout {
+                                        visible: window.gpuAdvanced
+                                        SettingLabel { text: qsTr("Compilação compute em segundo plano") }
+                                        OptionSelect {
+                                            objectName: "gpuDiagnosticComputeAsync"
+                                            Layout.preferredWidth: 210
+                                            model: [qsTr("Padrão"), qsTr("Desligado"), qsTr("Ligado")]
+                                            currentIndex: ["auto", "0", "1"].indexOf(backend.settings.compute_async_build)
+                                            enabled: backend.editable
+                                            Accessible.name: qsTr("Compilação compute em segundo plano")
+                                            onActivated: backend.setSetting("compute_async_build", ["auto", "0", "1"][currentIndex])
+                                        }
+                                    }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("Desligar a compilação compute em segundo plano pode aumentar pausas ao carregar conteúdo."); font.pixelSize: 11 }
+                                }
+                            }
                             ControllerGuide { objectName: "controllerGuide"; backend: window.backend; motionAllowed: window.motionAllowed; visible: window.settingsTab === 2; Layout.fillWidth: true; Layout.preferredHeight: 640 }
                             Section {
  visible: window.settingsTab === 2

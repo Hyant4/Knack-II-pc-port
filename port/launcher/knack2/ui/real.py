@@ -7,7 +7,7 @@ import queue
 import threading
 import uuid
 
-from PySide6.QtCore import Property, Signal, Slot, QUrl, Qt
+from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 
 from .. import config
@@ -16,10 +16,11 @@ from ..languages import BY_CODE, REGION_LANGUAGES
 from ..identity import runtime_path
 from ..storage import application_data_root, profile_user
 from ..paths import project_root
-from .backend import Backend, DEFAULTS
+from .backend import Backend, DEFAULTS, MAX_LINE
 
 ROOT = project_root()
 P2_USER_ID = 4099
+VALIDATION_RECORD_SCHEMA = 1
 # Existing B2-F2C profile, already compiled into the verified COOP-05 artifact.
 AUDIO_PROFILE = ('# Knack II audio baseline: COOP-05 / B2-F2C\n'
                  'ngs2_atrac9_hle=1\nngs2_render_mix=1\nngs2_audio_diag=1\n'
@@ -33,7 +34,7 @@ class RealBackend(Backend):
     closeReady = Signal()
     _stateTokenArrived = Signal(str, object, str, str)
 
-    def __init__(self, *, data_dir=None, session_factory=KnackRunner, **kwargs):
+    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, **kwargs):
         super().__init__(**kwargs)
         self._real_mode = True
         self._workspace.cleanup()
@@ -52,12 +53,15 @@ class RealBackend(Backend):
         self._log_error_reported = False
         self._stream_lock = threading.Lock()
         self._runner = None
+        self._request_auto_play = bool(auto_play)
+        self._auto_play_record = None
         self.changed.connect(self.sessionChanged.emit)
         self._stateTokenArrived.connect(self._apply_token_state, Qt.QueuedConnection)
         self._metadata = ''
         self._notification = 'Selecione e valide seu dump. O jogo inicia somente ao clicar em Jogar.'
         saved = config.load_launcher_settings(self.workspace / 'launcher_settings.json')
         self._game_dir = str(saved.get('game_dir', ''))
+        self._saved_validation = self._load_validation_record(saved.get('validation'))
         self._language = saved.get('language', 'pt-BR')
         if not isinstance(self._language, str) or self._language not in BY_CODE:
             self._language = 'pt-BR'
@@ -71,6 +75,52 @@ class RealBackend(Backend):
                     self._settings[key] = config.sanitize_and_validate_key_value(key, value)[1]
             except ValueError:
                 pass
+
+    @staticmethod
+    def _canonical_game_dir(path):
+        return str(Path(path).resolve()) if path else ''
+
+    @staticmethod
+    def _load_validation_record(value):
+        if not isinstance(value, dict):
+            return None
+        required = ('schema', 'status', 'game_dir', 'title_id', 'version')
+        if (value.get('schema') != VALIDATION_RECORD_SCHEMA or
+                value.get('status') not in ('valid', 'invalid') or
+                not all(isinstance(value.get(key), str) and value[key] for key in required[2:])):
+            return None
+        return {key: value[key] for key in required}
+
+    def _validation_record(self, result, error):
+        record = {
+            'schema': VALIDATION_RECORD_SCHEMA,
+            'status': 'invalid' if error else 'valid',
+            'game_dir': self._canonical_game_dir(self._game_dir),
+            'title_id': str((result or {}).get('title_id') or 'unknown'),
+            'version': str((result or {}).get('version') or 'unknown'),
+        }
+        if error:
+            record['detail'] = str(error)[:MAX_LINE]
+        return record
+
+    def _save_validation_record(self, result, error):
+        record = self._validation_record(result, error)
+        try:
+            self._check_data_root()
+            path = self._data_path('launcher_settings.json')
+            saved = config.load_launcher_settings(path)
+            saved['game_dir'] = self._game_dir
+            saved['validation'] = record
+            config.save_launcher_settings(saved, path=path)
+            self._saved_validation = record
+        except (OSError, ValueError) as exc:
+            self._notice(f'Validação concluída, mas não foi possível registrar o resultado: {exc}', True)
+
+    def _matches_saved_validation(self, record, result):
+        return bool(record and record.get('status') == 'valid' and
+                    record.get('game_dir') == self._canonical_game_dir(self._game_dir) and
+                    record.get('title_id') == str(result.get('title_id')) and
+                    record.get('version') == str(result.get('version')))
 
     def _working(self):
         return self._operation is not None and self._operation.is_alive()
@@ -122,6 +172,26 @@ class RealBackend(Backend):
             self.setLanguage(fallback)
         self.changed.emit()
 
+    def _on_validation_finished(self, result, error, *, auto_play=False):
+        previous = self._auto_play_record
+        self._auto_play_record = None
+        self._save_validation_record(result, error)
+        if not auto_play:
+            return
+        if error:
+            self._notice('Não iniciou: a validação automática encontrou o erro acima.', True)
+            return
+        if self._matches_saved_validation(previous, result):
+            QTimer.singleShot(0, self.play)
+            return
+        if previous is None:
+            reason = ('este dump ainda não tinha uma validação salva antes desta abertura. '
+                      'A validação atual foi concluída; clique em Jogar para confirmar.')
+        else:
+            reason = ('o dump validado anteriormente não é o mesmo título, versão ou pasta da instalação atual. '
+                      'Revise o resultado e clique em Jogar para confirmar.')
+        self._notice('Não iniciou automaticamente: ' + reason, True)
+
     def _can_stop(self):
         return not self._closed and (self._state in ('STARTING', 'RUNNING', 'STOPPING') or
                                     (self._runner is not None and self._runner.is_running))
@@ -145,12 +215,27 @@ class RealBackend(Backend):
                 config.save_launcher_settings(saved, path=path)
             except (OSError, ValueError) as error:
                 self._notice(str(error), True)
+            else:
+                QTimer.singleShot(0, self.autoValidateSavedDump)
 
     @Slot()
     def validateFolder(self):
         if self.editable:
             self._available_languages = ()
-            super().validateFolder()
+            self._auto_play_record = None
+            self._start_validation()
+
+    @Slot()
+    def autoValidateSavedDump(self):
+        if self._closed or self._validating or not self._game_dir:
+            if self._request_auto_play and not self._game_dir:
+                self._notice('Não iniciou: nenhuma pasta de dump foi salva. Escolha uma pasta e valide-a primeiro.', True)
+            return
+        self._available_languages = ()
+        auto_play = self._request_auto_play
+        self._request_auto_play = False
+        self._auto_play_record = dict(self._saved_validation) if auto_play and self._saved_validation else None
+        self._start_validation(auto_play=auto_play)
 
     def _check_data_root(self):
         # This launcher has its own data root. Never write into dump or habitual saves.
@@ -175,9 +260,11 @@ class RealBackend(Backend):
         try:
             self._check_data_root()
             config.update_knack2_ini(self._data_path('knack2.ini'), self._settings)
-            config.save_launcher_settings({'game_dir': self._game_dir, 'settings': self._settings,
-                                           'language': self._language, 'ui_language': self._ui_language},
-                                          path=self._data_path('launcher_settings.json'))
+            path = self._data_path('launcher_settings.json')
+            saved = config.load_launcher_settings(path)
+            saved.update({'game_dir': self._game_dir, 'settings': self._settings,
+                          'language': self._language, 'ui_language': self._ui_language})
+            config.save_launcher_settings(saved, path=path)
         except (OSError, ValueError) as error:
             self._notice(str(error), True)
         else:
@@ -236,7 +323,15 @@ class RealBackend(Backend):
     @Slot()
     def play(self):
         if not self.canPlay:
-            self._notice('Valide a instalação antes de jogar.', True)
+            if self._validating:
+                reason = 'a validação automática ainda está em andamento. Aguarde o resultado.'
+            elif self._validation_state == 'invalid':
+                reason = self._validation
+            elif self._state in ('STARTING', 'RUNNING', 'STOPPING'):
+                reason = 'já existe uma sessão em andamento.'
+            else:
+                reason = 'nenhuma instalação válida foi confirmada.'
+            self._notice('Não iniciou: ' + reason, True)
             return
         try:
             self._check_data_root()

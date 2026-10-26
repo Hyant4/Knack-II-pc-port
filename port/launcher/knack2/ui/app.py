@@ -8,6 +8,15 @@ from pathlib import Path
 import sys
 
 
+def _configure_cli_streams():
+    """Keep CLI help/errors UTF-8 when Windows redirects standard streams."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, OSError):
+            pass
+
+
 def create_window(backend=None):
     from PySide6.QtCore import QUrl
     from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QIcon
@@ -62,10 +71,14 @@ def create_window(backend=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Knack II — launcher F3B. Nenhum início automático.')
+    _configure_cli_streams()
+    parser = argparse.ArgumentParser(description='Knack II — launcher F3B. Toda abertura revalida o dump.')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--demo', action='store_true', help='Demonstração F3A, sem processos reais.')
-    mode.add_argument('--real', action='store_true', help='Supervisor oficial (padrão); requer clicar em Jogar.')
+    mode.add_argument('--real', action='store_true',
+                      help='Supervisor oficial (padrão); sem --play, requer clicar em Jogar.')
+    parser.add_argument('--play', action='store_true',
+                        help='Pede início direto somente após revalidar uma instalação já validada.')
     parser.add_argument('--data-dir', type=Path, help='Dados persistentes; padrão Windows: %%LOCALAPPDATA%%/KnackII-PC.')
     parser.add_argument('--offscreen', action='store_true', help='Renderização Qt sem janela visível.')
     parser.add_argument('--quit-after-ms', type=int, default=0, help='Fechar após N ms, para smoke finito.')
@@ -75,6 +88,8 @@ def main(argv=None):
         parser.error('--quit-after-ms deve ser >= 0')
     if args.screenshot and not args.quit_after_ms:
         parser.error('--screenshot requer --quit-after-ms')
+    if args.demo and args.play:
+        parser.error('--play não está disponível na demonstração')
     if args.offscreen:
         os.environ['QT_QPA_PLATFORM'] = 'offscreen'
         os.environ.setdefault('QT_QUICK_BACKEND', 'software')
@@ -94,12 +109,14 @@ def main(argv=None):
     try:
         from .backend import Backend
         from .real import RealBackend
-        backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir)
+        backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play)
         engine, window, backend = create_window(backend)
     except RuntimeError as error:
         print(str(error), file=sys.stderr)
         return 3
     app.aboutToQuit.connect(backend.shutdown)
+    if not args.demo:
+        QTimer.singleShot(0, backend.autoValidateSavedDump)
     capture_failed = []
 
     def finish():

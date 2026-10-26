@@ -22,6 +22,13 @@ import re
 from typing import Any, Mapping
 import uuid
 
+# Diagnostic overrides are opt-in. Missing/auto leaves the runtime default intact.
+GPU_DIAGNOSTIC_ENV = {
+    'pipeline_binaries': 'TLG_PIPELINE_BINARIES',
+    'bp06': 'TLG_BP06',
+    'compute_async_build': 'TLG_COMPUTE_ASYNC_BUILD',
+}
+
 # Keys that the Knack II launcher is authorized to modify in knack2.ini
 ALLOWED_MANAGED_KEYS = frozenset({
     'display_mode',
@@ -47,7 +54,7 @@ ALLOWED_MANAGED_KEYS = frozenset({
     'mouse_smoothing',
     'mouse_accel',
     'mouse_deadzone',
-})
+}) | frozenset(GPU_DIAGNOSTIC_ENV)
 
 # Rejection of control characters and newline injection (checked on raw strings before strip)
 _CONTROL_CHAR_RE = re.compile(r'[\x00-\x1f\x7f]')
@@ -182,6 +189,11 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
     val = raw_val_str.strip()
 
     # Semantic domain validation per managed key
+    if key in GPU_DIAGNOSTIC_ENV:
+        if val not in ('auto', '0', '1'):
+            raise ValueError(f"Diagnóstico GPU inválido para '{key}': '{val}' (esperado auto/0/1)")
+        return key, val
+
     if key == 'upscaler':
         if val not in ('off', 'fsr3', 'fsr4'):
             raise ValueError(f"FSR temporal inválido: '{val}'")
@@ -209,7 +221,8 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
             raise ValueError(f"Modo de exibição inválido: '{val}' (esperado windowed, borderless ou fullscreen)")
         return key, lower_mode
 
-    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'eager_readback', 'shader_preload'):
+    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'eager_readback',
+               'shader_preload'):
         return key, _validate_bool_string(key, val)
 
     if key == 'gpu_readbacks':
@@ -242,6 +255,16 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
         return key, val
 
     return key, val
+
+
+def gpu_diagnostic_environment(settings: Mapping[str, Any]) -> dict[str, str]:
+    """Return only validated, explicit diagnostic overrides for the child runtime."""
+    overrides = {}
+    for key, variable in GPU_DIAGNOSTIC_ENV.items():
+        _, value = sanitize_and_validate_key_value(key, settings.get(key, 'auto'))
+        if value not in (None, 'auto'):
+            overrides[variable] = value
+    return overrides
 
 
 def load_knack2_ini(path: Path | str) -> dict[str, str]:
@@ -283,7 +306,8 @@ def update_knack2_ini(path: Path | str,
     validated_updates: dict[str, str | None] = {}
     for raw_k, raw_v in updates.items():
         k, v = sanitize_and_validate_key_value(raw_k, raw_v)
-        validated_updates[k] = v
+        # The native bpNN parser treats nonnumeric values as false; never write "auto".
+        validated_updates[k] = None if k in GPU_DIAGNOSTIC_ENV and v == 'auto' else v
 
     target = Path(path)
     newline = '\n'

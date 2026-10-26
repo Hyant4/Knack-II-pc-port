@@ -1,17 +1,17 @@
-# Knack II PC — V0.17.3
+# Knack II PC — V0.17.6
 
 
-Runtime update fixing reuse of the shader and pipeline cache. The launcher keeps its PT / EN / RU languages and displays the updated version.
+Adds the manual **GTX 1060 black texture (experimental)** preset in
+**Settings > Video > Compatibility presets**.
 
-- **Experimental shader preloading:** enabled by default. In **Settings → Video**, disable the toggle and save settings to return to on-demand loading. Your preference applies next session.
-- Compatible variants at different indices no longer cause false cache rejections; actual conflicts remain rejected.
-- On-demand mode now reads previously saved shaders when the cache is compatible.
-- Fixed a temporary reference in loaded shader metadata.
+- Applies `gpu_readbacks=2` (Precise) and `eager_readback=0` (early readback off).
+- Preserves resolution, FSR, controls and other settings. Save settings and restart the game to compare the same scene.
+- No automatic GPU detection. To revert, select the previous readback values and save again.
+- Preserves `Play Knack II.exe` startup, mandatory dump validation and the V0.17.5 shader-preloading preference.
+- Launcher rebuilt with version 0.17.6 and PT/EN/RU interface. Native runtime and `Play Knack II.exe` are byte-identical to the V0.17.5 package.
 
-**Limitations:** preloading may increase the wait before entering the game. Stutter improvements are partial: a cold cache still needs compilation; pauses and frame-rate variation may remain. This update does not guarantee stable 60 FPS.
+**Limitation:** this is an experimental configuration for investigating issue #12. A fix for black surfaces on the GTX 1060 has not been confirmed. This release does not add a shader/driver patch or expand the supported dump profiles.
 
-**Validation:** native build, 22 passing synthetic cache checks, a local replay of 1,219 records, tests of the toggle/persistence/startup modes, and short sessions with the European 01.01 edition, including skipping the opening and movement. The full campaign, other GPUs, and co-op were not revalidated in this update.
-
-**Installation:** download `Knack-II-Windows-x64-V0.17.3.zip`, extract the entire folder, and open `Knack II.exe`. Use your own CUSA08014 or CUSA07670 version 01.01 dump. Saves and preferences remain in `%LOCALAPPDATA%\KnackII-PC`. You do not need to clear your existing cache. V0.17.2 remains available as a rollback.
-
-Matching sources: `Knack-II-sources-V0.17.3.zip`. Check `SHA256SUMS.txt`. No game, dump, or saves are included.
+Download `Knack-II-Windows-x64-V0.17.6.zip`, extract the entire folder and open `Knack II.exe`.
+No game, firmware or saves are included. V0.17.5 remains available for rollback.
+Matching sources and SHA-256 checksums are included. Validation for this publication is synthetic and package-focused; no real game was started.

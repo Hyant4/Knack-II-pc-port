@@ -13,8 +13,10 @@ paths = [str(root), str(root / 'port/scripts')]
 hidden = ['prepare', 'link_modules', 'link_libc', 'content_profile', 'isa_rewrite', 'red_zone', 'iced_x86']
 ui = root / 'port/launcher/knack2/ui'
 datas = [(str(p), 'port/launcher/knack2/ui') for p in ui.iterdir() if p.suffix in ('.qml', '.js')]
-datas += [(str(p), 'port/launcher/knack2/ui/art') for p in (ui / 'art').iterdir()
-          if p.suffix.lower() in ('.png', '.jpg', '.webp')]
+art = ui / 'art'
+if art.is_dir():
+    datas += [(str(p), 'port/launcher/knack2/ui/art') for p in art.iterdir()
+              if p.suffix.lower() in ('.png', '.jpg', '.webp')]
 unused = ['QtWebEngineCore', 'QtWebEngineWidgets', 'QtMultimedia', 'QtMultimediaWidgets',
           'QtWidgets', 'QtPrintSupport', 'QtQuick3D', 'QtPdf', 'QtSql', 'QtTest',
           'QtDesigner', 'QtHelp', 'QtSvgWidgets', 'Qt3DCore', 'QtBluetooth', 'QtNfc']

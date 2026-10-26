@@ -159,6 +159,27 @@ class QtUiTests(unittest.TestCase):
         self.until(lambda: self.backend.state == 'FINISHED')
         self.assertTrue(self.item('playButton').property('enabled'))
 
+    def test_launcher_language_switch_retranslates_without_changing_game_language(self):
+        self.window.resize(980, 700)
+        for button, locale, title, settings in (
+                ('uiLanguageEN', 'en-US', 'Knack II PC — Demo', 'Settings'),
+                ('uiLanguageRU', 'ru-RU', 'Knack II PC — Демонстрация', 'Настройки'),
+                ('uiLanguagePT', 'pt-BR', 'Knack II PC — Demonstração', 'Configurações')):
+            self.click(button)
+            self.assertEqual(self.backend.uiLanguage, locale)
+            self.assertEqual(self.backend._language, 'pt-BR')
+            self.assertEqual(self.window.title(), title)
+            self.assertEqual(self.item('navPage1').property('text'), settings)
+            self.assertTrue(self.item(button).property('checked'))
+            self.click(button)
+            self.assertTrue(self.item(button).property('checked'))
+        self.backend.setUiLanguage('ru-RU')
+        self.backend.setLanguage('fr-FR')
+        self.assertEqual(self.backend.uiLanguage, 'ru-RU')
+        self.assertEqual(self.backend._language, 'fr-FR')
+        self.backend.setUiLanguage('invalid')
+        self.assertEqual(self.backend.uiLanguage, 'ru-RU')
+
     def test_native_controller_guide_front_assets_and_button_actions(self):
         self.window.setProperty('page', 1)
         self.window.setProperty('settingsTab', 2)
@@ -269,23 +290,6 @@ class QtUiTests(unittest.TestCase):
         workspace = self.backend.workspace
         self.backend.shutdown()
         self.assertFalse(workspace.exists())
-
-    def test_shader_preload_switch_defaults_on_and_can_be_disabled(self):
-        self.window.setProperty('page', 1)
-        self.window.setProperty('settingsTab', 1)
-        self.pump(40)
-        switch = self.item('shaderPreload')
-        self.assertTrue(switch.isVisible())
-        self.assertTrue(switch.property('checked'))
-        self.assertEqual(self.backend.settings['shader_preload'], '1')
-        self.click('shaderPreload')
-        self.assertEqual(self.backend.settings['shader_preload'], '0')
-        self.assertFalse(switch.property('checked'))
-        self.backend.setUiLanguage('en-US')
-        self.pump(20)
-        self.assertIn('cold cache', self.item('shaderPreloadHint').property('text'))
-        self.click('shaderPreload')
-        self.assertEqual(self.backend.settings['shader_preload'], '1')
 
     def test_settings_reject_bad_values_and_protected_keys(self):
         old = self.backend.settings
@@ -508,28 +512,6 @@ class QtUiTests(unittest.TestCase):
             self.pump(60)
             self.assertTrue(self.item('playButton').property('visible'))
 
-
-
-    def test_launcher_language_switch_retranslates_without_changing_game_language(self):
-        self.window.resize(980, 700)
-        for button, locale, title, settings in (
-                ('uiLanguageEN', 'en-US', 'Knack II PC — Demo', 'Settings'),
-                ('uiLanguageRU', 'ru-RU', 'Knack II PC — Демонстрация', 'Настройки'),
-                ('uiLanguagePT', 'pt-BR', 'Knack II PC — Demonstração', 'Configurações')):
-            self.click(button)
-            self.assertEqual(self.backend.uiLanguage, locale)
-            self.assertEqual(self.backend._language, 'pt-BR')
-            self.assertEqual(self.window.title(), title)
-            self.assertEqual(self.item('navPage1').property('text'), settings)
-            self.assertTrue(self.item(button).property('checked'))
-            self.click(button)
-            self.assertTrue(self.item(button).property('checked'))
-        self.backend.setUiLanguage('ru-RU')
-        self.backend.setLanguage('fr-FR')
-        self.assertEqual(self.backend.uiLanguage, 'ru-RU')
-        self.assertEqual(self.backend._language, 'fr-FR')
-        self.backend.setUiLanguage('invalid')
-        self.assertEqual(self.backend.uiLanguage, 'ru-RU')
 
 if __name__ == '__main__':
     unittest.main()

@@ -20,40 +20,40 @@
     "sha256": "60ca995ab5d8136ea9d6e6c4da104f372e88e487759b1c031c301117c9ba3d22"
   },
   "BUILDINFO.json": {
-    "bytes": 5879,
-    "sha256": "2293e79718e800c605cc94f4b4a85a69c59478781eeadf970c29a8dc483366ee"
+    "bytes": 4529,
+    "sha256": "f114147a8bd34b385d1a1b9729e7d32de62ce8432eed8236ad617f2a93119a9f"
   },
   "FSR4-ASSETS.json": {
     "bytes": 48505,
     "sha256": "2f25fdd1a8fe2093ef98fe259c1180a050b75e105ca73d4ba3282e69ad49bff8"
   },
   "LEIA-ME.md": {
-    "bytes": 1807,
-    "sha256": "2f7cfb6be230c78be03b2881f440b05861e78a664ce80b99b82712ff187d3191"
+    "bytes": 1395,
+    "sha256": "25a85f564f495efb8da0128c9b8440587743e55a8f934c78280ee0a9034f24a1"
   },
   "READ-ME.md": {
-    "bytes": 1612,
-    "sha256": "1d166b424e10c249d3fecb841a4837e7a35f52e2ee319b62904431b01148d7d0"
+    "bytes": 1273,
+    "sha256": "3f8915599b3c17e43eb693deea7e1fb6d9566a3870d7e934f37ce0dfda559848"
   },
   "README.md": {
-    "bytes": 9191,
-    "sha256": "2fb58fd44f02362169516a68a2b11fb9f1ab75c9468eeb142d6ba3b34ca7f2ef"
+    "bytes": 9505,
+    "sha256": "907e1764814007c4234cc881e95b8df37c37030e9dbc0e23ff03d2b70e5669e7"
   },
   "README.pt-BR.md": {
-    "bytes": 8250,
-    "sha256": "6f87b1cf263af690478feec317ededd9a9aefdbeaea2b1904f3462d791686f2b"
+    "bytes": 8528,
+    "sha256": "f5c71c03cd6ce33fcbdef49af63790b08cb93010385be8693c5f1e3105791bee"
   },
   "README.upstream.md": {
     "bytes": 84059,
     "sha256": "e5fc6fa2d2039a59a72f0a766c963b1c5b9e4da83df66a42f0e209eaab13a222"
   },
   "RELEASE-NOTES.md": {
-    "bytes": 3418,
-    "sha256": "ca50acc13031fb1f1c9be5dd01bb2ee5b2642814b946143b7ff67c2862eba4d2"
+    "bytes": 2675,
+    "sha256": "7fa42d94552e27c116d98237dd3e7357ba0ec44df257a44cb6e4be2fdd6ef920"
   },
   "RELEASE-SOURCE.md": {
-    "bytes": 711,
-    "sha256": "389a68476188fa221ee54f0ce76c7c1e054e46d1d733e296715c2e42dc7d2285"
+    "bytes": 1217,
+    "sha256": "101a9ccc7a01f93f46150e6d639a7dbdef3d149e9ef7d41271d6a03af1fe9ae5"
   },
   "THIRD-PARTY.md": {
     "bytes": 2018,
@@ -70,6 +70,10 @@
   "UI-ASSETS.md": {
     "bytes": 459,
     "sha256": "60299f4dcb42be3c4f2ab9e0101f4e87d248d7ca670e39a3643ca4d931da6d1b"
+  },
+  "VERSION": {
+    "bytes": 8,
+    "sha256": "a23feddd7596370c7a29cc16ca4265a27e1395229173068cfa69247d80b7dab5"
   },
   "build.ps1": {
     "bytes": 1454,
@@ -108,8 +112,8 @@
     "sha256": "075452198852aa4b0ac41225fc06a794500d531c6e4fd803f2679d8db2e7a2a4"
   },
   "docs/LAUNCHER_WINDOWS.md": {
-    "bytes": 8681,
-    "sha256": "aa69eeb52cf3dad1e496b8fe557c7f42a48bac276d67442a54dddd93f35a986f"
+    "bytes": 9617,
+    "sha256": "8e340052c8f46a468f8bbd82e8086fa63e9be5e26f818ddcd9c02eac8d9ad004"
   },
   "docs/PUBLICACAO.md": {
     "bytes": 2690,
@@ -9544,8 +9548,12 @@
     "sha256": "8833fe23a155d4780a11b88c1f8371165e122bfaf77f0a7fa7538e836e538d96"
   },
   "port/launcher/knack2/config.py": {
-    "bytes": 13468,
-    "sha256": "7550dd1dbecc8c083814d5ae7631db63d566a613508fcfcf681be1b57d7b739f"
+    "bytes": 14519,
+    "sha256": "71d08ef378c3bd637f9c71ca281cdb3020c420321e292d8da73a49f89a73d616"
+  },
+  "port/launcher/knack2/gpu_presets.py": {
+    "bytes": 2908,
+    "sha256": "5878a8d09917463bc59f4b871960329854a45039e95b643676c743eb02b4b511"
   },
   "port/launcher/knack2/identity.py": {
     "bytes": 1900,
@@ -9556,12 +9564,12 @@
     "sha256": "4120cdde5d5fcf1956dd1e01e0d3d44f635de90c33c6decc183916a35109e206"
   },
   "port/launcher/knack2/packaging/gui_entry.py": {
-    "bytes": 3528,
-    "sha256": "5ed7ec78b9cc678e3dae54636aba1ebc557c5f051862fa19cd87c2ee78e49692"
+    "bytes": 3527,
+    "sha256": "375b480e4b172129cb2064e2e2b64ed7e3d29ec4a7e9a6d08adb9b6e2cb56306"
   },
   "port/launcher/knack2/packaging/knack2.spec": {
-    "bytes": 1912,
-    "sha256": "c332d776019c64f609a504618867280bf3d59a3c16b41777626660b9ed13462b"
+    "bytes": 1945,
+    "sha256": "3f061bf39c4bb4c54c77077c2b29aecdb564db24af5cd5c23711751c0ce393d0"
   },
   "port/launcher/knack2/packaging/supervisor_entry.py": {
     "bytes": 3192,
@@ -9592,8 +9600,8 @@
     "sha256": "ad1515c12d03317e588dd0a2c254c6fad3154a0f5c64bd464f3de78dc87fe805"
   },
   "port/launcher/knack2/ui/ControllerGuideData.js": {
-    "bytes": 8427,
-    "sha256": "7edc8a39c09309ef1cf84e0e6295cff32184da017851098ef9f4d943124bc84a"
+    "bytes": 8426,
+    "sha256": "898a2d115004c79aa7c3171e1d9242e38479beadd5627a1a5fa132e39c9faaad"
   },
   "port/launcher/knack2/ui/KnackIcon.qml": {
     "bytes": 3805,
@@ -9604,8 +9612,8 @@
     "sha256": "eee2ce99e66415d96f19a8ffc02bda71f77fb57318bbb716c5b2263b46cfbcc7"
   },
   "port/launcher/knack2/ui/Main.qml": {
-    "bytes": 39950,
-    "sha256": "24cf1a244c3deeaf428df7efdd5d9538ed08c867bd42ce4facb2d0957b478d33"
+    "bytes": 48810,
+    "sha256": "c6037ce2d44c43e77014f15b32e7698ce791df281b9d3dc7d030c4b6d8f08c23"
   },
   "port/launcher/knack2/ui/OptionSelect.qml": {
     "bytes": 752,
@@ -9628,8 +9636,8 @@
     "sha256": "63b5353b5e389d655fe8e275e2fa41f1ef4bd2615c9feb2439697b0f08931e1b"
   },
   "port/launcher/knack2/ui/app.py": {
-    "bytes": 5378,
-    "sha256": "2f4583c2dd1b3251996868dc91840abde66f2f461d4f2c3843e465d81074c7af"
+    "bytes": 6106,
+    "sha256": "d591759ba40dcbc95c5544a4f0860819c2e991d8d112a1a1a636d963c8ff547d"
   },
   "port/launcher/knack2/ui/art/controller-nintendo-front-clean.png": {
     "bytes": 207872,
@@ -9652,28 +9660,28 @@
     "sha256": "2a9be97c513ee7c4b96b60d3f1cb472eceb4ddcfa75cffc844e2a1833c9b6c72"
   },
   "port/launcher/knack2/ui/backend.py": {
-    "bytes": 17033,
-    "sha256": "0e402b91c80e464541bea2eeca9e00ef7a5deefea29253c731d9c2663e83f5ae"
+    "bytes": 18529,
+    "sha256": "e8f6cb0d9000e0a21a5011d4c950e8546124a2802cc295df0bb5581f673499a0"
   },
   "port/launcher/knack2/ui/demo.py": {
     "bytes": 5331,
     "sha256": "59f92e09d5bc75db2e4cc537ade72fba1721f487f9e3bd9902e66dba70cd6736"
   },
   "port/launcher/knack2/ui/i18n.py": {
-    "bytes": 46713,
-    "sha256": "858fefc13e4fa9e8bedc4c51bc87cc5cdf9cbd01da7d8c161ebd84b58259d91e"
+    "bytes": 53825,
+    "sha256": "9318749fdb7ac6e046878a385b5c1a0402e04c3090e6b1a948b68a667bfd1c47"
   },
   "port/launcher/knack2/ui/i18n_ru.py": {
-    "bytes": 402437,
-    "sha256": "518072af1696e06dfcff21570103dc836e04ff400907774d46375d07c16a834f"
+    "bytes": 34584,
+    "sha256": "6c74107d1e9450f15be592e2ea5555884ee77e815f3904eced1d7101c32eaf7a"
   },
   "port/launcher/knack2/ui/real.py": {
-    "bytes": 17609,
-    "sha256": "d9604d574ee1fc440e9183f656f04e3f810ec2fbd18dde0888ea84944cdbfb79"
+    "bytes": 22273,
+    "sha256": "b37350bbdce5d237340951e4032ef291d17ae26f6e89b32ed6e83ae04e1adbc6"
   },
   "port/launcher/knack2/validator.py": {
-    "bytes": 11082,
-    "sha256": "664d54bc19a1647ba29ff2ebafc970b783514cc2478b02ec3869f804cb694307"
+    "bytes": 12156,
+    "sha256": "92fe679c28e324d42036c6f8084056dff1d45ec3d5e5b866add6e69c9e077d5f"
   },
   "port/launcher/logtail.py": {
     "bytes": 2245,
@@ -9716,12 +9724,12 @@
     "sha256": "79b2243df895b0f68565b0416d7f830932a256272ee270a8558b088586cbea23"
   },
   "port/packaging/windows/play.c": {
-    "bytes": 1716,
-    "sha256": "c87c8335a5775bd7a6818e6c8785c0ecabd51d0ce5acc7c7d9ca49e9a8b2a391"
+    "bytes": 1678,
+    "sha256": "2636841f2ecf9590a8ee9426b412b79235fe8099ea1e2ad82fbc066f64fe38c9"
   },
   "port/packaging/windows/play.rc": {
-    "bytes": 38,
-    "sha256": "9ede74fa402a60c4207f980d26bcef921cad4a55bd2fd82cf5d81cf5ee05705a"
+    "bytes": 37,
+    "sha256": "eb14017522f04d4e9731e0876b611bf5dba763333056814011077e20c388c068"
   },
   "port/packaging/windows/tlg-gpu-capabilities.rc": {
     "bytes": 38,
@@ -10849,7 +10857,7 @@
   },
   "scripts/build_knack_launcher.py": {
     "bytes": 3362,
-    "sha256": "283084c70f3eb1a5e90b81665f25db059d8c369663732b22d694781c6c383ca8"
+    "sha256": "8db794ff9c246861774ea654c15ea1977b44c4bc13cc02bc50113c6fda02609e"
   },
   "scripts/build_knack_linux.py": {
     "bytes": 6524,
@@ -11024,12 +11032,16 @@
     "sha256": "b1023ad6759d50dbf4d4b9a8c53b8c17872c98a7b02d6c332f3d950f1163201c"
   },
   "tests/test_knack2_f3b.py": {
-    "bytes": 30631,
-    "sha256": "0b54d037933ad917d299d864b94f92cba410dea520acac997d7bea8c96bb9054"
+    "bytes": 39667,
+    "sha256": "b9859297f602dea434517c879136829aeed11e92a3865603c62109e0a96d5239"
   },
   "tests/test_knack2_fsr4_assets.py": {
     "bytes": 5936,
     "sha256": "772a92d34b763ee21fbeea322e4ee9d2f4f7dfbbc4b8c2232fbb0865ad4c89cb"
+  },
+  "tests/test_knack2_gpu_diagnostics.py": {
+    "bytes": 10407,
+    "sha256": "94df91fa3b2a186e070468e8fafab3a8987680603df92fc09188bf62fb7a77b2"
   },
   "tests/test_knack2_graphics.py": {
     "bytes": 8988,
@@ -11040,12 +11052,12 @@
     "sha256": "cf4152a2fe5be319e2f69b20757300d218cb719f85f2375727418c5cb93dac8c"
   },
   "tests/test_knack2_languages.py": {
-    "bytes": 5506,
-    "sha256": "ff4855616eeebc61e90c5b383f60928903b6f2b07f4a64055530bf3620076198"
+    "bytes": 5407,
+    "sha256": "06b9909d14defb73167721f8d34d699256a8c96a00445b13164245c55f059439"
   },
   "tests/test_knack2_launcher.py": {
-    "bytes": 20775,
-    "sha256": "4081e3b8ead45a36fcf68e6102a1e2e26943224aba44bbe50d5b043356d65bb5"
+    "bytes": 21264,
+    "sha256": "e0c4aafc321264482df5661b65659e2431944a729fd624aab66912f615db1fa3"
   },
   "tests/test_knack2_linux.py": {
     "bytes": 12426,
@@ -11088,8 +11100,8 @@
     "sha256": "3f4c1c75d538fd1f296cf9065bbb0b54e1639b3b8a428370c6080c1bb6d2c5dc"
   },
   "tests/test_knack2_ui.py": {
-    "bytes": 27823,
-    "sha256": "daeb7bb662b3fab71254c4cbc7ab585761640b1e01a91db26c310e90bf20b2bf"
+    "bytes": 26468,
+    "sha256": "7e90476b5d2e43b9e0a5539f25d2542e4833ac12a36527039a27dba4896e1258"
   },
   "tests/test_knack2_ultrawide.c": {
     "bytes": 5956,
@@ -11106,6 +11118,10 @@
   "tests/test_knack2_unlimited.py": {
     "bytes": 8819,
     "sha256": "e96950cb95fb5f6a4cd6edc0fac710446290faebe710eb8b430a60eb0ddbe8cb"
+  },
+  "tests/test_knack2_validation_autoplay.py": {
+    "bytes": 4451,
+    "sha256": "e89821a93467dcaaf9a242b5f070712d9c0a9826fc462e6e7b5cea5c560cc1a8"
   },
   "tests/test_knack_contribution_report.py": {
     "bytes": 5037,

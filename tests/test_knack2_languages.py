@@ -86,9 +86,7 @@ class LanguageTests(unittest.TestCase):
         # Runtime diagnostic strings are intentionally not rewritten.
         self.assertEqual(translate('fr-FR', 'external error 75 at 0x1234'), 'external error 75 at 0x1234')
 
-
-
-    def test_russian_catalog_covers_launcher_and_preserves_external_errors(self):
+    def test_russian_catalog_covers_all_messages_and_preserves_external_errors(self):
         from port.launcher.knack2.ui.i18n import MESSAGES, translate
         from port.launcher.knack2.ui.i18n_ru import RUSSIAN
         self.assertEqual(set(MESSAGES), set(RUSSIAN))
@@ -97,6 +95,7 @@ class LanguageTests(unittest.TestCase):
             self.assertEqual(source.count('\n'), translated.count('\n'), source)
             self.assertEqual(translate('ru-RU', source), translated)
         self.assertEqual(translate('ru-RU', 'external error 75 at 0x1234'), 'external error 75 at 0x1234')
+
 
 if __name__ == '__main__':
     unittest.main()
