@@ -85,7 +85,9 @@ class UnlimitedTests(unittest.TestCase):
                 options += ['--local-users', '2', '--p2-user-id', '4099']
             if language is not None:
                 options += ['--language', language]
-            with patch.object(run, 'PORT', port), patch.object(run, 'validate_game'), \
+            with patch.object(run, 'PORT', port), patch.object(run, 'validate_game', return_value={
+                    'executable_layout': run.validate_executable_layout(run.profile_id(profile)),
+                    'game_elf_sha256': '0' * 64}), \
                  patch.object(run, 'load_profile', return_value=profile), \
                  patch.object(run, 'prepare_image', side_effect=lambda g, p, name, o: o / name), \
                  patch.object(run.subprocess, 'run'), patch.object(run, 'run_child', side_effect=child), \

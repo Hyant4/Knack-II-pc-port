@@ -17,6 +17,7 @@
 #include "knack_dialogue_gain.h"
 #include "knack_ultrawide_patch.h"
 #include "knack_native_resolution.h"
+#include "knack_executable_layout.h"
 #include "gpu/tlggpu.h"
 #if !defined(__x86_64__) || !defined(__GNUC__)
 #error This prototype requires x86-64 GCC or Clang (including MinGW).
@@ -626,12 +627,25 @@ static int factor_probe_read(void *dst,uintptr_t address,size_t bytes) {
     return ReadProcessMemory(GetCurrentProcess(),(const void *)address,dst,bytes,&got) && got==bytes;
 }
 #endif
+static int knack_patch_identity(const char *app0,char *serial,size_t serial_cap,
+                                char *version,size_t version_cap) {
+    char path[4096];
+    snprintf(path,sizeof(path),"%s/sce_sys/param.sfo",app0?app0:".");
+    sfo_value(path,"TITLE_ID",serial,serial_cap,NULL);
+    sfo_value(path,"APP_VER",version,version_cap,NULL);
+    const char *code_serial=NULL,*code_version=NULL;
+    if (!knack_code_profile(serial,version,getenv("KNACK2_EXECUTABLE_LAYOUT"),
+                            &code_serial,&code_version)) return 0;
+    snprintf(serial,serial_cap,"%s",code_serial);
+    snprintf(version,version_cap,"%s",code_version);
+    return 1;
+}
+
 static void install_factor_probe(const char *app0,Segment *segments,uint64_t count,uint64_t size) {
     char indices[256]; if (!factor_probe_config(indices,sizeof(indices))) return;
 #ifdef _WIN32
-    char path[4096],serial[32]="",version[32]="";
-    snprintf(path,sizeof(path),"%s/sce_sys/param.sfo",app0?app0:".");
-    sfo_value(path,"TITLE_ID",serial,sizeof(serial),NULL); sfo_value(path,"APP_VER",version,sizeof(version),NULL);
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version))) return;
     const uint64_t at=FACTOR_CALL_OFFSET,entry=FACTOR_EVALUATOR_OFFSET;
     if (strcmp(serial,"CUSA08014") || strcmp(version,"01.01") || at>size || entry>size ||
         size-at<5 || size-entry<12 || !mapped(segments,count,at,5) || !mapped(segments,count,entry,12) ||
@@ -677,10 +691,9 @@ static void install_knack_native_resolution(const char *app0,const char *executa
     int option=0;
     for (unsigned i=0;i<argc;++i) if (!strcmp(args[i],"-2160p")) option=1;
     if (!option) fail("native resolution requires the supervisor's -2160p guest option");
-    char path[4096],serial[32]="",version[32]="";
-    snprintf(path,sizeof(path),"%s/sce_sys/param.sfo",app0?app0:"");
-    sfo_value(path,"TITLE_ID",serial,sizeof(serial),NULL);
-    sfo_value(path,"APP_VER",version,sizeof(version),NULL);
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version)))
+        fail("native resolution: unknown executable layout");
     const KnackNativeSites *sites=knack_native_profile(serial,version);
     if (!sites) fail("native resolution: unsupported game profile");
     const uint64_t code[]={sites->width_limit,sites->height_limit,sites->preset_load,sites->pool_load};
@@ -705,10 +718,8 @@ static void install_knack_ultrawide(const char *app0,Segment *segments,uint64_t 
     if (!gpu_enabled || size<UINT64_C(0xce2000)) return;
     const float aspect=tlggpu_ultrawide_aspect();
     if (aspect<=KNACK_WIDE_NATIVE+0.001f) return;
-    char path[4096],serial[32]="",version[32]="";
-    snprintf(path,sizeof(path),"%s/sce_sys/param.sfo",app0?app0:"");
-    sfo_value(path,"TITLE_ID",serial,sizeof(serial),NULL);
-    sfo_value(path,"APP_VER",version,sizeof(version),NULL);
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version))) return;
     const KnackWideSite *sites=knack_wide_profile(serial,version);
     if (!sites) return;
     const KnackWideCameraSite *camera=knack_wide_camera_site(sites);
@@ -744,10 +755,8 @@ static void install_knack_ultrawide(const char *app0,Segment *segments,uint64_t 
 static void install_dialogue_gain(const char *app0,Segment *segments,uint64_t count,uint64_t size) {
     /* The eboot stage has no dialogue evaluator. Fail closed on other images. */
     if (size<UINT64_C(0xb28336)) return;
-    char path[4096],serial[32]="",version[32]="";
-    snprintf(path,sizeof(path),"%s/sce_sys/param.sfo",app0?app0:"");
-    sfo_value(path,"TITLE_ID",serial,sizeof(serial),NULL);
-    sfo_value(path,"APP_VER",version,sizeof(version),NULL);
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version))) return;
     if (!dialogue_profile_matches(serial,version) || !dialogue_image_matches(image,size)) {
         puts("Runtime: dialogue gain installed=0 reason=profile_or_signature_mismatch"); return;
     }
@@ -1165,6 +1174,7 @@ int main(int argc, char **argv) {
         if (!cpu_supported(missing, sizeof missing)) return 20;
         if (cpu_missing_sets) printf("CPU: missing %s\n", missing);
         else puts("CPU: complete");
+        puts("KNACK2_EXECUTABLE_LAYOUTS_V1=elf-80ccc228,elf-0b7843d3");
         return 0;
     }
     if (argc == 2 && !strcmp(argv[1], "--gamepad")) {
@@ -1215,6 +1225,14 @@ int main(int argc, char **argv) {
         snprintf(path, sizeof(path), "%s/sce_sys/param.sfo", app0 ? app0 : ".");
         sfo_value(path, "TITLE_ID", serial, sizeof(serial), NULL);
         sfo_value(path, "APP_VER", version, sizeof(version), NULL);
+        const char *layout=getenv("KNACK2_EXECUTABLE_LAYOUT");
+        if (layout) {
+            const char *code_serial=NULL,*code_version=NULL;
+            if (!knack_code_profile(serial,version,layout,&code_serial,&code_version))
+                fail("unknown or incompatible Knack executable layout");
+            printf("Knack executable layout: %s; title=%s %s; patch_profile=%s %s\n",
+                   layout,serial,version,code_serial,code_version);
+        }
         printf("Build: %s (built %s %s); game %s %s; threads inherit the creator's MXCSR/x87 control\n",
                TLG_BUILD_COMMIT, __DATE__, __TIME__, serial, version);
     }

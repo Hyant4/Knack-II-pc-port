@@ -25,7 +25,8 @@ from port.launcher.knack2.languages import BY_CODE, discover_languages, language
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
 from port.launcher.knack2.config import load_knack2_ini, sanitize_and_validate_key_value
-from port.launcher.knack2.validator import load_profile, profile_id, SUPPORTED_PROFILES
+from port.launcher.knack2.validator import (load_profile, profile_id, SUPPORTED_PROFILES,
+                                          executable_layout_for_hash, validate_executable_layout)
 
 
 def digest(path):
@@ -38,16 +39,23 @@ def validate_game(game, profile):
     if (values.get('TITLE_ID'), values.get('APP_VER')) != (profile['title_id'], profile['version']):
         raise ValueError(f"This profile requires {profile['title_id']} version {profile['version']}")
     for name, expected in profile['executables'].items():
-        if digest(prepare.executable_path(game, name)) != expected:
+        actual = digest(prepare.executable_path(game, name))
+        if name == 'game.elf':
+            values = {**values, 'executable_layout': executable_layout_for_hash(profile, actual),
+                      'game_elf_sha256': actual}
+        elif actual != expected:
             raise ValueError(f'{name}: SHA-256 differs from the supported dump')
     for name in {m for modules in profile['modules'].values() for m in modules}:
         link_modules.module(game / 'sce_module' / name)
     return values
 
 
-def prepare_image(game, profile, executable, out):
+def prepare_image(game, profile, executable, out, *, executable_layout=None):
     # Preserve American cache paths; European images never replace those images.
     cache = out if profile_id(profile) == 'CUSA08014-01.01' else out / profile_id(profile)
+    layout = validate_executable_layout(profile_id(profile), executable_layout)
+    if layout != validate_executable_layout(profile_id(profile)):
+        cache = out / profile_id(profile) / layout
     folder = cache / executable.replace('.', '_')
     folder.mkdir(parents=True, exist_ok=True)
     modules = profile['modules'][executable]
@@ -63,6 +71,21 @@ def prepare_image(game, profile, executable, out):
         marker.write_text(json.dumps(fingerprint, indent=2), encoding='utf-8')
     content_profile.prepare(game, folder)
     return folder
+
+
+def require_runtime_layout(probe, layout):
+    """Older runtimes must not silently ignore an alternative code identity."""
+    try:
+        result = subprocess.run([str(probe), '--cpu-features'], capture_output=True, text=True,
+                                encoding='utf-8', errors='replace', timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError('Não foi possível conferir suporte do runtime ao layout do executável') from error
+    prefix = 'KNACK2_EXECUTABLE_LAYOUTS_V1='
+    supported = {item for line in result.stdout.splitlines() if line.startswith(prefix)
+                 for item in line[len(prefix):].split(',')}
+    if result.returncode != 0 or layout not in supported:
+        raise ValueError('Runtime instalado não oferece suporte a esta variante de game.elf. '
+                         'Use um runtime correspondente ao launcher atualizado.')
 
 
 def read_exec_request(path, profile):
@@ -120,9 +143,10 @@ def local_user_environment(local_users, second_user):
 
 
 def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None,
-                        config_file=None, language=None, profile='CUSA08014-01.01'):
+                        config_file=None, language=None, profile='CUSA08014-01.01', executable_layout=None):
     if profile not in SUPPORTED_PROFILES:
         raise ValueError('Unsupported Knack II runtime profile')
+    executable_layout = validate_executable_layout(profile, executable_layout)
     users = local_user_environment(local_users, second_user)
     locale = language_environment(language)
     if config_file is not None:
@@ -147,7 +171,7 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
         system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
         if system_font.is_file():
             env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
-    env.update(KNACK2_PROFILE=profile, TLG_UPSCALER=upscaler,
+    env.update(KNACK2_PROFILE=profile, KNACK2_EXECUTABLE_LAYOUT=executable_layout, TLG_UPSCALER=upscaler,
                TLG_UPSCALE_PRESET=preset, TLG_INTERNAL_RESOLUTION=internal,
                TLG_OBJECT_MOTION='0', TLG_FULLSCREEN='0',
                TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'),
@@ -287,19 +311,25 @@ def _main(argv, lifetime):
         if sys.platform != 'win32' and not os.access(probe, os.X_OK):
             parser.error(f'Runtime is not executable: {probe}')
     profile = load_profile(game_dir=game, repo_root=ROOT)
-    validate_game(game, profile)
+    validated = validate_game(game, profile)
+    executable_layout = validated['executable_layout']
+    if not args.analyze and executable_layout != validate_executable_layout(profile_id(profile)):
+        require_runtime_layout(probe, executable_layout)
     if args.language is not None and args.language not in discover_languages(game, title_id=profile['title_id']):
         raise ValueError('--language is not installed in this dump')
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
     out.mkdir(parents=True, exist_ok=True)
-    images = {name: prepare_image(game, profile, name, out) for name in profile['executables']}
+    preparation = ({'executable_layout': executable_layout}
+                   if executable_layout != validate_executable_layout(profile_id(profile)) else {})
+    images = {name: prepare_image(game, profile, name, out, **preparation) for name in profile['executables']}
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
         return 0
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
-                              config_file=args.config, language=args.language, profile=profile_id(profile))
+                              config_file=args.config, language=args.language, profile=profile_id(profile),
+                              executable_layout=executable_layout)
     user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
         for folder in images.values():
@@ -311,6 +341,7 @@ def _main(argv, lifetime):
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
     report = {'profile': profile_id(profile), 'mode': 'imports' if args.check_imports else 'run',
+              'executable_layout': executable_layout, 'game_elf_sha256': validated['game_elf_sha256'],
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
               'user_data': str(user),
               'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
@@ -362,7 +393,8 @@ def _main(argv, lifetime):
                         return 124
                     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                                               local_users=args.local_users, second_user=args.p2_user_id,
-                                              config_file=args.config, language=args.language)
+                                              config_file=args.config, language=args.language,
+                                              profile=profile_id(profile), executable_layout=executable_layout)
                     continue
                 return code
         raise ValueError('LoadExec/restart transition limit reached')

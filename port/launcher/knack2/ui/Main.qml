@@ -114,7 +114,7 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { text: "0.17.6"; color: "#b7bdca"; font.pixelSize: 11 }
+                Label { text: "0.17.7-candidate"; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
         StackLayout {

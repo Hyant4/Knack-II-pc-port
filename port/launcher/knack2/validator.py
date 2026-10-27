@@ -35,6 +35,10 @@ except ImportError:
 
 _HEX_64_RE = re.compile(r'^[0-9a-fA-F]{64}$')
 SUPPORTED_PROFILES = ('CUSA08014-01.01', 'CUSA07670-01.01')
+EXECUTABLE_LAYOUTS = {
+    'CUSA08014-01.01': ('elf-80ccc228', 'elf-0b7843d3'),
+    'CUSA07670-01.01': ('elf-0b7843d3',),
+}
 
 
 class KnackDumpError(Exception):
@@ -99,6 +103,26 @@ def profile_id(profile: Mapping[str, Any]) -> str:
     return name
 
 
+def validate_executable_layout(profile_name: str, layout: str | None = None) -> str:
+    """Keep title identity separate from an allowlisted native code layout."""
+    allowed = EXECUTABLE_LAYOUTS.get(profile_name)
+    if allowed is None or (layout is not None and layout not in allowed):
+        raise KnackProfileError('Layout de executável incompatível com o perfil selecionado')
+    return allowed[0] if layout is None else layout
+
+
+def executable_layout_for_hash(profile: Mapping[str, Any], actual_hash: str) -> str:
+    """Identify only exact hashes; unknown files never inherit another layout."""
+    actual_hash = actual_hash.lower()
+    name = profile_id(profile)
+    if actual_hash == profile['executables']['game.elf'].lower():
+        return validate_executable_layout(name)
+    for variant in profile.get('game_elf_variants', []):
+        if actual_hash == variant['sha256'].lower():
+            return validate_executable_layout(name, variant['layout'])
+    raise KnackHashMismatchError('game.elf: SHA-256 difere do dump suportado')
+
+
 def validate_profile_schema(profile: Any) -> dict[str, Any]:
     """Validate that the profile dictionary contains the required schema and hashes.
 
@@ -133,6 +157,21 @@ def validate_profile_schema(profile: Any) -> dict[str, Any]:
             raise KnackProfileError(
                 f"Perfil malformado: hash de '{required_exe}' deve ser uma string SHA-256 hexadecimal de 64 caracteres"
             )
+
+    variants = profile.get('game_elf_variants', [])
+    if not isinstance(variants, list):
+        raise KnackProfileError('Variantes de game.elf devem ser uma lista')
+    hashes = {executables['game.elf'].lower()}
+    for variant in variants:
+        if not isinstance(variant, dict) or set(variant) != {'sha256', 'layout'}:
+            raise KnackProfileError('Variante de game.elf malformada')
+        digest = variant['sha256']
+        if not isinstance(digest, str) or not _HEX_64_RE.fullmatch(digest) or digest.lower() in hashes:
+            raise KnackProfileError('Hash de variante inválido ou duplicado')
+        if not isinstance(variant['layout'], str):
+            raise KnackProfileError('Layout de variante inválido')
+        validate_executable_layout(profile_id(profile), variant['layout'])
+        hashes.add(digest.lower())
 
     modules = profile.get('modules')
     if not isinstance(modules, dict):
@@ -248,7 +287,10 @@ def validate_knack2_dump(game_dir: Path | str,
             raise KnackDumpNotFoundError(f'Executável ausente no dump: {exe_path}')
 
         actual_hash = digest_file(exe_path)
-        if actual_hash.lower() != expected_hash.lower():
+        if name == 'game.elf':
+            executable_layout = executable_layout_for_hash(active_profile, actual_hash)
+            game_elf_sha256 = actual_hash.lower()
+        elif actual_hash.lower() != expected_hash.lower():
             raise KnackHashMismatchError(f'{name}: SHA-256 difere do dump suportado')
 
     # 3. Modules Validation (libc.prx, libSceFios2.prx, libSceJobManager.prx, etc.)
@@ -269,6 +311,8 @@ def validate_knack2_dump(game_dir: Path | str,
         'valid': True,
         'title_id': title_id,
         'version': app_ver,
+        'executable_layout': executable_layout,
+        'game_elf_sha256': game_elf_sha256,
         'app_title': sfo_values.get('TITLE', 'Knack™ II'),
         'game_dir': str(game),
         'executables': list(executables.keys()),

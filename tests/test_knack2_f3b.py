@@ -20,7 +20,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from PySide6.QtCore import QObject, QTimer, QMetaObject, Q_ARG, qInstallMessageHandler
+from PySide6.QtCore import QObject, QPointF, QTimer, QMetaObject, Q_ARG, Qt, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
@@ -241,6 +241,8 @@ class F3BTests(unittest.TestCase):
         self.finish()
 
     def test_gtx1060_preset_card_preserves_other_settings_and_persists_readbacks(self):
+        self.window.setProperty('width', 1380)
+        self.window.setProperty('height', 1120)
         self.window.setProperty('page', 1)
         self.window.setProperty('settingsTab', 1)
         self.backend.applyGpuPreset('conservative')
@@ -263,11 +265,14 @@ class F3BTests(unittest.TestCase):
         self.assertEqual(profile['label'], 'GTX 1060 black texture')
         self.assertTrue(profile['experimental'])
         self.assertIn('Correção ainda não confirmada', profile['when'])
-        self.assertTrue(QMetaObject.invokeMethod(card, 'clicked'))
+        point = card.mapToScene(QPointF(card.width() / 2, card.height() / 2)).toPoint()
+        QTest.mouseClick(self.window, Qt.LeftButton, Qt.NoModifier, point)
         self.pump()
         expected = {**before, 'gpu_readbacks': '2', 'eager_readback': '0'}
         self.assertEqual(self.backend.settings, expected)
-        self.assertEqual(self.backend.gpuPresetId, 'conservative')
+        self.assertEqual(self.backend.gpuPresetId, 'gtx_1060_black_texture')
+        self.assertIn('GTX 1060 black texture', self.window.findChild(QObject, 'gpuPresetCurrent').property('text'))
+        self.assertTrue(any(item.property('text') == 'Selecionado' for item in card.findChildren(QObject)))
         self.assertIn('Salve as configurações e reinicie', self.backend.notification)
         self.assertEqual(self.window.findChild(QObject, 'gpuReadbacks').property('currentIndex'), 2)
         self.assertFalse(self.window.findChild(QObject, 'eagerReadback').property('checked'))
@@ -275,6 +280,7 @@ class F3BTests(unittest.TestCase):
         restored = RealBackend(data_dir=self.backend.workspace)
         try:
             self.assertEqual(restored.settings, expected)
+            self.assertEqual(restored.gpuPresetId, 'gtx_1060_black_texture')
         finally:
             restored.shutdown()
         self.validate()
@@ -289,6 +295,44 @@ class F3BTests(unittest.TestCase):
         self.backend.setSetting('gpu_readbacks', '0')
         self.backend.setSetting('eager_readback', '1')
         self.assertEqual(self.backend.settings, before)
+        self.assertEqual(self.backend.gpuPresetId, 'conservative')
+        self.backend.setSetting('gpu_readbacks', '2')
+        self.backend.setSetting('eager_readback', '0')
+        self.assertEqual(self.backend.gpuPresetId, 'conservative')
+
+    def test_gtx1060_selection_metadata_is_validated_and_invalidated(self):
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setSetting('fps_limit', '30')
+        self.backend.setSetting('bp06', '1')
+        self.assertEqual(self.backend.gpuPresetId, 'gtx_1060_black_texture')
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['gpu_preset'], 'gtx_1060_black_texture')
+        self.assertNotIn('gpu_preset', config.load_knack2_ini(self.backend.workspace / 'knack2.ini'))
+        for selection in ('invalid', [], {'id': 'gtx_1060_black_texture'}):
+            with self.subTest(selection=selection):
+                config.save_launcher_settings({**saved, 'gpu_preset': selection}, path=path)
+                restored = RealBackend(data_dir=self.backend.workspace)
+                try:
+                    self.assertEqual(restored.gpuPresetId, 'custom')
+                finally:
+                    restored.shutdown()
+        inconsistent = {**saved, 'settings': {**saved['settings'], 'gpu_readbacks': '0'}}
+        config.save_launcher_settings(inconsistent, path=path)
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gpuPresetId, 'custom')
+        finally:
+            restored.shutdown()
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+        self.backend.setSetting('gpu_readbacks', '0')
+        self.backend.setSetting('eager_readback', '1')
+        self.backend.setSetting('gpu_readbacks', '2')
+        self.backend.setSetting('eager_readback', '0')
+        self.assertEqual(self.backend.gpuPresetId, 'default')
 
     def test_guided_gpu_presets_apply_restore_and_preserve_other_preferences(self):
         def card(name):
@@ -713,7 +757,8 @@ class SupervisorConfigTests(unittest.TestCase):
                     Path(env['KNACK2_EXEC_REQUEST']).write_bytes(b'K2EXEC01' + struct.pack('<I', len(target)) + target + struct.pack('<I', 0))
                     return 75
                 return 0
-            with patch.object(supervisor, 'PORT', port), patch.object(supervisor, 'validate_game'), \
+            with patch.object(supervisor, 'PORT', port), patch.object(supervisor, 'validate_game', return_value={
+                    'executable_layout': 'elf-80ccc228', 'game_elf_sha256': '0' * 64}), \
                  patch.object(supervisor, 'load_profile', return_value=supervisor.load_profile()), \
                  patch.object(supervisor, 'prepare_image', side_effect=lambda g, p, name, out: out / name), \
                  patch.object(supervisor.subprocess, 'run'), patch.object(supervisor, 'run_child', side_effect=child), \

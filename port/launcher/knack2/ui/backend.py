@@ -110,6 +110,7 @@ class Backend(QObject):
         self._validate_dump = validate_dump
         self._validation_thread = None
         self._settings = dict(DEFAULTS)
+        self._selected_gpu_preset = None
         self._workspace = tempfile.TemporaryDirectory(prefix='knack2-f3a-')
         self.workspace = Path(self._workspace.name)
         self.supervisor_model = LogModel(self)
@@ -135,7 +136,7 @@ class Backend(QObject):
         {'id': profile['id'], 'experimental': profile['experimental'],
          **{key: self._translate(profile[key]) for key in ('label', 'when', 'changes')}}
         for profile in GPU_PRESETS], notify=uiLanguageChanged)
-    gpuPresetId = Property(str, lambda self: matching_gpu_preset(self._settings), notify=settingsChanged)
+    gpuPresetId = Property(str, lambda self: matching_gpu_preset(self._settings, self._selected_gpu_preset), notify=settingsChanged)
     stateLabel = Property(str, lambda self: self._state_label(), notify=changed)
     sessionId = Property(str, lambda self: self._session or self._translate('Nenhuma sessão'), notify=changed)
     gameDir = Property(str, lambda self: self._game_dir, notify=changed)
@@ -321,6 +322,8 @@ class Backend(QObject):
                 raise ValueError('Opção indisponível nesta interface.')
             key, normalized = config.sanitize_and_validate_key_value(key, value)
             self._settings[key] = normalized
+            if self.gpuPresetId != self._selected_gpu_preset:
+                self._selected_gpu_preset = None
         except ValueError as error:
             self._notice(str(error), True)
         self.settingsChanged.emit()
@@ -335,6 +338,7 @@ class Backend(QObject):
             self._notice(str(error), True)
             return
         self._settings.update(targets)
+        self._selected_gpu_preset = preset_id
         self.settingsChanged.emit()
         if 'gpu_readbacks' in targets:
             self._notice('Predefinição experimental aplicada. Salve as configurações e reinicie o jogo para comparar.')

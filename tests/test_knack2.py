@@ -210,7 +210,8 @@ class KnackTests(unittest.TestCase):
                 if coop:
                     options += ['--local-users', '2', '--p2-user-id', '0004099',
                                 '--capture-dir', str(out / 'frames')]
-                with patch.object(run, 'PORT', port), patch.object(run, 'validate_game'), \
+                with patch.object(run, 'PORT', port), patch.object(run, 'validate_game', return_value={
+                        'executable_layout': 'elf-80ccc228', 'game_elf_sha256': '0' * 64}), \
                      patch.object(run, 'load_profile', return_value=self.profile), \
                      patch.object(run, 'prepare_image', side_effect=lambda g, p, name, o: o / name), \
                      patch.object(run.subprocess, 'run') as rewrite, \

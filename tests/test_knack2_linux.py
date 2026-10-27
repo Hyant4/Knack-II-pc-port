@@ -70,7 +70,8 @@ class LinuxSupervisorTests(unittest.TestCase):
 
             clock = iter([100, 110, 120, 130, 170]) if expire else itertools.repeat(100)
             with patch.object(run.sys, 'platform', 'linux'), \
-                    patch.object(run, 'validate_game'), \
+                    patch.object(run, 'validate_game', return_value={
+                        'executable_layout': 'elf-80ccc228', 'game_elf_sha256': '0' * 64}), \
                     patch.object(run, 'load_profile', return_value=run.load_profile()), \
                     patch.object(run, 'prepare_image', side_effect=lambda g, p, name, o: o / name), \
                     patch.object(run.subprocess, 'run') as rewrite, \

@@ -53,8 +53,13 @@ def gpu_preset_targets(preset_id):
     return dict(sanitize_and_validate_key_value(key, value) for key, value in values.items())
 
 
-def matching_gpu_preset(settings):
-    """Match diagnostic profiles; applying readbacks does not identify a GPU or profile."""
+def matching_gpu_preset(settings, selected_id=None):
+    """Honor an explicit compatible selection; never infer a GTX GPU from defaults."""
+    selected = next((profile for profile in GPU_PRESETS if profile['id'] == selected_id), None)
+    if selected is not None:
+        targets = gpu_preset_targets(selected_id)
+        if all(settings.get(key, 'auto') == value for key, value in targets.items()):
+            return selected_id
     current = {key: settings.get(key, 'auto') for key in GPU_DIAGNOSTIC_ENV}
     return next((profile['id'] for profile in GPU_PRESETS
                  if not profile.get('preserve_diagnostics')

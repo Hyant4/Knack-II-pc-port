@@ -158,8 +158,11 @@ Em **Configurações > Vídeo > Predefinições de compatibilidade**, aplique
 **GTX 1060 black texture** para testar superfícies pretas nessa placa.
 A ação seleciona **Precisão da GPU: Preciso** (`gpu_readbacks=2`) e desliga
 **Leitura antecipada da GPU** (`eager_readback=0`). Os demais ajustes, inclusive
-diagnósticos avançados, são preservados. O perfil de diagnóstico exibido como
-atual continua sendo o anterior; esta ação só aplica as duas opções de leitura.
+diagnósticos avançados, são preservados. O cartão passa a mostrar **Selecionado**
+após o clique. Ao salvar, a escolha é guardada separadamente em
+`launcher_settings.json` e restaurada na próxima abertura, se as duas opções
+ainda corresponderem ao preset. Alterar uma dessas opções desfaz a seleção;
+voltar manualmente aos mesmos valores não seleciona GTX 1060 automaticamente.
 
 Clique em **Salvar configurações** e reinicie o jogo para comparar a mesma cena.
 A predefinição é manual e experimental: não detecta a placa nem confirma uma

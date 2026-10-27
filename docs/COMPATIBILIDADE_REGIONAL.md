@@ -151,3 +151,40 @@ matemática e validação de quatro assinaturas por região. Campanha, HUD compl
 cutscenes corrigidas e FSR temporal em ultrawide ainda precisam de avaliação.
 Nenhum monitor ultrawide físico foi usado. Instalação habitual e saves reais
 foram preservados; testes usaram perfis temporários.
+
+## Variante de executável da issue #12 nos fontes — 26/10/2026
+
+O perfil americano `CUSA08014/01.01` mantém o hash principal de `game.elf`
+`80ccc22819fa4eeb5e1824e585f3ac5d5168e9ebc82f629e44cdb63fd573fb20` e passa
+a reconhecer explicitamente a variante
+`0b7843d39d11c5630a72727f286cde563aa74b7f6b22941bcbe05d907fbadf8b`.
+Qualquer outro hash continua rejeitado, assim como eboot/módulos inválidos.
+
+A região vem do SFO e permanece americana: argumentos `-region=a`, idiomas e
+identidade de saves não são convertidos para a edição europeia. A variante usa
+o layout de código `elf-0b7843d3`, já conhecido no executável europeu. Essa
+coincidência não comprova a origem regional do pacote do relator.
+
+`game_elf_variants` no perfil relaciona hashes exatos a layouts permitidos.
+O supervisor registra layout/hash no `session.json`, fornece
+`KNACK2_EXECUTABLE_LAYOUT` validado ao loader e mantém `KNACK2_PROFILE` regional.
+Overrides herdados não escolhem layout. Os caches preparados principais são
+preservados; a variante usa `CUSA08014-01.01/elf-0b7843d3/` sob a saída escolhida.
+
+O loader seleciona as tabelas existentes de resolução e câmera pelo código
+identificado, mantendo todas as verificações de assinatura/segmento. Ganho de
+diálogo e probe opcional de fatores restritos ao código americano não são
+instalados no layout compartilhado. Não houve mudança de decoder, mix ou ABI.
+
+Para impedir mistura de versões, executar a variante exige runtime que anuncie
+suporte a esse layout no diagnóstico `--cpu-features`. Runtime antigo bloqueia
+a partida antes da preparação, com mensagem para usar build correspondente.
+Análise estática continua disponível sem runtime novo. Caminhos principais e
+lançamentos antigos mantêm comportamento compatível. Para retorno, o hash
+principal e seus caches continuam intactos; não é necessário migrar saves.
+
+Validação desta etapa: hashes/módulos e linking em fixture externo com bytes
+conhecidos e SFO americano anexado à issue, testes sintéticos de LoadExec/região,
+harness C das assinaturas reais e build nativa isolada. Não é prova de que todos
+os assets de uma instalação americana atualizada foram validados, nem de boot,
+gameplay ou correção das superfícies pretas na GTX 1060. A alteração acompanha este candidato experimental; gameplay ainda não foi validado.

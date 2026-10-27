@@ -11,6 +11,7 @@ from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 
 from .. import config
+from ..gpu_presets import matching_gpu_preset
 from ..runner import KnackRunner, RunnerState
 from ..languages import BY_CODE, REGION_LANGUAGES
 from ..identity import runtime_path
@@ -75,6 +76,9 @@ class RealBackend(Backend):
                     self._settings[key] = config.sanitize_and_validate_key_value(key, value)[1]
             except ValueError:
                 pass
+        selected = saved.get('gpu_preset')
+        if isinstance(selected, str) and selected != 'custom' and matching_gpu_preset(self._settings, selected) == selected:
+            self._selected_gpu_preset = selected
 
     @staticmethod
     def _canonical_game_dir(path):
@@ -263,7 +267,8 @@ class RealBackend(Backend):
             path = self._data_path('launcher_settings.json')
             saved = config.load_launcher_settings(path)
             saved.update({'game_dir': self._game_dir, 'settings': self._settings,
-                          'language': self._language, 'ui_language': self._ui_language})
+                          'language': self._language, 'ui_language': self._ui_language,
+                          'gpu_preset': self.gpuPresetId})
             config.save_launcher_settings(saved, path=path)
         except (OSError, ValueError) as error:
             self._notice(str(error), True)

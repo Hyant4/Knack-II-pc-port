@@ -1,12 +1,13 @@
 {
-  "release": "0.17.6",
-  "tag": "knack2-Version-0.17.6",
-  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.6",
-  "parent_release": "knack2-Version-0.17.5",
-  "native_source_base_commit": "980b2f7d9db76d28247c3f865f80aa510af61f26",
-  "native_runtime_inherited_from": "V0.17.5 package / V0.17.3 native build",
-  "native_source_archive_sha256": "85676185da78218d9da0d237da8ea71af0a9e1bc24d051ed72729128112a2028",
-  "base_package_sha256": "5c0603781239a552123d3233aaa38bb5080d4094be64f35764346ee809aaaaaf",
+  "version": "0.17.7-rc1",
+  "base_snapshot": "0.17.6",
+  "remote_latest_observed": "0.17.5",
+  "runtime_sha256": "fe2d8ec74ff8cf13a36e0a4bdabee22a7205b7fc0623904064711eec332504ca",
+  "launcher_sha256": "cc7247933203bb0b8a83e9b37476d2f10fbc85fc15e7bf852661c05495774081",
+  "supervisor_sha256": "44ed94c8f93ec08d4cae2c163aac96ab50d5c9b3e45acb97b43d7d5af47e2153",
+  "runtime_text_sha256": "f5f682285056cdc734d4dbc79b55edc6ce3644bf7b3d47c64320489e3b1635bc",
+  "runtime_file_version": "0.17.7.0",
+  "runtime_marker": "issue12-candidate-0.17.7",
   "expanded_dependency_snapshot": true,
   "submodules": [
     {
@@ -45,74 +46,98 @@
       "local_changes": false
     }
   ],
-  "runtime_unchanged": true,
-  "runtime_sha256": "f252df01fac6c22b878d0b4bfc6cf63d7c0774a23627b756323190096cd10b29",
-  "runtime_file_version": "0.17.3.0",
-  "launcher_file_version": "0.17.6.0",
-  "launcher_sha256": "1a71d5a3faf94e61e022ec3e084aa4bc272234d9a7164d1f05a220616d3608f1",
-  "supervisor_sha256": "6182d2f40b908c39a4033847008976e8881cbdd248cfd1b352d5b52fbc7663c5",
-  "play_launcher_sha256": "b6eb72dbffdeecf095ccc0d78db71bc920d41eb0492b60c7bd04195b048e82c1",
-  "play_launcher_unchanged": true,
-  "pyinstaller": "6.22.3",
-  "pyside6": "6.12.0",
-  "launcher_languages": [
-    "pt-BR",
-    "en-US",
-    "ru-RU"
-  ],
-  "preset": {
-    "id": "gtx_1060_black_texture",
-    "experimental": true,
-    "manual": true,
-    "overrides": {
-      "gpu_readbacks": "2",
-      "eager_readback": "0"
-    },
-    "preserves_other_settings": true,
-    "save_and_restart_required": true,
-    "rendering_fix_confirmed": false
+  "native_build": {
+    "configuration": "RelWithDebInfo",
+    "LTO": false,
+    "PGO": "off",
+    "generator": "Ninja",
+    "TLG_BUILD_COMMIT": "issue12-candidate-0.17.7",
+    "debug_stripped": true
   },
+  "native_AA_prototype_included": false,
+  "USA_0100_profile_included": false,
+  "supported_profiles": [
+    "CUSA08014-01.01",
+    "CUSA07670-01.01"
+  ],
+  "known_executable_variant": "0b7843d39d11c5630a72727f286cde563aa74b7f6b22941bcbe05d907fbadf8b",
+  "test_entrypoint": "Test GTX 1060.cmd",
+  "test_data_folder": "%LOCALAPPDATA%/KnackII-PC-Issue12-Test",
   "validation": {
-    "python_tests_passed": 92,
-    "tests": [
+    "methods": 136,
+    "skipped": 1,
+    "final_tests": [
       {
-        "pattern": "test_knack2_f3b.py",
-        "keywords": [
-          "gtx1060"
-        ],
-        "run": 1,
-        "failures": [],
-        "errors": [],
-        "skipped": 0
-      },
-      {
-        "pattern": "test_knack2_gpu_diagnostics.py",
-        "keywords": [
-          "gtx1060"
-        ],
-        "run": 1,
-        "failures": [],
-        "errors": [],
-        "skipped": 0
-      },
-      {
-        "pattern": "test_knack2_ui.py",
-        "keywords": [],
-        "run": 24,
-        "failures": [],
-        "errors": [],
-        "skipped": 0
-      },
-      {
-        "pattern": "test_knack2_languages.py",
+        "pattern": "test_knack2_executable_layout.py",
+        "terms": [],
         "run": 6,
         "failures": [],
         "errors": [],
         "skipped": 0
       },
       {
+        "pattern": "test_knack2_f3b.py",
+        "terms": [
+          "gtx1060"
+        ],
+        "run": 2,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
+        "pattern": "test_knack2_ui.py",
+        "terms": [],
+        "run": 24,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
+        "pattern": "test_knack2_regions.py",
+        "terms": [],
+        "run": 12,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
+        "pattern": "test_knack2_languages.py",
+        "terms": [],
+        "run": 6,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
+        "pattern": "test_knack2.py",
+        "terms": [],
+        "run": 15,
+        "failures": [],
+        "errors": [],
+        "skipped": 1
+      },
+      {
+        "pattern": "test_knack2_unlimited.py",
+        "terms": [],
+        "run": 9,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
+        "pattern": "test_knack2_gpu_diagnostics.py",
+        "terms": [
+          "gtx1060"
+        ],
+        "run": 2,
+        "failures": [],
+        "errors": [],
+        "skipped": 0
+      },
+      {
         "pattern": "test_knack2_launcher.py",
-        "keywords": [],
+        "terms": [],
         "run": 27,
         "failures": [],
         "errors": [],
@@ -120,31 +145,47 @@
       },
       {
         "pattern": "test_knack2_runner.py",
-        "keywords": [],
+        "terms": [],
         "run": 28,
         "failures": [],
         "errors": [],
         "skipped": 0
       },
       {
-        "pattern": "test_knack2_readbacks.py",
-        "run": 3,
+        "pattern": "test_knack2_validation_autoplay.py",
+        "terms": [],
+        "run": 2,
         "failures": [],
         "errors": [],
         "skipped": 0
       },
       {
-        "pattern": "test_knack2_validation_autoplay.py",
-        "run": 2,
+        "pattern": "test_knack2_readbacks.py",
+        "terms": [
+          "ReadbackSettingsTests"
+        ],
+        "run": 3,
         "failures": [],
         "errors": [],
         "skipped": 0
       }
     ],
-    "package_smokes_passed": 7,
+    "package_smokes": 9,
     "game_started": false,
-    "frozen_baseline_modules_matched": 23,
-    "native_source_files_unchanged": 2128
+    "compiled_GUI_validated_variant": true,
+    "compiled_supervisor_analyzed_variant": true,
+    "native_signatures_verified": true,
+    "initial_runner_timing_failure": [
+      "test_reentrant_final_callback_restarts_and_stops_without_deadlock (test_knack2_runner.TestKnack2Runner.test_reentrant_final_callback_restarts_and_stops_without_deadlock)"
+    ],
+    "runner_full_recheck_passed": true,
+    "runner_unchanged_from_base": true,
+    "GTX_1060_gameplay_verified": false
   },
-  "source_notice": "Use the attached complete source ZIP. The V0.17.5 git tree differs from its distributed launcher; this snapshot matches all 23 frozen launcher/preparation modules before the focused preset change."
+  "binary_build_label": "0.17.7-candidate",
+  "release_tag": "knack2-Version-0.17.7-rc1",
+  "release_url": "https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.17.7-rc1",
+  "release_type": "prerelease",
+  "stable_latest_preserved": "knack2-Version-0.17.5",
+  "publication_state_at_packaging": "ready for approved prerelease publication"
 }

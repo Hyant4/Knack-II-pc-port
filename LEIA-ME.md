@@ -1,17 +1,11 @@
-# Knack II PC — V0.17.6
+# Knack II — 0.17.7-rc1
 
+Pré-release experimental 0.17.7-rc1. A correção das superfícies pretas não está confirmada.
 
-Adiciona a predefinição manual **GTX 1060 black texture (experimental)** em
-**Configurações > Vídeo > Predefinições de compatibilidade**.
+Inclui seleção/persistência corrigida do preset GTX e suporte por hash exato à variante relatada do executável US 01.01. Região, identidade do título e saves permanecem americanos. Hash desconhecido continua recusado. Launcher, supervisor e runtime foram recompilados juntos. Não inclui protótipo AA nem suporte USA 01.00 de outros trabalhos locais.
 
-- Aplica `gpu_readbacks=2` (Preciso) e `eager_readback=0` (leitura antecipada desligada).
-- Preserva resolução, FSR, controles e os demais ajustes. Salve as configurações e reinicie o jogo para comparar a mesma cena.
-- Não detecta a GPU automaticamente. Para reverter, escolha os valores anteriores nas opções de leitura e salve novamente.
-- Mantém o início por `Play Knack II.exe`, a validação obrigatória do dump e a preferência de pré-carregamento da V0.17.5.
-- Launcher recompilado com identificação 0.17.6 e interface PT/EN/RU. Runtime nativo e `Play Knack II.exe` preservados byte a byte do pacote V0.17.5.
+Extraia a pasta inteira em local novo e abra **Test GTX 1060.cmd**. O perfil de teste fica em `%LOCALAPPDATA%\KnackII-PC-Issue12-Test`, separado da configuração/progresso habituais. O atalho não inicia o jogo automaticamente. Selecione o dump atualizado intacto, valide, aplique o preset, salve e faça a mesma comparação inicial com FSR/RCAS desligados. Não troque executáveis nem edite metadados.
 
-**Limite:** é uma configuração experimental para investigar o relato da issue #12. A correção das superfícies pretas na GTX 1060 ainda não foi confirmada. Não inclui patch de shader/driver nem ampliação dos perfis de dump suportados.
+Após o teste, envie captura, `01-game.elf.log` e `session.json`, removendo caminhos pessoais. Logs devem registrar perfil US, layout compartilhado, readbacks precisos e leitura antecipada desligada. Dados do jogo e saves não devem ser enviados.
 
-Baixe `Knack-II-Windows-x64-V0.17.6.zip`, extraia a pasta inteira e abra `Knack II.exe`.
-O pacote não inclui jogo, firmware ou saves. A V0.17.5 permanece disponível para retorno.
-Fontes correspondentes e SHA-256 acompanham a release. Validações desta publicação são sintéticas e de pacote; nenhum jogo real foi iniciado.
+As verificações locais foram sintéticas, estáticas e do pacote. Não houve gameplay ou teste na GTX 1060. O fixture não comprova todos os assets da instalação do relator.

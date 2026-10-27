@@ -80,6 +80,17 @@ class GpuDiagnosticsTests(unittest.TestCase):
             with self.subTest(preset=preset), self.assertRaises(ValueError):
                 gpu_preset_targets(preset)
 
+    def test_gtx1060_selection_requires_explicit_id_and_matching_readbacks(self):
+        settings = {'gpu_readbacks': '2', 'eager_readback': '0'}
+        self.assertEqual(matching_gpu_preset(settings), 'default')
+        self.assertEqual(matching_gpu_preset(settings, 'gtx_1060_black_texture'), 'gtx_1060_black_texture')
+        for key, value in [('gpu_readbacks', '0'), ('eager_readback', '1')]:
+            with self.subTest(key=key):
+                self.assertEqual(matching_gpu_preset({**settings, key: value}, 'gtx_1060_black_texture'), 'default')
+        for invalid in (None, 'invalid', [], {'id': 'gtx_1060_black_texture'}):
+            with self.subTest(invalid=invalid):
+                self.assertEqual(matching_gpu_preset(settings, invalid), 'default')
+
     def test_defaults_and_foreign_overrides_leave_runtime_defaults_intact(self):
         inherited = {variable: '0' for variable in CONTROLS.values()}
         inherited.update(ISS_PIPELINE_BINARIES='1', TLG_BP08='0')
@@ -163,7 +174,8 @@ class GpuDiagnosticsTests(unittest.TestCase):
         output = io.StringIO()
         with patch.object(supervisor, 'runtime_path', return_value=ini), \
              patch.object(supervisor, 'load_profile', return_value=profile), \
-             patch.object(supervisor, 'validate_game'), \
+             patch.object(supervisor, 'validate_game', return_value={
+                 'executable_layout': 'elf-0b7843d3', 'game_elf_sha256': '0' * 64}), \
              patch.object(supervisor, 'prepare_image', side_effect=lambda g, p, name, out: out / name), \
              patch.object(supervisor.subprocess, 'run'), \
              patch.object(supervisor, 'run_child', side_effect=child), \
