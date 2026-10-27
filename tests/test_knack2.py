@@ -65,6 +65,30 @@ class KnackTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run.prepare.executable_path(self.root, target)
 
+    def test_firmware_ngs2_is_linked_into_game_elf_only(self):
+        self.assertIs(run.with_system_modules(self.profile, None), self.profile)
+        sprx = self.root / 'firmware' / run.NGS2_MODULE
+        linked = run.with_system_modules(self.profile, sprx)
+        self.assertEqual(linked['modules']['game.elf'], self.profile['modules']['game.elf'] + [str(sprx)])
+        self.assertEqual(linked['modules']['eboot.bin'], self.profile['modules']['eboot.bin'])
+        self.assertNotIn(str(sprx), self.profile['modules']['game.elf'])  # the loaded profile is not mutated
+        # The linker reads game / 'sce_module' / name: an absolute name must escape the dump.
+        self.assertEqual(self.root / 'dump' / 'sce_module' / str(sprx), sprx)
+
+    def test_firmware_ngs2_search_and_environment(self):
+        folder = self.root / 'modules'
+        folder.mkdir()
+        with patch.dict(os.environ, {'KNACK2_SYSTEM_MODULES': str(folder)}), \
+             patch.object(run, 'ROOT', self.root), patch.object(run.Path, 'home', return_value=self.root):
+            self.assertIsNone(run.ngs2_module())
+            (folder / run.NGS2_MODULE).write_bytes(b'module')
+            with patch.object(run.link_modules, 'module') as parse:
+                self.assertEqual(run.ngs2_module(), (folder / run.NGS2_MODULE).resolve())
+            parse.assert_called_once_with(folder / run.NGS2_MODULE)
+        with patch.dict(os.environ, {'TLG_NGS2': 'native'}):
+            self.assertNotIn('TLG_NGS2', run.runtime_environment(self.root))
+        self.assertEqual(run.runtime_environment(self.root, ngs2=True)['TLG_NGS2'], 'native')
+
     def test_foreign_game_overrides_are_isolated(self):
         with patch.dict(os.environ, {'ISS_FORCE_PATCHES': '1', 'TLG_PATCHES': 'unsafe', 'GOW3_FPS': '240'}):
             env = run.runtime_environment(self.root)

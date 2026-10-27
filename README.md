@@ -85,6 +85,7 @@ The Windows ZIP contains the launcher, runtime, and needed dependencies. It cont
 - Vulkan-capable GPU with an up-to-date driver.
 - Your own Knack II dump: **CUSA08014 / 01.01** (primary target), or **CUSA07670** (European, limited testing).
 - Two controllers if you want local two-player co-op.
+- Source builds only: for game sound, `libSceNgs2.sprx` from your own console firmware in `firmware/` (or `KNACK2_SYSTEM_MODULES`, or shadPS4's `sys_modules`). Without it the runtime's NGS2 placeholder plays silence.
 
 The Windows release ZIP bundles its runtime dependencies. No separate Python, Qt, or MSYS2 installation is required to play.
 

@@ -43,6 +43,36 @@ def validate_game(game, profile):
     return values
 
 
+NGS2_MODULE = 'libSceNgs2.sprx'
+NGS2_EXECUTABLE = 'game.elf'  # the only executable importing sceNgs2*
+
+
+def ngs2_module():
+    """The console firmware's NGS2 (audio mixer), which no game dump carries.
+
+    Without it the runtime's NGS2 placeholder renders silence. Searched in
+    $KNACK2_SYSTEM_MODULES, firmware/ (ignored by git) and shadPS4's sys_modules.
+    """
+    folders = [Path(os.environ['KNACK2_SYSTEM_MODULES'])] if os.environ.get('KNACK2_SYSTEM_MODULES') else []
+    folders += [ROOT / 'firmware', ROOT / 'firmware/sys_modules', Path.home() / '.local/share/shadPS4/sys_modules',
+                Path.home() / '.var/app/net.shadps4.shadPS4/data/shadPS4/sys_modules']
+    for folder in folders:
+        path = folder / NGS2_MODULE
+        if path.is_file():
+            link_modules.module(path)  # a readable SELF/ELF module, or raise
+            return path.resolve()
+    return None
+
+
+def with_system_modules(profile, ngs2):
+    """Profile copy that also links the firmware NGS2 (absolute path) into its executable."""
+    if ngs2 is None:
+        return profile
+    modules = {name: list(names) for name, names in profile['modules'].items()}
+    modules[NGS2_EXECUTABLE].append(str(ngs2))
+    return {**profile, 'modules': modules}
+
+
 def prepare_image(game, profile, executable, out):
     folder = out / executable.replace('.', '_')
     folder.mkdir(parents=True, exist_ok=True)
@@ -116,7 +146,7 @@ def local_user_environment(local_users, second_user):
 
 
 def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None,
-                        config_file=None, language=None):
+                        config_file=None, language=None, ngs2=False):
     users = local_user_environment(local_users, second_user)
     locale = language_environment(language)
     if config_file is not None:
@@ -133,6 +163,8 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
     env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
                TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
+    if ngs2:
+        env['TLG_NGS2'] = 'native'  # the linked firmware NGS2 wins over the silent placeholder
     env.update(users)  # Only validated CLI values may enable a second local user.
     env.update(locale)  # Inherited TLG_LANGUAGE remains filtered; only explicit CLI values survive.
     env.update(game_identity_environment(ROOT))  # Fixed local identity, never inherited from another port.
@@ -244,6 +276,13 @@ def _main(argv, lifetime):
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
     out.mkdir(parents=True, exist_ok=True)
+    ngs2 = ngs2_module()
+    if ngs2 is not None:
+        print(f'Audio: firmware NGS2 {ngs2}', flush=True)
+    else:
+        print(f'Audio: {NGS2_MODULE} not found (put it in {ROOT / "firmware"} or set KNACK2_SYSTEM_MODULES); '
+              'game sound will be silent', flush=True)
+    profile = with_system_modules(profile, ngs2)
     images = {name: prepare_image(game, profile, name, out) for name in profile['executables']}
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
@@ -253,7 +292,7 @@ def _main(argv, lifetime):
         raise ValueError('Build the runtime first: .\\build.ps1')
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
-                              config_file=args.config, language=args.language)
+                              config_file=args.config, language=args.language, ngs2=ngs2 is not None)
     user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
         for folder in images.values():

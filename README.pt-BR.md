@@ -61,6 +61,7 @@
 - Placa de vídeo compatível com Vulkan e driver atualizado.
 - Seu próprio dump do jogo: **CUSA08014 (americana, versão 01.01)** ou **CUSA07670 (europeia, suporte experimental)**.
 - Dois controles para cooperativo local.
+- Apenas builds do código-fonte: para o som do jogo, `libSceNgs2.sprx` do firmware do seu próprio console em `firmware/` (ou `KNACK2_SYSTEM_MODULES`, ou `sys_modules` do shadPS4). Sem ele, o NGS2 provisório do runtime gera silêncio.
 
 O pacote inclui executáveis e dependências. **Não inclui o jogo, firmware, dumps, saves ou assets proprietários.** Não é necessário instalar Python, Qt ou MSYS2 para jogar.
 
