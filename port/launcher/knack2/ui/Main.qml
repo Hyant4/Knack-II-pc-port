@@ -114,7 +114,7 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { text: "0.17.7-candidate"; color: "#b7bdca"; font.pixelSize: 11 }
+                Label { text: "0.17.7-rc2"; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
         StackLayout {
@@ -322,6 +322,34 @@ ApplicationWindow {
                                                 }
                                             }
                                         }
+                                    }
+                                    ColumnLayout {
+                                        objectName: "gtx1060DiagnosticSection"
+                                        visible: backend.gpuPresetId === "gtx_1060_black_texture"
+                                        Layout.fillWidth: true; spacing: 8
+                                        Label {
+                                            text: qsTr("Diagnóstico opcional GTX 1060")
+                                            color: "#d6bb84"; font.pixelSize: 14
+                                            wrapMode: Text.WordWrap; Layout.fillWidth: true
+                                        }
+                                        OptionSelect {
+                                            id: gtx1060Diagnostic
+                                            objectName: "gtx1060Diagnostic"
+                                            Layout.fillWidth: true
+                                            model: [qsTr("Desligado"), qsTr("1 — Cache novo por sessão"),
+                                                    qsTr("2 — Cache novo + compilação síncrona")]
+                                            currentIndex: ["off", "cache", "cache_sync"].indexOf(backend.gtx1060Diagnostic)
+                                            // Retranslation replaces the list; ComboBox resets its index.
+                                            onModelChanged: Qt.callLater(function() {
+                                                gtx1060Diagnostic.currentIndex = Qt.binding(function() {
+                                                    return ["off", "cache", "cache_sync"].indexOf(backend.gtx1060Diagnostic);
+                                                });
+                                            })
+                                            enabled: backend.editable
+                                            Accessible.name: qsTr("Diagnóstico opcional GTX 1060")
+                                            onActivated: backend.setGtx1060Diagnostic(["off", "cache", "cache_sync"][currentIndex])
+                                        }
+                                        Hint { text: qsTr("Compare a mesma cena: primeiro cache novo, depois compilação síncrona. Cada partida de teste usa cache separado; o cache habitual é preservado. A compilação síncrona pode causar pausas."); font.pixelSize: 11 }
                                     }
                                     Hint { text: qsTr("Perfis de teste não garantem corrigir falhas. Para manter a escolha após fechar o launcher, salve as configurações."); font.pixelSize: 11 }
                                 }

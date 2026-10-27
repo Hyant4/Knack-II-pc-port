@@ -1,5 +1,7 @@
-# Matching candidate sources — 0.17.7
+# Matching sources — 0.17.7-rc2
 
-Based on the verified 0.17.6 source snapshot, with only preset selection/persistence and exact executable variant support ported into the existing launcher/loader. The local native-AA prototype and USA 01.00 support were excluded. Both launcher/supervisor and the native runtime were rebuilt. This is the RC1 test prerelease, without real gameplay evidence.
-
-Use CANDIDATE-NOTES.md for retest instructions. Expanded dependencies retain the versions and licenses from the base snapshot. No game executables, private fixtures, saves or private logs are distributed.
+This snapshot adds optional GTX preset diagnostics to the verified RC1 sources.
+Only launcher/supervisor behavior and packaging were changed. Native runtime and
+expanded dependencies remain from RC1. Local native-AA, PKG installer and later
+translation work were not included. No game files or private test fixtures are
+distributed. See BUILDINFO.json and CANDIDATE-NOTES.md for evidence and limits.

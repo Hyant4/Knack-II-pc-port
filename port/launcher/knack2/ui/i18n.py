@@ -5,6 +5,15 @@ from .i18n_ru import RUSSIAN
 
 # Source Portuguese, followed by English, Latin American Spanish and French.
 MESSAGES = {
+    'Diagnóstico opcional GTX 1060': ['Optional GTX 1060 diagnostics', 'Diagnóstico opcional GTX 1060', 'Diagnostic GTX 1060 facultatif'],
+    '1 — Cache novo por sessão': ['1 — Fresh cache per session', '1 — Caché nueva por sesión', '1 — Nouveau cache par session'],
+    '2 — Cache novo + compilação síncrona': ['2 — Fresh cache + synchronous compilation', '2 — Caché nueva + compilación síncrona', '2 — Nouveau cache + compilation synchrone'],
+    'Compare a mesma cena: primeiro cache novo, depois compilação síncrona. Cada partida de teste usa cache separado; o cache habitual é preservado. A compilação síncrona pode causar pausas.': [
+        'Compare the same scene: fresh cache first, then synchronous compilation. Each test session uses a separate cache; your normal cache is preserved. Synchronous compilation may cause pauses.',
+        'Compara la misma escena: primero caché nueva, luego compilación síncrona. Cada sesión de prueba usa una caché separada; conserva la caché habitual. La compilación síncrona puede causar pausas.',
+        'Comparez la même scène : nouveau cache, puis compilation synchrone. Chaque session de test utilise un cache séparé ; le cache habituel est conservé. La compilation synchrone peut provoquer des pauses.'],
+    'Diagnóstico GTX 1060 inválido.': ['Invalid GTX 1060 diagnostic mode.', 'Diagnóstico GTX 1060 inválido.', 'Mode de diagnostic GTX 1060 invalide.'],
+    'Selecione o preset GTX 1060 antes do diagnóstico.': ['Select the GTX 1060 preset before enabling diagnostics.', 'Selecciona el perfil GTX 1060 antes del diagnóstico.', 'Sélectionnez le profil GTX 1060 avant le diagnostic.'],
     'GTX 1060 black texture': ['GTX 1060 black texture', 'GTX 1060 black texture', 'GTX 1060 black texture'],
     'Teste superfícies pretas na GTX 1060. Correção ainda não confirmada.': [
         'Try for black surfaces on the GTX 1060. A fix has not been confirmed yet.',

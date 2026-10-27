@@ -24,6 +24,7 @@ import content_profile
 from port.launcher.knack2.languages import BY_CODE, discover_languages, language_environment
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
+from port.launcher.knack2.gtx1060_diagnostics import MODES as GTX1060_MODES, create_environment as gtx1060_environment
 from port.launcher.knack2.config import load_knack2_ini, sanitize_and_validate_key_value
 from port.launcher.knack2.validator import (load_profile, profile_id, SUPPORTED_PROFILES,
                                           executable_layout_for_hash, validate_executable_layout)
@@ -252,6 +253,8 @@ def _main(argv, lifetime):
     parser.add_argument('--p2-user-id', type=p2_user_id, help='explicit local P2 ID, required with --local-users 2')
     parser.add_argument('--pad-file', type=Path, help='explicit scePad button input file for diagnostics')
     parser.add_argument('--capture-dir', type=Path, help='write capture.request here to dump the next presented frame')
+    parser.add_argument('--gtx1060-diagnostic', choices=GTX1060_MODES, default='off',
+                        help='opt-in GTX preset experiment: fresh GPU cache, optionally synchronous shaders')
     args = parser.parse_args(argv)
     if args.timeout < 0:
         parser.error('--timeout must be non-negative (0 means unlimited)')
@@ -263,6 +266,12 @@ def _main(argv, lifetime):
         game = args.game_dir.resolve()
         out = (args.out if args.out is not None else ROOT / 'out/knack2').resolve()
         user = args.user_data.resolve() if args.user_data is not None else out / 'user'
+        if args.gtx1060_diagnostic != 'off':
+            if args.out is None or args.analyze or args.check_imports:
+                raise ValueError('GTX 1060 diagnostics require explicit --out and a gameplay session')
+            for protected in (game, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
+                if out.is_relative_to(protected) or protected.is_relative_to(out):
+                    raise ValueError('GTX 1060 diagnostic output overlaps game or habitual data')
         if args.user_data is not None:
             for protected in (game, out, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
                 if user.is_relative_to(protected) or protected.is_relative_to(user):
@@ -340,6 +349,8 @@ def _main(argv, lifetime):
             subprocess.run(rewrite, check=True)
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
+    diagnostic_env = gtx1060_environment(args.gtx1060_diagnostic, session)
+    env.update(diagnostic_env)
     report = {'profile': profile_id(profile), 'mode': 'imports' if args.check_imports else 'run',
               'executable_layout': executable_layout, 'game_elf_sha256': validated['game_elf_sha256'],
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
@@ -347,6 +358,13 @@ def _main(argv, lifetime):
               'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
               'shader_preload': env.get('TLG_BACKGROUND_WARMUP') == '0',
               'visual_verified': False, 'stages': []}
+    if diagnostic_env:
+        report['gtx1060_diagnostic'] = {'mode': args.gtx1060_diagnostic,
+                                      'fresh_gpu_cache': True, 'environment': diagnostic_env}
+        print(f'GTX 1060 diagnostic: {args.gtx1060_diagnostic}; '
+              f'GPU cache root: {diagnostic_env["TLG_GPU_USER_DIR"]}', flush=True)
+        if args.gtx1060_diagnostic == 'cache_sync':
+            print('GTX 1060 diagnostic: TLG_ASYNC_SHADERS=0, TLG_COMPUTE_ASYNC_BUILD=0', flush=True)
     deadline = time.monotonic() + args.timeout if args.timeout else None
     executable, guest_args = profile['entry'], []
     status = 0
@@ -395,6 +413,7 @@ def _main(argv, lifetime):
                                               local_users=args.local_users, second_user=args.p2_user_id,
                                               config_file=args.config, language=args.language,
                                               profile=profile_id(profile), executable_layout=executable_layout)
+                    env.update(diagnostic_env)
                     continue
                 return code
         raise ValueError('LoadExec/restart transition limit reached')

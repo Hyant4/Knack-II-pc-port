@@ -11,7 +11,7 @@ import time
 import iced_x86  # Explicitly collect the existing ISA decoder dependency.
 from port.launcher.knack2.paths import project_root, external_process_environment
 # run.py imports these dynamically; make them visible to the packager's analysis.
-from port.launcher.knack2 import config, languages, identity, storage, validator
+from port.launcher.knack2 import config, languages, identity, storage, validator, gtx1060_diagnostics
 
 
 def main(argv=None):

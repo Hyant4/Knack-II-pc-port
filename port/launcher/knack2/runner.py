@@ -135,6 +135,7 @@ class KnackRunner:
         config_file: Path | str | None = None,
         language: str | None = None,
         user_data: Path | str | None = None,
+        gtx1060_diagnostic: str = 'off',
     ) -> None:
         if not game_dir:
             raise KnackRunnerConfigError('O parâmetro game_dir é obrigatório')
@@ -157,6 +158,8 @@ class KnackRunner:
         language_environment(language)
         self.language = language
         self.user_data = Path(user_data).resolve() if user_data is not None else None
+        from .gtx1060_diagnostics import validate_mode
+        self.gtx1060_diagnostic = validate_mode(gtx1060_diagnostic)
         if type(local_users) is not int or local_users not in (1, 2):
             raise KnackRunnerConfigError('Selecione um ou dois jogadores.')
         if ((local_users == 1 and second_user is not None) or
@@ -283,6 +286,8 @@ class KnackRunner:
             cmd.extend(['--user-data', str(self.user_data)])
         if self.language is not None:
             cmd.extend(['--language', self.language])
+        if self.gtx1060_diagnostic != 'off':
+            cmd.extend(['--gtx1060-diagnostic', self.gtx1060_diagnostic])
         if self.local_users == 2:
             cmd.extend(['--local-users', '2', '--p2-user-id', str(self.second_user)])
         if self.analyze_only:

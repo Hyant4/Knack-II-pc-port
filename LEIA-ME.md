@@ -1,11 +1,18 @@
-# Knack II — 0.17.7-rc1
+# Knack II — 0.17.7-rc2
 
-Pré-release experimental 0.17.7-rc1. A correção das superfícies pretas não está confirmada.
+## Português
 
-Inclui seleção/persistência corrigida do preset GTX e suporte por hash exato à variante relatada do executável US 01.01. Região, identidade do título e saves permanecem americanos. Hash desconhecido continua recusado. Launcher, supervisor e runtime foram recompilados juntos. Não inclui protótipo AA nem suporte USA 01.00 de outros trabalhos locais.
+Pré-release experimental para investigar superfícies pretas na GTX 1060. **Ainda não é uma correção gráfica confirmada.**
 
-Extraia a pasta inteira em local novo e abra **Test GTX 1060.cmd**. O perfil de teste fica em `%LOCALAPPDATA%\KnackII-PC-Issue12-Test`, separado da configuração/progresso habituais. O atalho não inicia o jogo automaticamente. Selecione o dump atualizado intacto, valide, aplique o preset, salve e faça a mesma comparação inicial com FSR/RCAS desligados. Não troque executáveis nem edite metadados.
+O preset **GTX 1060 black texture** agora oferece diagnóstico opcional, desligado por padrão:
 
-Após o teste, envie captura, `01-game.elf.log` e `session.json`, removendo caminhos pessoais. Logs devem registrar perfil US, layout compartilhado, readbacks precisos e leitura antecipada desligada. Dados do jogo e saves não devem ser enviados.
+1. **Cache novo por sessão:** usa uma pasta gráfica vazia e separada, preservando o cache habitual.
+2. **Cache novo + compilação síncrona:** acrescenta espera pela compilação de shaders gráficos e compute. Pode causar pausas.
 
-As verificações locais foram sintéticas, estáticas e do pacote. Não houve gameplay ou teste na GTX 1060. O fixture não comprova todos os assets da instalação do relator.
+Extraia todo o ZIP em uma pasta nova e abra **Test GTX 1060.cmd**, que usa um perfil de teste separado. Valide seu update original intacto. Em Configurações → Vídeo, aplique o preset GTX, escolha o diagnóstico e salve. Compare a mesma cena, primeiro com diagnóstico desligado, depois opção 1 e por último opção 2. Mantenha os outros ajustes iguais. Trocar de preset desativa o diagnóstico.
+
+Modo e caminho do cache são registrados nos logs e em `session.json`. Compartilhe esse arquivo, `01-game.elf.log` e uma captura da cena, removendo caminhos pessoais. Não é necessário trocar ELF, editar SFO ou reenviar hashes.
+
+Launcher e supervisor foram recompilados juntos; o runtime nativo é exatamente o da RC1 e mantém seu identificador interno `issue12-candidate-0.17.7`. A validação estrita da variante ELF continua ativa. Outros presets mantêm seu comportamento. Trabalhos locais paralelos de AA, instalador PKG e novas traduções não fazem parte deste pacote.
+
+Validação: 79 testes aprovados, um skip por harness nativo opcional ausente e dois contratos antigos de diagnóstico GPU fora do gate. Pacote compilado testado com três modos e duas etapas de LoadExec usando um executável sintético que não carrega o jogo; preferências antigas e ícones associados conferidos. Não houve teste real na GTX 1060 ou execução de gameplay. Stable/latest **0.17.5** permanece preservada.

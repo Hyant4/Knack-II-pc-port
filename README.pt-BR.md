@@ -1,4 +1,4 @@
-> **Pré-release experimental 0.17.7-rc1.** Leia as [instruções de teste](CANDIDATE-NOTES.md). Este pacote é uma pré-release experimental. Documentação histórica da base segue abaixo.
+> **Pré-release experimental 0.17.7-rc2.** Leia as [instruções de teste](CANDIDATE-NOTES.md). Este pacote é uma pré-release experimental. Documentação histórica da base segue abaixo.
 
 <p align="center">
   <img src="docs/screenshots/knack-ii-title-screen.png" alt="Knack II rodando no PC" width="250" />

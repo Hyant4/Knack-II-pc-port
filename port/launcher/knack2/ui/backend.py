@@ -15,6 +15,7 @@ from PySide6.QtGui import QGuiApplication
 
 from .. import config, validator
 from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset
+from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import RunnerState
 from .demo import DemoRunnerPort, SimulatedRunner
 from ..languages import LANGUAGES, BY_CODE
@@ -111,6 +112,7 @@ class Backend(QObject):
         self._validation_thread = None
         self._settings = dict(DEFAULTS)
         self._selected_gpu_preset = None
+        self._gtx1060_diagnostic = 'off'
         self._workspace = tempfile.TemporaryDirectory(prefix='knack2-f3a-')
         self.workspace = Path(self._workspace.name)
         self.supervisor_model = LogModel(self)
@@ -137,6 +139,8 @@ class Backend(QObject):
          **{key: self._translate(profile[key]) for key in ('label', 'when', 'changes')}}
         for profile in GPU_PRESETS], notify=uiLanguageChanged)
     gpuPresetId = Property(str, lambda self: matching_gpu_preset(self._settings, self._selected_gpu_preset), notify=settingsChanged)
+    gtx1060Diagnostic = Property(str, lambda self: self._gtx1060_diagnostic
+                               if self.gpuPresetId == GTX1060_PRESET else 'off', notify=settingsChanged)
     stateLabel = Property(str, lambda self: self._state_label(), notify=changed)
     sessionId = Property(str, lambda self: self._session or self._translate('Nenhuma sessão'), notify=changed)
     gameDir = Property(str, lambda self: self._game_dir, notify=changed)
@@ -324,6 +328,7 @@ class Backend(QObject):
             self._settings[key] = normalized
             if self.gpuPresetId != self._selected_gpu_preset:
                 self._selected_gpu_preset = None
+                self._gtx1060_diagnostic = 'off'
         except ValueError as error:
             self._notice(str(error), True)
         self.settingsChanged.emit()
@@ -339,9 +344,24 @@ class Backend(QObject):
             return
         self._settings.update(targets)
         self._selected_gpu_preset = preset_id
+        if preset_id != GTX1060_PRESET:
+            self._gtx1060_diagnostic = 'off'
         self.settingsChanged.emit()
         if 'gpu_readbacks' in targets:
             self._notice('Predefinição experimental aplicada. Salve as configurações e reinicie o jogo para comparar.')
+
+    @Slot(str)
+    def setGtx1060Diagnostic(self, mode):
+        if self._closed or not self.editable:
+            return
+        try:
+            validate_gtx1060_mode(mode)
+            if self.gpuPresetId != GTX1060_PRESET:
+                raise ValueError('Selecione o preset GTX 1060 antes do diagnóstico.')
+            self._gtx1060_diagnostic = mode
+        except ValueError as error:
+            self._notice(str(error), True)
+        self.settingsChanged.emit()
 
     @Slot(float)
     def setRcasStrength(self, value):

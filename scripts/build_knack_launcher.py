@@ -39,7 +39,7 @@ StringStruct('CompanyName','Knack II PC Port contributors'),
 StringStruct('FileDescription','Knack II PC Launcher'),
 StringStruct('FileVersion','0.17.7.0'),StringStruct('InternalName','KnackII.Launcher'),
 StringStruct('OriginalFilename','Knack II.exe'),StringStruct('ProductName','Knack II PC Port'),
-StringStruct('ProductVersion','0.17.7-candidate'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
+StringStruct('ProductVersion','0.17.7-rc2'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
 VarFileInfo([VarStruct('Translation',[1033,1200])])])""", encoding='utf-8')
     env = dict(os.environ, KNACK_BUILD_ROOT=str(root), KNACK_BUILD_ICON=str(icon), KNACK_BUILD_VERSION=str(version))
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--log-level', 'WARN',

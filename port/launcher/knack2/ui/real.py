@@ -12,6 +12,7 @@ from PySide6.QtGui import QDesktopServices, QGuiApplication
 
 from .. import config
 from ..gpu_presets import matching_gpu_preset
+from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import KnackRunner, RunnerState
 from ..languages import BY_CODE, REGION_LANGUAGES
 from ..identity import runtime_path
@@ -79,6 +80,11 @@ class RealBackend(Backend):
         selected = saved.get('gpu_preset')
         if isinstance(selected, str) and selected != 'custom' and matching_gpu_preset(self._settings, selected) == selected:
             self._selected_gpu_preset = selected
+        if self.gpuPresetId == GTX1060_PRESET:
+            try:
+                self._gtx1060_diagnostic = validate_gtx1060_mode(saved.get('gtx1060_diagnostic', 'off'))
+            except ValueError:
+                pass
 
     @staticmethod
     def _canonical_game_dir(path):
@@ -268,7 +274,8 @@ class RealBackend(Backend):
             saved = config.load_launcher_settings(path)
             saved.update({'game_dir': self._game_dir, 'settings': self._settings,
                           'language': self._language, 'ui_language': self._ui_language,
-                          'gpu_preset': self.gpuPresetId})
+                          'gpu_preset': self.gpuPresetId,
+                          'gtx1060_diagnostic': self.gtx1060Diagnostic})
             config.save_launcher_settings(saved, path=path)
         except (OSError, ValueError) as error:
             self._notice(str(error), True)
@@ -355,7 +362,10 @@ class RealBackend(Backend):
             config.update_knack2_ini(settings_file, self._settings, header_comment=AUDIO_PROFILE)
             log.parent.mkdir(parents=True, exist_ok=True)
             previous = self._runner
+            diagnostic_options = ({'gtx1060_diagnostic': self.gtx1060Diagnostic}
+                                  if self.gtx1060Diagnostic != 'off' else {})
             runner = self._session_factory(self._game_dir, timeout=0, out_dir=out,
+                                          **diagnostic_options,
                                           config_file=settings_file, local_users=self._players, language=self._language,
                                           second_user=second_user,
                                           user_data=user,

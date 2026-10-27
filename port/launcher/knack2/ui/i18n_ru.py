@@ -2,6 +2,12 @@
 """Russian launcher catalog; runtime and external errors remain verbatim."""
 
 RUSSIAN = {
+    'Diagnóstico opcional GTX 1060': 'Дополнительная диагностика GTX 1060',
+    '1 — Cache novo por sessão': '1 — Новый кэш для каждого запуска',
+    '2 — Cache novo + compilação síncrona': '2 — Новый кэш + синхронная компиляция',
+    'Compare a mesma cena: primeiro cache novo, depois compilação síncrona. Cada partida de teste usa cache separado; o cache habitual é preservado. A compilação síncrona pode causar pausas.': 'Сравните одну сцену: сначала новый кэш, затем синхронная компиляция. Каждый тестовый запуск использует отдельный кэш; обычный кэш сохраняется. Синхронная компиляция может вызывать паузы.',
+    'Diagnóstico GTX 1060 inválido.': 'Недопустимый режим диагностики GTX 1060.',
+    'Selecione o preset GTX 1060 antes do diagnóstico.': 'Выберите профиль GTX 1060 перед диагностикой.',
     'GTX 1060 black texture': 'GTX 1060 black texture (тест)',
     'Teste superfícies pretas na GTX 1060. Correção ainda não confirmada.': 'Попробуйте при чёрных поверхностях на GTX 1060. Исправление пока не подтверждено.',
     'Ativa leitura precisa da GPU e desliga leitura antecipada. Salve e reinicie o jogo; demais ajustes são preservados.': 'Включает точное чтение результатов GPU и отключает упреждающее чтение. Сохраните настройки и перезапустите игру; остальные настройки сохраняются.',

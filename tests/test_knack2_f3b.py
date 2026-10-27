@@ -300,6 +300,89 @@ class F3BTests(unittest.TestCase):
         self.backend.setSetting('eager_readback', '0')
         self.assertEqual(self.backend.gpuPresetId, 'conservative')
 
+    def test_gtx1060_diagnostic_is_opt_in_scoped_and_persisted(self):
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        section = self.window.findChild(QObject, 'gtx1060DiagnosticSection')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        self.assertFalse(section.property('visible'))
+        self.backend.setGtx1060Diagnostic('cache_sync')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        before = dict(self.backend.settings)
+        self.pump()
+        self.assertTrue(section.property('visible'))
+        # Exercise the QML activation path, including keyboard selection.
+        control.forceActiveFocus()
+        QTest.keyClick(self.window, Qt.Key_End)
+        QTest.keyClick(self.window, Qt.Key_Return)
+        self.pump()
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'cache_sync')
+        self.assertEqual(control.property('currentIndex'), 2)
+        self.assertEqual(self.backend.settings, before)
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['gtx1060_diagnostic'], 'cache_sync')
+        self.assertNotIn('gtx1060_diagnostic', config.load_knack2_ini(self.backend.workspace / 'knack2.ini'))
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gtx1060Diagnostic, 'cache_sync')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        cmd = session.contract.build_command()
+        self.assertEqual(cmd[cmd.index('--gtx1060-diagnostic') + 1], 'cache_sync')
+        self.assertFalse(control.property('enabled'))
+        self.backend.setGtx1060Diagnostic('off')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'cache_sync')
+        self.finish()
+        self.backend.applyGpuPreset('default')
+        self.pump()
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.assertFalse(section.property('visible'))
+        self.backend.saveSettings()
+        session = self.launch()
+        self.assertNotIn('--gtx1060-diagnostic', session.contract.build_command())
+        self.finish()
+
+    def test_gtx1060_diagnostic_rejects_invalid_or_unrelated_restored_selection(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('cache')
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        for override in ({'gtx1060_diagnostic': []}, {'gtx1060_diagnostic': 'invalid'},
+                         {'gpu_preset': 'default'}, {'gpu_preset': 'amd_compat'},
+                         {'settings': {**saved['settings'], 'gpu_readbacks': '0'}}):
+            with self.subTest(override=override):
+                config.save_launcher_settings({**saved, **override}, path=path)
+                restored = RealBackend(data_dir=self.backend.workspace)
+                try:
+                    self.assertEqual(restored.gtx1060Diagnostic, 'off')
+                finally:
+                    restored.shutdown()
+        self.backend.setGtx1060Diagnostic('invalid')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'cache')
+        self.backend.setSetting('gpu_readbacks', '0')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.backend.setSetting('gpu_readbacks', '2')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+
+    def test_gtx1060_diagnostic_labels_follow_pt_en_ru(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('cache')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        for locale, expected in [('pt-BR', '1 — Cache novo por sessão'),
+                                 ('en-US', '1 — Fresh cache per session'),
+                                 ('ru-RU', '1 — Новый кэш для каждого запуска')]:
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertEqual(control.property('currentText'), expected)
+            self.assertEqual(self.backend.gtx1060Diagnostic, 'cache')
+
     def test_gtx1060_selection_metadata_is_validated_and_invalidated(self):
         self.assertEqual(self.backend.gpuPresetId, 'default')
         self.backend.applyGpuPreset('gtx_1060_black_texture')
