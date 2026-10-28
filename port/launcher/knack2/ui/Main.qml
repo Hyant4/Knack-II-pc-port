@@ -114,7 +114,7 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { text: "0.17.7-rc2"; color: "#b7bdca"; font.pixelSize: 11 }
+                Label { text: "0.17.7-rc4"; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
         StackLayout {
