@@ -534,3 +534,16 @@ target_link_libraries(fsr4-bench PRIVATE ffx-vulkan::fsr4-v07-vulkan ffx-vulkan:
 
 add_executable(cheat-hook-test ../tests/test_cheat_hook.cpp)
 target_compile_options(cheat-hook-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+
+# Knack explicit interpolation on hardware without barycentric extensions.
+add_executable(barycentric-shaders-test EXCLUDE_FROM_ALL
+    ../tests/test_barycentric_shaders.cpp ../tests/test_gpu_runtime_stubs.cpp)
+target_include_directories(barycentric-shaders-test PRIVATE shim shadps4 third_party/gcn/include)
+target_compile_options(barycentric-shaders-test PRIVATE -UNDEBUG -fPIC)
+target_link_libraries(barycentric-shaders-test PRIVATE tlggpu)
+if (WIN32)
+    target_link_libraries(barycentric-shaders-test PRIVATE onecore)
+endif()
+add_executable(barycentric-pixels-test EXCLUDE_FROM_ALL ../tests/test_barycentric_pixels.cpp)
+target_compile_options(barycentric-pixels-test PRIVATE -UNDEBUG)
+target_link_libraries(barycentric-pixels-test PRIVATE Vulkan::Vulkan)

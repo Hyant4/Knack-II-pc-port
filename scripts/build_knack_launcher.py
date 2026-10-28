@@ -33,13 +33,13 @@ def main():
         raise ValueError('Existing compiled launcher preserved. Choose a new deployment after reviewing the build.')
     version = build / 'launcher-version.txt'
     version.write_text("""VSVersionInfo(
-ffi=FixedFileInfo(filevers=(0,17,7,0),prodvers=(0,17,7,0),mask=0x3f,flags=2,OS=0x40004,fileType=1,subtype=0,date=(0,0)),
+ffi=FixedFileInfo(filevers=(0,17,7,4),prodvers=(0,17,7,4),mask=0x3f,flags=2,OS=0x40004,fileType=1,subtype=0,date=(0,0)),
 kids=[StringFileInfo([StringTable('040904B0',[
 StringStruct('CompanyName','Knack II PC Port contributors'),
 StringStruct('FileDescription','Knack II PC Launcher'),
-StringStruct('FileVersion','0.17.7.0'),StringStruct('InternalName','KnackII.Launcher'),
+StringStruct('FileVersion','0.17.7.4'),StringStruct('InternalName','KnackII.Launcher'),
 StringStruct('OriginalFilename','Knack II.exe'),StringStruct('ProductName','Knack II PC Port'),
-StringStruct('ProductVersion','0.17.7-rc3'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
+StringStruct('ProductVersion','0.17.7-rc4'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
 VarFileInfo([VarStruct('Translation',[1033,1200])])])""", encoding='utf-8')
     env = dict(os.environ, KNACK_BUILD_ROOT=str(root), KNACK_BUILD_ICON=str(icon), KNACK_BUILD_VERSION=str(version))
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--log-level', 'WARN',

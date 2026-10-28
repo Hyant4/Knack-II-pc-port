@@ -37,9 +37,9 @@
 
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
-static constexpr u32 ShaderBinaryVersion = 9u; // tlg: LDS barrier scope per guest wave
-static constexpr u32 ShaderMetaVersion = 9u; // tlg: LDS barrier scope per guest wave
-static constexpr u32 PipelineKeyVersion = 5u; // tlg: Info layout (ImageResource::needs_native)
+static constexpr u32 ShaderBinaryVersion = 10u; // tlg: LDS barrier scope per guest wave
+static constexpr u32 ShaderMetaVersion = 10u; // tlg: LDS barrier scope per guest wave
+static constexpr u32 PipelineKeyVersion = 6u; // tlg: Info layout (ImageResource::needs_native)
 } // namespace Serialization
 
 namespace Vulkan {
@@ -776,6 +776,7 @@ void GraphicsPipeline::SerializationSupport::Serialize(Serialization::Archive& a
     sdata.Write(tes);
     // tlg: last, so .key files written before it still load (with no discard shader).
     sdata.Write(fragment);
+    sdata.Write(barycentric_geometry);
 }
 
 bool GraphicsPipeline::SerializationSupport::Deserialize(Serialization::Archive& ar) {
@@ -787,9 +788,8 @@ bool GraphicsPipeline::SerializationSupport::Deserialize(Serialization::Archive&
     sdata.Read(multisampling);
     sdata.Read(tcs);
     sdata.Read(tes);
-    if (!ar.IsEoS()) {
-        sdata.Read(fragment);
-    }
+    sdata.Read(fragment);
+    sdata.Read(barycentric_geometry);
     return true;
 }
 
