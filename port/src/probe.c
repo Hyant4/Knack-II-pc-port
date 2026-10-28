@@ -1175,6 +1175,7 @@ int main(int argc, char **argv) {
         if (cpu_missing_sets) printf("CPU: missing %s\n", missing);
         else puts("CPU: complete");
         puts("KNACK2_EXECUTABLE_LAYOUTS_V1=elf-80ccc228,elf-0b7843d3");
+        puts("KNACK2_BOUNDED_CAPTURE_V1=128MiB,13images,1frame");
         return 0;
     }
     if (argc == 2 && !strcmp(argv[1], "--gamepad")) {

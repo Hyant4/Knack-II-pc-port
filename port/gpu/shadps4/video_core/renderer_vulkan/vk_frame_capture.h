@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "common/types.h"
+#include "video_core/renderer_vulkan/knack_capture_budget.h"
 
 namespace VideoCore {
 struct ImageInfo;
@@ -24,7 +25,7 @@ public:
     /// VideoOut thread, per flip: frame boundary, presented buffer, trigger file check.
     static void OnFlip(VAddr presented_address);
     /// Optional stream-ordered boundary for games that copy to the display instead of drawing.
-    static void OnGpuFlip(VAddr address);
+    static void OnGpuFlip(VAddr address, bool submit_boundary = false);
     /// Opt-in SubmitDone boundary for profiles whose VideoOut flips run on a host thread.
     static void OnSubmit();
 
@@ -59,6 +60,14 @@ public:
     static void Request();
     /// What the last request did, for the menu: empty, "Capturing...", the file or an error.
     static std::string LastResult();
+
+    /// Opt-in issue #12 capture: one request per session, GPU-thread-owned budget.
+    static bool BoundedImages();
+    static u64 ImageEpoch();
+    static bool BeginGBuffer();
+    static bool HasGBuffer();
+    static bool ReserveImage(KnackCapture::Role role, VAddr address, u64 bytes);
+    static void ImageResult(const std::string& text);
 
 private:
     enum : u32 { Idle, Armed, Recording };

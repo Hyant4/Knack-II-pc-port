@@ -337,19 +337,32 @@ ApplicationWindow {
                                             objectName: "gtx1060Diagnostic"
                                             Layout.fillWidth: true
                                             model: [qsTr("Desligado"), qsTr("1 — Cache novo por sessão"),
-                                                    qsTr("2 — Cache novo + compilação síncrona")]
-                                            currentIndex: ["off", "cache", "cache_sync"].indexOf(backend.gtx1060Diagnostic)
+                                                    qsTr("2 — Cache novo + compilação síncrona"), qsTr("3 — Capturar um quadro (F11)"),
+                                                    qsTr("4 — Captura + readback linear (F11)")]
+                                            currentIndex: ["off", "cache", "cache_sync", "capture", "capture_linear"].indexOf(backend.gtx1060Diagnostic)
                                             // Retranslation replaces the list; ComboBox resets its index.
                                             onModelChanged: Qt.callLater(function() {
                                                 gtx1060Diagnostic.currentIndex = Qt.binding(function() {
-                                                    return ["off", "cache", "cache_sync"].indexOf(backend.gtx1060Diagnostic);
+                                                    return ["off", "cache", "cache_sync", "capture", "capture_linear"].indexOf(backend.gtx1060Diagnostic);
                                                 });
                                             })
                                             enabled: backend.editable
                                             Accessible.name: qsTr("Diagnóstico opcional GTX 1060")
-                                            onActivated: backend.setGtx1060Diagnostic(["off", "cache", "cache_sync"][currentIndex])
+                                            onActivated: backend.setGtx1060Diagnostic(["off", "cache", "cache_sync", "capture", "capture_linear"][currentIndex])
                                         }
-                                        Hint { text: qsTr("Compare a mesma cena: primeiro cache novo, depois compilação síncrona. Cada partida de teste usa cache separado; o cache habitual é preservado. A compilação síncrona pode causar pausas."); font.pixelSize: 11 }
+                                        Hint { text: ["capture", "capture_linear"].indexOf(backend.gtx1060Diagnostic) >= 0
+                                            ? qsTr("Na cena afetada, pressione F11 uma vez. A captura pode pausar o jogo e grava até 128 MiB em 13 imagens. Cache e compilação mantêm seus ajustes; inicie outra sessão para repetir.")
+                                            : qsTr("Compare a mesma cena: primeiro cache novo, depois compilação síncrona. Cada partida de teste usa cache separado; o cache habitual é preservado. A compilação síncrona pode causar pausas."); font.pixelSize: 11 }
+                                        Hint {
+                                            visible: ["capture", "capture_linear"].indexOf(backend.gtx1060Diagnostic) >= 0
+                                            text: qsTr("Compare os modos 3 e 4 na mesma cena, em sessões separadas. O modo 3 desliga readback linear; o modo 4 liga. Demais ajustes são mantidos. Envie os dois ZIPs.")
+                                            font.pixelSize: 11
+                                        }
+                                        Hint {
+                                            visible: ["capture", "capture_linear"].indexOf(backend.gtx1060Diagnostic) >= 0
+                                            text: qsTr("Depois da captura, encerre o jogo e vá a Logs e diagnóstico → Abrir pasta para enviar.")
+                                            font.pixelSize: 11
+                                        }
                                     }
                                     Hint { text: qsTr("Perfis de teste não garantem corrigir falhas. Para manter a escolha após fechar o launcher, salve as configurações."); font.pixelSize: 11 }
                                 }
@@ -596,6 +609,27 @@ ApplicationWindow {
                 Hint { text: qsTr("Sessão: ") + backend.sessionId }
                 Hint { visible: !backend.isDemo; text: backend.isDemo ? "" : backend.sessionDetails; font.pixelSize: 12 }
                 Hint { visible: !backend.isDemo; text: backend.isDemo ? "" : qsTr("Saída: ") + backend.outputText; font.pixelSize: 11 }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    visible: !backend.isDemo && (["capture", "capture_linear"].indexOf(backend.gtx1060Diagnostic) >= 0 || backend.captureDirectory !== "")
+                    Hint {
+                        objectName: "captureLocation"
+                        text: backend.isDemo ? "" : backend.captureDirectory !== ""
+                              ? qsTr("Pasta da captura: ") + backend.captureDirectory
+                              : qsTr("A pasta da captura aparecerá aqui após iniciar a sessão de diagnóstico.")
+                        font.pixelSize: 12
+                    }
+                    ActionButton {
+                        objectName: "openCaptureFolder"
+                        text: qsTr("Abrir pasta para enviar"); glyph: "folder"
+                        enabled: !backend.isDemo && backend.captureDirectory !== ""
+                        onClicked: backend.openCaptureFolder()
+                    }
+                    Hint {
+                        text: qsTr("Após F11, encerre o jogo. Comprima a pasta session-* inteira e anexe o ZIP à issue. Inclua gtx1060-capture, session.json e os logs.")
+                        font.pixelSize: 11
+                    }
+                }
                 RowLayout {
                     ActionButton { text: qsTr("Copiar logs"); glyph: "copy"; onClicked: backend.copyLogs() }
                     ActionButton { objectName: "showErrors"; text: qsTr("Ver erros"); glyph: "alert"; onClicked: errorsDialog.open() }

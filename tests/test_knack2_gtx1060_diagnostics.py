@@ -10,6 +10,7 @@ import struct
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from port.launcher.knack2 import gtx1060_diagnostics as diagnostic
 from port.launcher.knack2.runner import KnackRunner
@@ -82,6 +83,50 @@ class Gtx1060DiagnosticTests(unittest.TestCase):
         self.assertFalse((self.root / 'dump').exists())
         self.assertFalse((self.root / 'out').exists())
 
+    def test_capture_has_no_cache_or_compilation_overrides_and_requires_new_runtime(self):
+        session = self.root / 'capture-session'
+        session.mkdir()
+        env = diagnostic.create_environment('capture', session)
+        self.assertEqual(env['TLG_KNACK_CAPTURE'], '1')
+        self.assertEqual(env['TLG_FRAME_CAPTURE_KEY'], '1')
+        self.assertEqual(Path(env['TLG_CAPTURE_DIR']).parent, session)
+        for key in ('TLG_GPU_USER_DIR', 'TLG_ASYNC_SHADERS', 'TLG_COMPUTE_ASYNC_BUILD'):
+            self.assertNotIn(key, env)
+        with patch('subprocess.run', return_value=SimpleNamespace(returncode=0, stdout='CPU: complete\n')):
+            with self.assertRaises(ValueError): diagnostic.require_capture_runtime(self.runtime)
+        with patch('subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=diagnostic.CAPTURE_MARKER+'\n')):
+            diagnostic.require_capture_runtime(self.runtime)
+
+    def test_linear_capture_changes_only_linear_readback(self):
+        baseline = self.root / 'capture-baseline'
+        linear = self.root / 'capture-linear'
+        baseline.mkdir()
+        linear.mkdir()
+        plain = diagnostic.create_environment('capture', baseline)
+        changed = diagnostic.create_environment('capture_linear', linear)
+        self.assertEqual(plain['TLG_READBACK_LINEAR'], '0')
+        self.assertEqual(changed['TLG_READBACK_LINEAR'], '1')
+        self.assertEqual(set(plain) - {'TLG_READBACK_LINEAR'}, set(changed) - {'TLG_READBACK_LINEAR'})
+        for values in (plain, changed):
+            self.assertNotIn('TLG_GPU_USER_DIR', values)
+            self.assertNotIn('TLG_ASYNC_SHADERS', values)
+            self.assertNotIn('TLG_COMPUTE_ASYNC_BUILD', values)
+
+    def test_old_capture_runtime_fails_before_preparing_or_writing_output(self):
+        profile = {'title_id': 'CUSA08014', 'version': '01.01',
+                   'executables': {'eboot.bin': {}, 'game.elf': {}}, 'entry': 'eboot.bin'}
+        out = self.root / 'must-not-exist'
+        with patch.object(supervisor, 'runtime_path', return_value=self.runtime), \
+                patch.object(supervisor, 'load_profile', return_value=profile), \
+                patch.object(supervisor, 'validate_game', return_value={
+                    'executable_layout': 'elf-80ccc228', 'game_elf_sha256': '8' * 64}), \
+                patch('subprocess.run', return_value=SimpleNamespace(returncode=0, stdout='CPU: complete\n')), \
+                patch.object(supervisor, 'prepare_image') as prepare, self.assertRaises(ValueError):
+            supervisor.main(['--game-dir', str(self.root / 'dump'), '--out', str(out),
+                             '--gtx1060-diagnostic', 'capture'])
+        prepare.assert_not_called()
+        self.assertFalse(out.exists())
+
     def run_synthetic(self, mode, name, restart=False):
         out = self.root / name
         user = self.root / 'normal saves'
@@ -117,7 +162,8 @@ class Gtx1060DiagnosticTests(unittest.TestCase):
                 patch.object(supervisor, 'validate_game', return_value={
                     'executable_layout': 'elf-80ccc228', 'game_elf_sha256': '8' * 64}), \
                 patch.object(supervisor, 'prepare_image', side_effect=prepare), \
-                patch.object(supervisor.subprocess, 'run'), \
+                patch.object(supervisor.subprocess, 'run', return_value=SimpleNamespace(
+                    returncode=0, stdout=diagnostic.CAPTURE_MARKER+'\n')), \
                 patch.object(supervisor, 'run_child', side_effect=child), \
                 patch.dict(os.environ, {'TLG_GPU_USER_DIR': str(user), 'TLG_ASYNC_SHADERS': '1'}), \
                 contextlib.redirect_stdout(output):
@@ -149,11 +195,16 @@ class Gtx1060DiagnosticTests(unittest.TestCase):
                 else:
                     evidence = report['gtx1060_diagnostic']
                     self.assertEqual(evidence['mode'], mode)
-                    self.assertTrue(evidence['fresh_gpu_cache'])
+                    self.assertEqual(evidence['fresh_gpu_cache'], mode not in ('capture', 'capture_linear'))
+                    if mode in ('capture', 'capture_linear'):
+                        self.assertEqual(report['gtx1060_diagnostic']['capture_limits']['images'], 13)
+                        self.assertEqual(report['gtx1060_diagnostic']['capture_limits']['bytes'], 128 * 1024 * 1024)
+                        self.assertEqual(report['gtx1060_diagnostic']['capture_limits']['frames'], 1)
                     for command, env in calls:
                         self.assertEqual({k: env[k] for k in evidence['environment']}, evidence['environment'])
-                        self.assertEqual(Path(env['TLG_GPU_USER_DIR']).parent, session)
-                        if mode == 'cache':
+                        directory = env['TLG_CAPTURE_DIR'] if mode in ('capture', 'capture_linear') else env['TLG_GPU_USER_DIR']
+                        self.assertEqual(Path(directory).parent, session)
+                        if mode in ('cache', 'capture', 'capture_linear'):
                             self.assertNotIn('TLG_ASYNC_SHADERS', env)
                             self.assertNotIn('TLG_COMPUTE_ASYNC_BUILD', env)
                     self.assertIn('GTX 1060 diagnostic: ' + mode, output)

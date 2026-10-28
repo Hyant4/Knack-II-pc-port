@@ -199,6 +199,9 @@ class F3BTests(unittest.TestCase):
         self.assertEqual(settings['display_mode'], 'borderless')
         self.assertEqual(settings['rcas_strength'], '100')
         self.assertEqual(settings['shader_preload'], '1')
+        # State callbacks and the timer that drains log batches are independent.
+        self.until(lambda: 'supervisor only' in self.backend.supervisor_model.lines
+                   and 'guest only' in self.backend.guest_model.lines)
         self.assertIn('supervisor only', self.backend.supervisor_model.lines)
         self.assertNotIn('guest only', self.backend.supervisor_model.lines)
         self.assertIn('guest only', self.backend.guest_model.lines)
@@ -315,7 +318,9 @@ class F3BTests(unittest.TestCase):
         self.assertTrue(section.property('visible'))
         # Exercise the QML activation path, including keyboard selection.
         control.forceActiveFocus()
-        QTest.keyClick(self.window, Qt.Key_End)
+        QTest.keyClick(self.window, Qt.Key_Home)
+        QTest.keyClick(self.window, Qt.Key_Down)
+        QTest.keyClick(self.window, Qt.Key_Down)
         QTest.keyClick(self.window, Qt.Key_Return)
         self.pump()
         self.assertEqual(self.backend.gtx1060Diagnostic, 'cache_sync')
@@ -382,6 +387,67 @@ class F3BTests(unittest.TestCase):
             self.pump()
             self.assertEqual(control.property('currentText'), expected)
             self.assertEqual(self.backend.gtx1060Diagnostic, 'cache')
+
+    def test_gtx1060_capture_selection_keeps_graphics_and_survives_translation(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        before = dict(self.backend.settings)
+        self.backend.setGtx1060Diagnostic('capture')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        for locale, expected in [('pt-BR', '3 — Capturar um quadro (F11)'),
+                                 ('en-US', '3 — Capture one frame (F11)'),
+                                 ('ru-RU', '3 — Захватить один кадр (F11)')]:
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertEqual(control.property('currentText'), expected)
+            self.assertEqual(self.backend.settings, before)
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gtx1060Diagnostic, 'capture')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        command = session.contract.build_command()
+        self.assertEqual(command[command.index('--gtx1060-diagnostic') + 1], 'capture')
+        self.finish()
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+
+    def test_capture_location_opens_session_with_logs_and_rejects_ambiguous_session(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('capture')
+        self.assertEqual(self.backend.captureDirectory, '')
+        self.validate()
+        session = self.launch()
+        folder = session.session_info.session_dir
+        capture = folder / 'gtx1060-capture'
+        capture.mkdir(parents=True)
+        (capture / 'frame-test.txt').write_text('synthetic census', encoding='utf-8')
+        (folder / 'session.json').write_text('{}', encoding='utf-8')
+        self.backend.changed.emit()
+        self.window.setProperty('page', 2)
+        self.pump()
+        self.assertEqual(self.backend.captureDirectory, str(capture))
+        label = self.window.findChild(QObject, 'captureLocation')
+        self.assertIn(str(capture), label.property('text'))
+        button = self.window.findChild(QObject, 'openCaptureFolder')
+        self.assertTrue(button.property('enabled'))
+        with patch('port.launcher.knack2.ui.real.QDesktopServices.openUrl', return_value=True) as open_url:
+            point = button.mapToScene(QPointF(button.width()/2, button.height()/2)).toPoint()
+            QTest.mouseClick(self.window, Qt.LeftButton, Qt.NoModifier, point)
+            self.pump()
+            self.assertEqual(Path(open_url.call_args.args[0].toLocalFile()), folder)
+            session.session_info.is_ambiguous = True
+            self.backend.changed.emit()
+            self.pump()
+            self.assertEqual(self.backend.captureDirectory, '')
+            self.assertFalse(button.property('enabled'))
+            self.backend.openCaptureFolder()
+            self.assertEqual(open_url.call_count, 1)
+        session.session_info.is_ambiguous = False
+        self.finish()
+        self.assertEqual(self.backend.captureDirectory, str(capture))
 
     def test_gtx1060_selection_metadata_is_validated_and_invalidated(self):
         self.assertEqual(self.backend.gpuPresetId, 'default')
@@ -797,6 +863,7 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: self.backend.state == 'FAILED' and not self.backend._working())
         self.assertEqual(self.backend._runner.exit_code, 7)
         self.assertIn('7', self.backend.notification)
+        self.until(lambda: 'real supervisor error' in self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend._log_path.read_text())
         self.until(lambda: all('guest from ' + name in self.backend.guest_model.lines
@@ -872,7 +939,9 @@ class SupervisorConfigTests(unittest.TestCase):
             try:
                 runner.start()
                 deadline = time.monotonic() + 5
-                while not marker.exists() and time.monotonic() < deadline:
+                while time.monotonic() < deadline:
+                    if marker.exists() and marker.read_text().strip():
+                        break
                     time.sleep(.02)
                 self.assertTrue(marker.exists())
                 child_pid = int(marker.read_text())

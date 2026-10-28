@@ -5,6 +5,23 @@ from .i18n_ru import RUSSIAN
 
 # Source Portuguese, followed by English, Latin American Spanish and French.
 MESSAGES = {
+    'Depois da captura, encerre o jogo e vá a Logs e diagnóstico → Abrir pasta para enviar.': ['After capture, close the game and go to Logs and diagnostics → Open folder to send.', 'Después de capturar, cierra el juego y ve a Registros y diagnóstico → Abrir carpeta para enviar.', 'Après la capture, fermez le jeu et ouvrez Journaux et diagnostic → Ouvrir le dossier à envoyer.'],
+    'Pasta da captura: ': ['Capture folder: ', 'Carpeta de captura: ', 'Dossier de capture : '],
+    'A pasta da captura aparecerá aqui após iniciar a sessão de diagnóstico.': ['The capture folder will appear here after starting the diagnostic session.', 'La carpeta aparecerá aquí al iniciar la sesión de diagnóstico.', 'Le dossier apparaîtra ici après le démarrage de la session de diagnostic.'],
+    'Abrir pasta para enviar': ['Open folder to send', 'Abrir carpeta para enviar', 'Ouvrir le dossier à envoyer'],
+    'Após F11, encerre o jogo. Comprima a pasta session-* inteira e anexe o ZIP à issue. Inclua gtx1060-capture, session.json e os logs.': ['After F11, close the game. Zip the entire session-* folder and attach it to the issue. Include gtx1060-capture, session.json and the logs.', 'Después de F11, cierra el juego. Comprime toda la carpeta session-* y adjunta el ZIP a la issue. Incluye gtx1060-capture, session.json y los registros.', 'Après F11, fermez le jeu. Compressez le dossier session-* entier et joignez le ZIP au ticket. Incluez gtx1060-capture, session.json et les journaux.'],
+    'Captura ainda indisponível. Inicie o modo de captura e pressione F11 na cena afetada.': ['Capture is not available yet. Start capture mode and press F11 in the affected scene.', 'La captura aún no está disponible. Inicia el modo de captura y pulsa F11 en la escena afectada.', 'La capture est indisponible. Démarrez le mode capture puis appuyez sur F11 dans la scène affectée.'],
+    '3 — Capturar um quadro (F11)': ['3 — Capture one frame (F11)', '3 — Capturar un fotograma (F11)', '3 — Capturer une image (F11)'],
+    '4 — Captura + readback linear (F11)': ['4 — Capture + linear readback (F11)', '4 — Captura + readback lineal (F11)', '4 — Capture + readback linéaire (F11)'],
+    'Compare os modos 3 e 4 na mesma cena, em sessões separadas. O modo 3 desliga readback linear; o modo 4 liga. Demais ajustes são mantidos. Envie os dois ZIPs.': [
+        'Compare modes 3 and 4 at the same scene in separate sessions. Mode 3 disables linear readback; mode 4 enables it. Other settings stay unchanged. Send both ZIPs.',
+        'Compara los modos 3 y 4 en la misma escena, en sesiones separadas. El modo 3 desactiva el readback lineal; el modo 4 lo activa. Los demás ajustes se mantienen. Envía ambos ZIP.',
+        'Comparez les modes 3 et 4 dans la même scène, dans des sessions distinctes. Le mode 3 désactive le readback linéaire ; le mode 4 l’active. Les autres réglages sont conservés. Envoyez les deux ZIP.'],
+    'Na cena afetada, pressione F11 uma vez. A captura pode pausar o jogo e grava até 128 MiB em 13 imagens. Cache e compilação mantêm seus ajustes; inicie outra sessão para repetir.': [
+        'At the affected scene, press F11 once. Capture may pause the game and saves up to 128 MiB in 13 images. Cache and compilation keep your settings; start a new session to repeat.',
+        'En la escena afectada, pulsa F11 una vez. La captura puede pausar el juego y guarda hasta 128 MiB en 13 imágenes. Conserva los ajustes de caché y compilación; inicia otra sesión para repetir.',
+        'Dans la scène affectée, appuyez une fois sur F11. La capture peut suspendre le jeu et enregistre au maximum 128 Mio dans 13 images. Les réglages de cache et compilation restent actifs ; relancez une session pour recommencer.'],
+    'Runtime sem captura limitada. Use o pacote de diagnóstico completo.': ['Runtime lacks bounded capture. Use the complete diagnostic package.', 'El runtime no admite captura limitada. Usa el paquete de diagnóstico completo.', 'Le runtime ne prend pas en charge la capture limitée. Utilisez le paquet de diagnostic complet.'],
     'Diagnóstico opcional GTX 1060': ['Optional GTX 1060 diagnostics', 'Diagnóstico opcional GTX 1060', 'Diagnostic GTX 1060 facultatif'],
     '1 — Cache novo por sessão': ['1 — Fresh cache per session', '1 — Caché nueva por sesión', '1 — Nouveau cache par session'],
     '2 — Cache novo + compilação síncrona': ['2 — Fresh cache + synchronous compilation', '2 — Caché nueva + compilación síncrona', '2 — Nouveau cache + compilation synchrone'],

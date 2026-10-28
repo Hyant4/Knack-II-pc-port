@@ -2,6 +2,17 @@
 """Russian launcher catalog; runtime and external errors remain verbatim."""
 
 RUSSIAN = {
+    'Depois da captura, encerre o jogo e vá a Logs e diagnóstico → Abrir pasta para enviar.': 'После захвата закройте игру и откройте «Журналы и диагностика → Открыть папку для отправки».',
+    'Pasta da captura: ': 'Папка захвата: ',
+    'A pasta da captura aparecerá aqui após iniciar a sessão de diagnóstico.': 'Папка захвата появится здесь после запуска диагностической сессии.',
+    'Abrir pasta para enviar': 'Открыть папку для отправки',
+    'Após F11, encerre o jogo. Comprima a pasta session-* inteira e anexe o ZIP à issue. Inclua gtx1060-capture, session.json e os logs.': 'После F11 закройте игру. Упакуйте всю папку session-* в ZIP и прикрепите к issue. Включите gtx1060-capture, session.json и журналы.',
+    'Captura ainda indisponível. Inicie o modo de captura e pressione F11 na cena afetada.': 'Захват пока недоступен. Запустите режим захвата и нажмите F11 в проблемной сцене.',
+    '3 — Capturar um quadro (F11)': '3 — Захватить один кадр (F11)',
+    '4 — Captura + readback linear (F11)': '4 — Захват + линейное считывание (F11)',
+    'Compare os modos 3 e 4 na mesma cena, em sessões separadas. O modo 3 desliga readback linear; o modo 4 liga. Demais ajustes são mantidos. Envie os dois ZIPs.': 'Сравните режимы 3 и 4 в одной сцене в отдельных сессиях. Режим 3 отключает линейное считывание, режим 4 включает его. Остальные настройки сохраняются. Отправьте оба ZIP-архива.',
+    'Na cena afetada, pressione F11 uma vez. A captura pode pausar o jogo e grava até 128 MiB em 13 imagens. Cache e compilação mantêm seus ajustes; inicie outra sessão para repetir.': 'В проблемной сцене нажмите F11 один раз. Захват может приостановить игру и сохраняет до 128 МиБ в 13 изображениях. Настройки кэша и компиляции сохраняются; для повтора запустите новую сессию.',
+    'Runtime sem captura limitada. Use o pacote de diagnóstico completo.': 'Runtime не поддерживает ограниченный захват. Используйте полный диагностический пакет.',
     'Diagnóstico opcional GTX 1060': 'Дополнительная диагностика GTX 1060',
     '1 — Cache novo por sessão': '1 — Новый кэш для каждого запуска',
     '2 — Cache novo + compilação síncrona': '2 — Новый кэш + синхронная компиляция',

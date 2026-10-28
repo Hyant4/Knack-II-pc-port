@@ -13,6 +13,7 @@
 #include <optional>
 #include <cstdlib>
 #include "video_core/renderer_vulkan/vk_staging_buffer_pool.h"
+#include "video_core/renderer_vulkan/knack_capture_budget.h"
 
 #include <condition_variable>
 #include <mutex>
@@ -261,7 +262,8 @@ public:
     /// tlg diagnostics: writes level 0 of a color image to TLG_DIAG_DIR as raw pixels
     /// (<seq>_<tag>_<address>_<w>x<h>_p<pitch>_b<bytes per pixel>_f<vk format>.raw). Waits for
     /// the GPU.
-    void DiagDumpImage(ImageId image_id, const char* tag);
+    void DiagDumpImage(ImageId image_id, const char* tag,
+                       Vulkan::KnackCapture::Role role = Vulkan::KnackCapture::Role::Intermediate);
 
     [[nodiscard]] Image& GetImage(ImageId id) {
         auto& image = slot_images[id];

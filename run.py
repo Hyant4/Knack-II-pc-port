@@ -25,6 +25,7 @@ from port.launcher.knack2.languages import BY_CODE, discover_languages, language
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
 from port.launcher.knack2.gtx1060_diagnostics import MODES as GTX1060_MODES, create_environment as gtx1060_environment
+from port.launcher.knack2.gtx1060_diagnostics import require_capture_runtime
 from port.launcher.knack2.config import load_knack2_ini, sanitize_and_validate_key_value
 from port.launcher.knack2.validator import (load_profile, profile_id, SUPPORTED_PROFILES,
                                           executable_layout_for_hash, validate_executable_layout)
@@ -322,6 +323,8 @@ def _main(argv, lifetime):
     profile = load_profile(game_dir=game, repo_root=ROOT)
     validated = validate_game(game, profile)
     executable_layout = validated['executable_layout']
+    if args.gtx1060_diagnostic in ('capture', 'capture_linear'):
+        require_capture_runtime(probe)
     if not args.analyze and executable_layout != validate_executable_layout(profile_id(profile)):
         require_runtime_layout(probe, executable_layout)
     if args.language is not None and args.language not in discover_languages(game, title_id=profile['title_id']):
@@ -360,9 +363,14 @@ def _main(argv, lifetime):
               'visual_verified': False, 'stages': []}
     if diagnostic_env:
         report['gtx1060_diagnostic'] = {'mode': args.gtx1060_diagnostic,
-                                      'fresh_gpu_cache': True, 'environment': diagnostic_env}
+                                      'fresh_gpu_cache': args.gtx1060_diagnostic not in ('capture', 'capture_linear'),
+                                      'environment': diagnostic_env}
         print(f'GTX 1060 diagnostic: {args.gtx1060_diagnostic}; '
-              f'GPU cache root: {diagnostic_env["TLG_GPU_USER_DIR"]}', flush=True)
+              f'output: {diagnostic_env.get("TLG_GPU_USER_DIR", diagnostic_env.get("TLG_CAPTURE_DIR"))}', flush=True)
+        if args.gtx1060_diagnostic in ('capture', 'capture_linear'):
+            report['gtx1060_diagnostic']['capture_limits'] = {'bytes': 128 * 1024 * 1024,
+                'images': 13, 'frames': 1, 'trigger': 'F11', 'boundary': 'SubmitDone'}
+            print('GTX 1060 capture: press F11 in the affected scene; one capture per session.', flush=True)
         if args.gtx1060_diagnostic == 'cache_sync':
             print('GTX 1060 diagnostic: TLG_ASYNC_SHADERS=0, TLG_COMPUTE_ASYNC_BUILD=0', flush=True)
     deadline = time.monotonic() + args.timeout if args.timeout else None

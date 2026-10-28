@@ -138,6 +138,8 @@ class RealBackend(Backend):
     players = Property(int, lambda self: self._players, notify=sessionChanged)
     outputText = Property(str, lambda self: str(self._out or self.workspace / 'single'), notify=sessionChanged)
     sessionDetails = Property(str, lambda self: self._metadata, notify=sessionChanged)
+    captureDirectory = Property(str, lambda self: str(self._capture_session() / 'gtx1060-capture')
+                                if self._capture_session() else '', notify=sessionChanged)
 
     def _state_label(self):
         return self._translate(LABELS[self._state])
@@ -452,6 +454,25 @@ class RealBackend(Backend):
         directory = self._out if self._out and self._out.is_dir() else self.workspace / 'logs'
         if not directory.is_dir() or not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
             self._notice('Não foi possível abrir a pasta de logs.', True)
+
+    def _capture_session(self):
+        if self._runner is None or self._runner.session_info.is_ambiguous:
+            return None
+        session = self._runner.session_info.session_dir
+        if session is None or self._out is None:
+            return None
+        session = Path(session).resolve()
+        capture = (session / 'gtx1060-capture').resolve()
+        if (not session.is_relative_to(self.workspace) or not session.is_relative_to(self._out.resolve())
+                or capture.parent != session or not capture.is_dir()):
+            return None
+        return session
+
+    @Slot()
+    def openCaptureFolder(self):
+        directory = self._capture_session()
+        if directory is None or not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+            self._notice('Captura ainda indisponível. Inicie o modo de captura e pressione F11 na cena afetada.', True)
 
     @Slot()
     def copyLogs(self):

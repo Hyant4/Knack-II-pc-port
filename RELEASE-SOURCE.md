@@ -1,7 +1,7 @@
-# Matching sources — 0.17.7-rc2
+# Matching sources — 0.17.7-rc3
 
-This snapshot adds optional GTX preset diagnostics to the verified RC1 sources.
-Only launcher/supervisor behavior and packaging were changed. Native runtime and
-expanded dependencies remain from RC1. Local native-AA, PKG installer and later
-translation work were not included. No game files or private test fixtures are
-distributed. See BUILDINFO.json and CANDIDATE-NOTES.md for evidence and limits.
+This snapshot adds bounded one-frame capture and an isolated linear-readback
+comparison to the optional GTX 1060 diagnostic. Runtime, launcher and supervisor
+are rebuilt together. Local AA, PKG installer and unrelated work are excluded.
+No game files, private fixtures or local icon source are distributed. See release
+notes and the asset manifest for validation evidence and hashes.

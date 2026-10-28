@@ -3099,8 +3099,15 @@ void Rasterizer::DiagPassBoundary(bool force) {
         const char* env = std::getenv("TLG_DIAG_IMAGES");
         return env && *env == '1';
     }();
-    if (!enabled) {
+    const bool bounded = FrameCapture::BoundedImages();
+    if (!enabled && !bounded) {
         return;
+    }
+    if (bounded && diag_capture_epoch != FrameCapture::ImageEpoch()) {
+        diag_capture_epoch = FrameCapture::ImageEpoch();
+        diag_targets.clear();
+        diag_addresses = {};
+        diag_pass = 0;
     }
     const auto& regs = Regs();
     std::array<VAddr, 8> addresses{};
@@ -3116,8 +3123,12 @@ void Rasterizer::DiagPassBoundary(bool force) {
         char tag[16];
         std::snprintf(tag, sizeof(tag), "p%03u", diag_pass++);
         const auto targets = diag_targets;
+        using KnackCapture::Role;
+        const bool gbuffer = bounded && targets.size() >= 5 &&
+            texture_cache.GetImage(targets.front()).info.size.width >= 640 &&
+            FrameCapture::BeginGBuffer();
         for (const auto image_id : targets) {
-            texture_cache.DiagDumpImage(image_id, tag);
+            texture_cache.DiagDumpImage(image_id, tag, gbuffer ? Role::GBuffer : Role::Intermediate);
         }
     }
     diag_targets.clear();
@@ -3818,12 +3829,22 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
         const char* env = std::getenv("TLG_DIAG_IMAGES");
         return env && *env == '1';
     }();
-    if (diag_images && FrameCapture::IsRecording()) {
+    if ((diag_images || FrameCapture::BoundedImages()) && FrameCapture::IsRecording()) {
         char tag[32];
         std::snprintf(tag, sizeof(tag), "cs%08x", static_cast<u32>(cs.pgm_hash));
         const auto images = bound_images;
         for (const auto image_id : images) {
-            texture_cache.DiagDumpImage(image_id, tag);
+            if (FrameCapture::BoundedImages()) {
+                const auto address = texture_cache.GetImage(image_id).info.guest_address;
+                const bool written = std::ranges::any_of(cs.images, [&](const auto& resource) {
+                    return resource.is_written && resource.GetSharp(cs).Address() == address;
+                });
+                if (!written) continue;
+            }
+            const auto role = cs.pgm_hash == KnackTemporal::TemporalShader ||
+                              cs.pgm_hash == KnackTemporal::PresentShader
+                                  ? KnackCapture::Role::Final : KnackCapture::Role::Intermediate;
+            texture_cache.DiagDumpImage(image_id, tag, role);
         }
     }
 
@@ -4251,6 +4272,7 @@ void NoteHugeBind(VAddr base, u64 size) {
 
 void Rasterizer::OnSubmit() {
     DrainDrawPipe();
+    if (FrameCapture::BoundedImages()) DiagPassBoundary(true);
     FrameCapture::OnSubmit();
     if (GpuPhy03::Enabled()) [[unlikely]] GpuPhy03::OnSubmit();
     knack_small_sync_pending.store(true, std::memory_order_relaxed);

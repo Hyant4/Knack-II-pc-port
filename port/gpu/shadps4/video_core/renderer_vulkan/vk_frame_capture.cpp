@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <format>
 #include <mutex>
+#include <string_view>
 
 #include "video_core/renderer_vulkan/vk_common.h"
 #include "video_core/texture_cache/image_info.h"
@@ -51,6 +52,13 @@ void AddBuffers(Entry& entry) {
     pending_buffers.clear();
 }
 bool pass_open = false;
+KnackCapture::Budget image_budget;
+u64 image_epoch{};
+bool gbuffer_seen{};
+std::atomic<bool> bounded_request_used{false};
+std::vector<std::string> image_results;
+bool census_truncated{};
+constexpr size_t MaxCaptureEntries = 512;
 bool GpuFlipBoundary() {
     static const bool enabled = [] {
         const char* value = std::getenv("TLG_CAPTURE_GPU_FLIP");
@@ -125,6 +133,15 @@ void Write(VAddr presented) {
         return;
     }
     std::fprintf(f, "presented buffer %#llx\n", static_cast<unsigned long long>(presented));
+    if (FrameCapture::BoundedImages()) {
+        std::fprintf(f, "bounded Knack capture v1; boundary=SubmitDone; one request per session\n"
+                        "budgets: G-buffer 64 MiB/5, intermediate 16 MiB/4, final 48 MiB/4\n"
+                        "image attempts=%u bytes=%llu; census_truncated=%d\n",
+                     image_budget.count,
+                     static_cast<unsigned long long>(image_budget.bytes[0] + image_budget.bytes[1] + image_budget.bytes[2]),
+                     census_truncated);
+        for (const auto& message : image_results) std::fprintf(f, "image: %s\n", message.c_str());
+    }
     u32 index = 0;
     for (const auto& e : entries) {
         if (e.compute) {
@@ -177,6 +194,26 @@ void FrameCapture::OnFlip(VAddr presented_address) {
         arm = true;
     }
     if (arm) {
+        if (BoundedImages() && bounded_request_used.exchange(true)) {
+            SetResult("Capture already requested; start a new session for another capture.");
+            return;
+        }
+        if (BoundedImages()) {
+            const char* directory = std::getenv("TLG_CAPTURE_DIR");
+            if (!directory || !*directory) {
+                SetResult("Capture refused: missing isolated directory.");
+                return;
+            }
+            std::error_code error;
+            const std::filesystem::path dir(directory);
+            std::filesystem::create_directories(dir, error);
+            // Atomic directory creation persists the one-request guard across guest restarts.
+            if (error || !std::filesystem::create_directory(dir / ".requested", error)) {
+                SetResult(error ? "Capture refused: cannot reserve capture directory."
+                                : "Capture already requested; start a new session for another capture.");
+                return;
+            }
+        }
         state.store(Armed, std::memory_order_release);
         std::printf("Frame capture: armed\n");
     }
@@ -187,8 +224,9 @@ void FrameCapture::Request() {
     requested.store(true, std::memory_order_release);
 }
 
-void FrameCapture::OnGpuFlip(VAddr address) {
+void FrameCapture::OnGpuFlip(VAddr address, bool submit_boundary) {
     if (!GpuFlipBoundary()) return;
+    if (BoundedImages() && !submit_boundary) return;
     const auto current = state.load(std::memory_order_acquire);
     if (current == Idle) return;
     if (current == Recording) Write(address);
@@ -196,6 +234,13 @@ void FrameCapture::OnGpuFlip(VAddr address) {
     pending_sampled.clear();
     pending_buffers.clear();
     pass_open = false;
+    if (current == Armed && BoundedImages()) {
+        image_budget = {};
+        image_results.clear();
+        gbuffer_seen = false;
+        census_truncated = false;
+        ++image_epoch;
+    }
     state.store(current == Armed ? Recording : Idle, std::memory_order_release);
 }
 
@@ -206,7 +251,30 @@ void FrameCapture::OnSubmit() {
     }();
     if (!enabled || !GpuFlipBoundary()) return;
     // Called after draining the draw recorder, so all entries belong to a completed submit.
-    OnGpuFlip(last_presented.load(std::memory_order_acquire));
+    OnGpuFlip(last_presented.load(std::memory_order_acquire), true);
+}
+
+bool FrameCapture::BoundedImages() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_KNACK_CAPTURE");
+        return value && std::string_view(value) == "1";
+    }();
+    return enabled;
+}
+
+u64 FrameCapture::ImageEpoch() { return image_epoch; }
+bool FrameCapture::HasGBuffer() { return gbuffer_seen; }
+bool FrameCapture::BeginGBuffer() {
+    if (!IsRecording() || gbuffer_seen) return false;
+    gbuffer_seen = true;
+    return true;
+}
+bool FrameCapture::ReserveImage(KnackCapture::Role role, VAddr address, u64 bytes) {
+    return BoundedImages() && IsRecording() && image_budget.Reserve(role, address, bytes);
+}
+void FrameCapture::ImageResult(const std::string& text) {
+    const size_t limit = text.starts_with("saved ") || text.starts_with("write-error ") ? 128 : 112;
+    if (BoundedImages() && image_results.size() < limit) image_results.push_back(text.substr(0, 1024));
 }
 
 std::string FrameCapture::LastResult() {
@@ -284,12 +352,18 @@ void FrameCapture::BeginPass(const VideoCore::ImageInfo* const* colors, u32 num_
         entries.back().colors == targets && entries.back().depth == d) {
         return;
     }
+    if (BoundedImages() && entries.size() >= MaxCaptureEntries) {
+        census_truncated = true;
+        pending_sampled.clear(); pending_buffers.clear();
+        return;
+    }
     entries.push_back(
         {.compute = false, .colors = std::move(targets), .depth = d, .state = std::move(census)});
     pass_open = true;
 }
 
 void FrameCapture::Draw(u64 vs_hash, u64 ps_hash, u32 num_indices, u32 num_instances) {
+    if (BoundedImages() && census_truncated) return;
     if (state.load(std::memory_order_relaxed) != Recording || entries.empty() ||
         entries.back().compute) {
         return;
@@ -304,6 +378,11 @@ void FrameCapture::Draw(u64 vs_hash, u64 ps_hash, u32 num_indices, u32 num_insta
 }
 
 void FrameCapture::Dispatch(u64 cs_hash, u32 x, u32 y, u32 z) {
+    if (BoundedImages() && entries.size() >= MaxCaptureEntries) {
+        census_truncated = true;
+        pending_sampled.clear(); pending_buffers.clear();
+        return;
+    }
     if (state.load(std::memory_order_relaxed) != Recording) {
         pending_sampled.clear();
         pending_buffers.clear();
@@ -322,6 +401,7 @@ void FrameCapture::Dispatch(u64 cs_hash, u32 x, u32 y, u32 z) {
 }
 
 void FrameCapture::Buffer(u64 stage_hash, u32 slot, VAddr address, const void* data, u64 size) {
+    if (BoundedImages()) return; // Private buffer bytes are unnecessary for this first image census.
     if (!data) {
         return;
     }
@@ -346,6 +426,10 @@ void FrameCapture::Sampled(const VideoCore::ImageInfo& info, bool storage) {
 
 void FrameCapture::Note(const char* text) {
     if (!entries.empty()) {
+        if (BoundedImages()) {
+            if (entries.back().note.size() < 2048) entries.back().note += std::string_view(text).substr(0, 512);
+            return;
+        }
         entries.back().note += text;
     }
 }

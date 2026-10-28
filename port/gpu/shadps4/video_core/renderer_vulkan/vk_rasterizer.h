@@ -448,6 +448,7 @@ private:
     std::array<VAddr, 8> diag_addresses{};
     boost::container::static_vector<VideoCore::ImageId, 8> diag_targets;
     u32 diag_pass{};
+    u64 diag_capture_epoch{};
     struct BoundBuffer {
         const VideoCore::Buffer* buffer;
         u64 offset;
