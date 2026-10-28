@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Public Knack II identity, independent of inherited internal symbol names."""
 from pathlib import Path
+import sys
 from .storage import application_data_root
 
 APP_NAME = 'Knack II'
@@ -16,8 +17,9 @@ def identity_assets():
 def runtime_path(port):
     """Prefer the branded artifact; retain compatibility with existing diagnostic builds."""
     directory = Path(port) / 'out'
-    branded = directory / 'knack2-runtime.exe'
-    legacy = directory / 'tlg-probe.exe'
+    suffix = '.exe' if sys.platform == 'win32' else ''
+    branded = directory / ('knack2-runtime' + suffix)
+    legacy = directory / ('tlg-probe' + suffix)
     return branded if branded.is_file() or not legacy.is_file() else legacy
 
 

@@ -48,17 +48,17 @@ if [[ -z ${CC:-} ]]; then
     fi
 fi
 if [[ -z ${CC:-} ]]; then echo 'Install GCC/Clang or set CC.' >&2; exit 1; fi
+# FreeType headers: the system package, or a local copy in the workspace tools (no root needed).
+if command -v pkg-config >/dev/null && ! pkg-config --exists freetype2 && [[ -d ../../tools/freetype-devel/pkgconfig ]]; then
+    export PKG_CONFIG_PATH="$(cd ../../tools/freetype-devel/pkgconfig && pwd)${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+fi
 # Dependencies come from pkg-config (Vulkan loader/headers, SDL3). On NixOS the
 # environment is provided by shell.nix; re-enter it automatically if needed.
-if ! { command -v pkg-config >/dev/null && pkg-config --exists vulkan sdl3 && command -v cmake >/dev/null && command -v ninja >/dev/null; }; then
+if ! { command -v pkg-config >/dev/null && pkg-config --exists vulkan sdl3 libavformat libavcodec libavutil libswscale libswresample freetype2 && command -v cmake >/dev/null && command -v ninja >/dev/null; }; then
     if [[ -z ${TLG_IN_NIX_SHELL:-} ]] && command -v nix-shell >/dev/null; then
         exec env TLG_IN_NIX_SHELL=1 nix-shell shell.nix --run "bash build.sh $*"
     fi
-    echo 'Need pkg-config with vulkan and sdl3, cmake and ninja (see shell.nix).' >&2; exit 1
-fi
-# FreeType headers: the system package, or a local copy in the workspace tools (no root needed).
-if ! pkg-config --exists freetype2 && [[ -d ../../tools/freetype-devel/pkgconfig ]]; then
-    export PKG_CONFIG_PATH="$(cd ../../tools/freetype-devel/pkgconfig && pwd)${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    echo 'Need cmake, ninja and pkg-config dependencies: vulkan, sdl3, libavformat, libavcodec, libavutil, libswscale, libswresample, freetype2 (see ../docs/LINUX.md).' >&2; exit 1
 fi
 read -r -a includes <<< "$(pkg-config --cflags vulkan sdl3 libavcodec libavutil libswscale freetype2)"
 read -r -a libraries <<< "$(pkg-config --libs vulkan sdl3 libavcodec libavutil libswscale freetype2)"
@@ -84,7 +84,7 @@ cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTLG_PGO="$p
     -DTLG_LTO="${TLG_LTO:-ON}" -DTLG_PGO_DIR="$PWD/pgo" >/dev/null
 echo "GPU library: PGO $pgo, LTO ${TLG_LTO:-ON}"
 # A failed GPU build must stop here: an older libtlggpu.so would otherwise be used silently.
-if ! ninja -C out/gpu tlggpu > out/gpu-build.log 2>&1; then
+if ! ninja -j "${TLG_BUILD_JOBS:-6}" -C out/gpu tlggpu > out/gpu-build.log 2>&1; then
     grep -v '^\[' out/gpu-build.log | tail -40 >&2
     echo 'GPU library build failed (full log: out/gpu-build.log)' >&2; exit 1
 fi
@@ -117,7 +117,7 @@ if [[ ${1:-} == --test ]]; then
     out/mouse-pad-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_runtime.c "${runtime[@]}" out/libatrac9.a -lm "${gpu[@]}" "${libraries[@]}" -o out/runtime-test
     out/runtime-test
-    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -Isrc tests/test_file_mods.c -o out/file-mods-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_file_mods.c -o out/file-mods-test
     out/file-mods-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_sema.c "${runtime[@]}" out/libatrac9.a -lm "${gpu[@]}" "${libraries[@]}" -o out/sema-test
     out/sema-test

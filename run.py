@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Prepare and supervise Knack 2's original executables on Windows."""
+"""Prepare and supervise Knack 2's original executables on Windows and Linux."""
 import argparse
 from contextlib import ExitStack
 import hashlib
@@ -52,7 +52,10 @@ def ngs2_module():
 
     Without it the runtime's NGS2 placeholder renders silence. Searched in
     $KNACK2_SYSTEM_MODULES, firmware/ (ignored by git) and shadPS4's sys_modules.
+    Linux only: Windows builds keep their own audio path, unchanged.
     """
+    if sys.platform == 'win32':
+        return None
     folders = [Path(os.environ['KNACK2_SYSTEM_MODULES'])] if os.environ.get('KNACK2_SYSTEM_MODULES') else []
     folders += [ROOT / 'firmware', ROOT / 'firmware/sys_modules', Path.home() / '.local/share/shadPS4/sys_modules',
                 Path.home() / '.var/app/net.shadps4.shadPS4/data/shadPS4/sys_modules']
@@ -155,13 +158,18 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
             raise ValueError('--config must name an existing INI file')
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
-    toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
-    env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
-    system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
+    if sys.platform == 'win32':
+        toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
+        env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
+        system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
+    else:
+        # The licensed font is already shipped for the in-game overlay. Do not
+        # depend on a distro-specific font path or console system font files.
+        system_font = PORT / 'gpu/third_party/fonts/DejaVuSans.ttf'
     if system_font.is_file():
-        env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
+        env.setdefault('KNACK2_SYSTEM_FONT', str(system_font.resolve()))
     env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
-               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
+               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1' if sys.platform == 'win32' else '0',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
     if ngs2:
         env['TLG_NGS2'] = 'native'  # the linked firmware NGS2 wins over the silent placeholder
@@ -279,7 +287,7 @@ def _main(argv, lifetime):
     ngs2 = ngs2_module()
     if ngs2 is not None:
         print(f'Audio: firmware NGS2 {ngs2}', flush=True)
-    else:
+    elif sys.platform != 'win32':
         print(f'Audio: {NGS2_MODULE} not found (put it in {ROOT / "firmware"} or set KNACK2_SYSTEM_MODULES); '
               'game sound will be silent', flush=True)
     profile = with_system_modules(profile, ngs2)
@@ -289,7 +297,8 @@ def _main(argv, lifetime):
         return 0
     probe = runtime_path(PORT)
     if not probe.is_file():
-        raise ValueError('Build the runtime first: .\\build.ps1')
+        build = r'.\build.ps1' if sys.platform == 'win32' else 'bash port/build.sh'
+        raise ValueError(f'Build the runtime first: {build}')
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
                               config_file=args.config, language=args.language, ngs2=ngs2 is not None)
@@ -297,7 +306,8 @@ def _main(argv, lifetime):
     if not args.check_imports:
         for folder in images.values():
             subprocess.run([sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
-                            '--out', str(folder), '--red-zone'], check=True)
+                            '--out', str(folder)] +
+                           (['--red-zone'] if sys.platform == 'win32' else []), check=True)
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
     report = {'profile': 'CUSA08014-01.01', 'mode': 'imports' if args.check_imports else 'run',

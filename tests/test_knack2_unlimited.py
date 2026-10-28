@@ -25,7 +25,7 @@ class UnlimitedTests(unittest.TestCase):
             root = Path(temporary)
             port = root / 'port'
             (port / 'out').mkdir(parents=True)
-            runtime_name = 'knack2-runtime.exe' if branded else 'tlg-probe.exe'
+            runtime_name = ('knack2-runtime' if branded else 'tlg-probe') + ('.exe' if os.name == 'nt' else '')
             (port / 'out' / runtime_name).write_bytes(b'never executed')
             out = root / 'new-output'
             user = root / 'persistent-profile' if persistent else out / 'user'

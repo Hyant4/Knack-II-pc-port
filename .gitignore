@@ -1,6 +1,7 @@
 # Arquivos do jogo (copyright da Sony/genDESIGN): NUNCA versionar
 /dump/
 *.psarc
+*.pkg
 *.bin
 *.prx
 *.sprx
@@ -80,5 +81,5 @@ service-account*.json
 /savedata/
 /savedata-backups/
 /captures/
-/logs/
+/logs
 /firmware/

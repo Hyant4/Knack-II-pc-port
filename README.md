@@ -85,7 +85,6 @@ The Windows ZIP contains the launcher, runtime, and needed dependencies. It cont
 - Vulkan-capable GPU with an up-to-date driver.
 - Your own Knack II dump: **CUSA08014 / 01.01** (primary target), or **CUSA07670** (European, limited testing).
 - Two controllers if you want local two-player co-op.
-- Source builds only: for game sound, `libSceNgs2.sprx` from your own console firmware in `firmware/` (or `KNACK2_SYSTEM_MODULES`, or shadPS4's `sys_modules`). Without it the runtime's NGS2 placeholder plays silence.
 
 The Windows release ZIP bundles its runtime dependencies. No separate Python, Qt, or MSYS2 installation is required to play.
 
@@ -102,6 +101,16 @@ If a problem occurs, use **View logs** in the launcher and open an [issue](https
 **Source availability:** V0.17.5 does not include a dedicated source ZIP asset. The latest earlier attached snapshot is [**Knack-II-sources-V0.17.3.zip**](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.3/Knack-II-sources-V0.17.3.zip). It does **not** fully match the V0.17.5 launcher binaries; review subsequent repository history for those changes. Verify the V0.17.5 download with its [SHA256SUMS.txt](https://github.com/Hyant4/Knack-II-pc-port/releases/download/knack2-Version-0.17.5/SHA256SUMS.txt).
 
 Development requires Windows, MSYS2 CLANG64, Python tooling, Vulkan development dependencies, and your own compatible game dump. See the [Windows development guide](docs/DESENVOLVIMENTO_WINDOWS.md). No game or firmware files are distributed with the sources.
+
+## Linux (experimental source build)
+
+The launcher and supervisor can use the native Linux x86-64 runtime. See the
+[Linux build and launch guide](docs/LINUX.md), including Fedora/Bazzite setup.
+Linux requires a source build and an extracted game dump; the Windows ZIP is
+not a Linux package. Automated build and synthetic tests do not certify gameplay.
+For game sound on Linux, supply `libSceNgs2.sprx` from your own console firmware
+in `firmware/` (see [Game audio](docs/LINUX.md#game-audio)); Windows builds keep
+their existing audio path.
 
 ## How it works
 

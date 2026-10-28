@@ -1,6 +1,8 @@
 /* Exercise actual guest file operations on a linked overlay and writable saves. */
 #include "../src/runtime_file.c"
 #include <assert.h>
+/* The GPU region-trace observer is independent of file overlay behavior. */
+void tlggpu_note_open(const char *guest_path) { (void)guest_path; }
 static int32_t guest_errno;
 int32_t *runtime_errno(void) { return &guest_errno; }
 int32_t runtime_guest_errno(int e) { return e; }

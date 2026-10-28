@@ -2,6 +2,7 @@
  * Synthetic disk-backed SaveData tests. The caller supplies an empty temporary
  * directory; no game dump or real user save is accessed.
  */
+#define _GNU_SOURCE
 #include <assert.h>
 #include "../port/src/runtime_savedata.c"
 

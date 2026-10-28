@@ -380,6 +380,8 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: self.backend.state == 'FAILED' and not self.backend._working())
         self.assertEqual(self.backend._runner.exit_code, 7)
         self.assertIn('7', self.backend.notification)
+        # Process completion and the Qt log model's timer are independent.
+        self.until(lambda: 'real supervisor error' in self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend._log_path.read_text())
         self.pump()
@@ -407,7 +409,7 @@ class SupervisorConfigTests(unittest.TestCase):
             root = Path(temporary)
             port = root / 'port'
             (port / 'out').mkdir(parents=True)
-            (port / 'out/tlg-probe.exe').write_bytes(b'never executed')
+            (port / 'out' / ('tlg-probe.exe' if os.name == 'nt' else 'tlg-probe')).write_bytes(b'never executed')
             ini = root / 'settings.ini'
             config.update_knack2_ini(ini, {'vsync': '1', 'rcas_strength': 100})
             calls = []

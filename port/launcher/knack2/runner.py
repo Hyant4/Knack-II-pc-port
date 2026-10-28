@@ -181,7 +181,9 @@ class KnackRunner:
         self.analyze_only = bool(analyze_only)
         self.check_imports = bool(check_imports)
 
-        self.python_exe = Path(python_exe).resolve() if python_exe else Path(sys.executable).resolve()
+        # Resolving a venv's interpreter symlink selects the system Python and
+        # loses its site-packages (including iced_x86 used by preparation).
+        self.python_exe = Path(os.path.abspath(python_exe or sys.executable))
         self.max_log_lines = max_log_lines
         self.log_poll_interval = max(0.05, float(log_poll_interval))
 
