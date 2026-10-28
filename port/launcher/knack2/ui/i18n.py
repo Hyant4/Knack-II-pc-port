@@ -117,6 +117,7 @@ ENGLISH = {
     'Logs do jogo': 'Game logs',
     'aguardando sessão': 'waiting for session',
     'Sessão ambígua; consulte a saída do supervisor.': 'Ambiguous session; check supervisor output.',
+    'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.': 'Experimental build: files checked; gameplay compatibility is unverified.',
     'Não foi possível abrir a pasta de logs.': 'Could not open the logs folder.',
     'Não iniciou: a validação automática encontrou o erro acima.': 'Did not start: automatic validation found the error above.',
     'Não iniciou: nenhuma pasta de dump foi salva. Escolha uma pasta e valide-a primeiro.': 'Did not start: no saved game folder. Choose a folder and validate it first.',

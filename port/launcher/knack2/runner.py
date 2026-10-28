@@ -134,10 +134,12 @@ class KnackRunner:
         config_file: Path | str | None = None,
         language: str | None = None,
         user_data: Path | str | None = None,
+        experimental_build: bool = False,
     ) -> None:
         if not game_dir:
             raise KnackRunnerConfigError('O parâmetro game_dir é obrigatório')
 
+        self.experimental_build = bool(experimental_build)
         self.game_dir = Path(game_dir).resolve()
 
         if run_py_path is None:
@@ -273,6 +275,8 @@ class KnackRunner:
             '--timeout', str(self.timeout),
             '--out', str(self.out_dir),
         ]
+        if self.experimental_build:
+            cmd.append('--experimental-build')
         if self.pad_file:
             cmd.extend(['--pad-file', str(self.pad_file)])
         if self.capture_dir:

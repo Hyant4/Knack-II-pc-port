@@ -6,6 +6,8 @@ from pathlib import Path
 import queue
 import threading
 import uuid
+from functools import partial
+from ..validator import default_profile_path, validate_knack2_dump
 
 from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
@@ -33,11 +35,18 @@ class RealBackend(Backend):
     closeReady = Signal()
     _stateTokenArrived = Signal(str, object, str, str)
 
-    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, **kwargs):
+    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, experimental_build=False, **kwargs):
+        self._experimental_build = bool(experimental_build)
+        if self._experimental_build:
+            kwargs['validate_dump'] = partial(validate_knack2_dump,
+                profile_path=default_profile_path(experimental_build=True))
         super().__init__(**kwargs)
         self._real_mode = True
         self._workspace.cleanup()
         self.workspace = Path(data_dir if data_dir is not None else application_data_root()).resolve()
+        if self._experimental_build:
+            self.workspace /= 'experimental-build'
+            self._installation += ' · Experimental'
         self._session_factory = session_factory
         self._players = 1
         self._available_languages = None
@@ -140,6 +149,9 @@ class RealBackend(Backend):
         return self._available_languages if self._available_languages is not None else tuple(BY_CODE)
 
     def _on_validated(self, result):
+        if self._experimental_build:
+            self._installation += ' · Experimental'
+            self._validation = 'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'
         self._available_languages = tuple(result.get('languages', BY_CODE))
         if not self._available_languages:
             self._validation_state = 'invalid'
@@ -325,7 +337,9 @@ class RealBackend(Backend):
             config.update_knack2_ini(settings_file, self._settings, header_comment=AUDIO_PROFILE)
             log.parent.mkdir(parents=True, exist_ok=True)
             previous = self._runner
+            build_options = {'experimental_build': True} if self._experimental_build else {}
             runner = self._session_factory(self._game_dir, timeout=0, out_dir=out,
+                                          **build_options,
                                           config_file=settings_file, local_users=self._players, language=self._language,
                                           second_user=second_user,
                                           user_data=user,

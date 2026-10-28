@@ -185,3 +185,32 @@ python -B -m unittest discover -s tests -p test_knack2.py -v
 Report Linux problems with distro, GPU, driver, and reproduction steps. Review
 logs for private paths before sharing; do not attach game data or saves.
 
+## Trying the alternate 01.01 executable build
+
+Some CUSA08014 01.01 update packages extract a different `game.elf` than the
+default profile pins (the `eboot.bin` and modules are identical). To try that
+build, start the launcher in the development environment with:
+
+```sh
+python -m port.launcher.knack2 --real --experimental-build --language en-US
+```
+
+Select the extracted dump directory, click **Validate**, then **Play**.
+The launcher labels it Experimental and stores its settings and saves under
+`experimental-build` inside the launcher data directory.
+
+This selects `profiles/CUSA08014-01.01-experimental.json`, pinned to the updated
+`game.elf` SHA-256
+`0b7843d39d11c5630a72727f286cde563aa74b7f6b22941bcbe05d907fbadf8b`.
+Title/version, executable hashes, and module checks still apply. Passing these
+checks allows a launch attempt; so far it has only been played through a few
+levels on Linux.
+
+The supervisor accepts the same option:
+
+```sh
+python run.py --game-dir /path/to/extracted/dump --experimental-build --timeout 180
+```
+
+Its default output/saves are in `out/knack2-experimental`. Session reports record
+which profile was selected. Use `--analyze` to prepare without executing the game.

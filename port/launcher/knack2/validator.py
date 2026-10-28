@@ -83,10 +83,11 @@ def digest_file(path: Path | str) -> str:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def default_profile_path(repo_root: Path | None = None) -> Path:
+def default_profile_path(repo_root: Path | None = None, *, experimental_build: bool = False) -> Path:
     """Return the default path to the CUSA08014 01.01 profile JSON."""
     root = repo_root or _REPO_ROOT
-    return root / 'profiles' / 'CUSA08014-01.01.json'
+    name = 'CUSA08014-01.01-experimental.json' if experimental_build else 'CUSA08014-01.01.json'
+    return root / 'profiles' / name
 
 
 def validate_profile_schema(profile: Any) -> dict[str, Any]:

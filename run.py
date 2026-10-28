@@ -24,6 +24,7 @@ import content_profile
 from port.launcher.knack2.languages import BY_CODE, discover_languages, language_environment
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
+from port.launcher.knack2.validator import default_profile_path
 
 
 def digest(path):
@@ -216,6 +217,8 @@ def _main(argv, lifetime):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--analyze', action='store_true')
     mode.add_argument('--check-imports', action='store_true')
+    parser.add_argument('--experimental-build', action='store_true',
+                        help='try the separately pinned experimental 01.01 executable build')
     parser.add_argument('--timeout', type=int, default=180,
                         help='maximum seconds for the entire guest session; 0 disables the time limit')
     parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
@@ -235,7 +238,7 @@ def _main(argv, lifetime):
         if args.local_users == 2 and args.out is None:
             raise ValueError('--local-users 2 requires --out with a fresh isolated directory')
         game = args.game_dir.resolve()
-        out = (args.out if args.out is not None else ROOT / 'out/knack2').resolve()
+        out = (args.out if args.out is not None else ROOT / ('out/knack2-experimental' if args.experimental_build else 'out/knack2')).resolve()
         user = args.user_data.resolve() if args.user_data is not None else out / 'user'
         if args.user_data is not None:
             for protected in (game, out, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
@@ -277,7 +280,10 @@ def _main(argv, lifetime):
                 raise ValueError('P2 user path exceeds the runtime limit of 511 UTF-8 bytes')
     except (ValueError, OSError) as error:
         parser.error(str(error))
-    profile = json.loads((ROOT / 'profiles/CUSA08014-01.01.json').read_text())
+    profile_path = default_profile_path(ROOT, experimental_build=args.experimental_build)
+    profile = json.loads(profile_path.read_text())
+    if args.experimental_build:
+        print('Experimental executable build selected; gameplay compatibility is unverified.', flush=True)
     validate_game(game, profile)
     if args.language is not None and args.language not in discover_languages(game):
         raise ValueError('--language is not installed in this dump')
@@ -310,7 +316,7 @@ def _main(argv, lifetime):
                            (['--red-zone'] if sys.platform == 'win32' else []), check=True)
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
-    report = {'profile': 'CUSA08014-01.01', 'mode': 'imports' if args.check_imports else 'run',
+    report = {'profile': profile_path.stem, 'experimental_build': args.experimental_build, 'mode': 'imports' if args.check_imports else 'run',
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
               'user_data': str(user),
               'visual_verified': False, 'stages': []}

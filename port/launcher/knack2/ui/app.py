@@ -71,6 +71,8 @@ def main(argv=None):
                       help='Supervisor oficial (padrão); sem --play, requer clicar em Jogar.')
     parser.add_argument('--language', choices=tuple(BY_CODE),
                         help='Launcher and game language (use en-US for English).')
+    parser.add_argument('--experimental-build', action='store_true',
+                        help='Testar o executável 01.01 experimental com perfil e saves separados.')
     parser.add_argument('--play', action='store_true',
                         help='Pede início direto somente após revalidar uma instalação já validada.')
     parser.add_argument('--data-dir', type=Path, help='Dados persistentes; Windows: %%LOCALAPPDATA%%/KnackII-PC; Linux: $XDG_DATA_HOME/knack-ii-pc (ou ~/.local/share/knack-ii-pc).')
@@ -82,6 +84,8 @@ def main(argv=None):
         parser.error('--quit-after-ms deve ser >= 0')
     if args.screenshot and not args.quit_after_ms:
         parser.error('--screenshot requer --quit-after-ms')
+    if args.demo and args.experimental_build:
+        parser.error('--experimental-build requer o launcher real')
     if args.demo and args.play:
         parser.error('--play não está disponível na demonstração')
     if args.offscreen:
@@ -103,7 +107,8 @@ def main(argv=None):
     try:
         from .backend import Backend
         from .real import RealBackend
-        backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play)
+        backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play,
+                                                                       experimental_build=args.experimental_build)
         if args.language is not None:
             backend.setLanguage(args.language)
         engine, window, backend = create_window(backend)

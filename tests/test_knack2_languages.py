@@ -56,11 +56,13 @@ class LanguageTests(unittest.TestCase):
                 run.runtime_environment(out, language='bad', capture_dir=root / 'frames')
             self.assertFalse((root / 'frames').exists())
 
-    def test_english_preparation_diagnostics(self):
+    def test_english_experimental_and_preparation_diagnostics(self):
         from port.launcher.knack2.ui.i18n import translate
         self.assertEqual(translate('en-US', 'Preparação'), 'Preparation')
         self.assertEqual(translate('en-US', 'Não iniciou: nenhuma instalação válida foi confirmada.'),
                          'Did not start: no valid installation has been confirmed.')
+        self.assertIn('Experimental build:', translate('en-US',
+                      'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'))
         self.assertEqual(translate('en-US', 'ISA: rewrite table unavailable (iced_x86 is not installed)'),
                          'ISA: rewrite table unavailable (iced_x86 is not installed)')
 
