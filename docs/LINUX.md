@@ -145,6 +145,17 @@ mkdir -p firmware && cp /path/to/sys_modules/libSceNgs2.sprx firmware/
 This applies to Linux only: on Windows `run.py` does not look for the module
 and audio is unchanged.
 
+## Language
+
+Start the launcher with `--language en-US` for English launcher text and
+English game audio/text:
+
+```sh
+python -m port.launcher.knack2 --real --language en-US
+```
+
+The language can also be changed in Settings and saved for future launches.
+
 ## Data and tests
 
 The Qt launcher stores profiles, settings, and session evidence in
@@ -173,3 +184,4 @@ python -B -m unittest discover -s tests -p test_knack2.py -v
 
 Report Linux problems with distro, GPU, driver, and reproduction steps. Review
 logs for private paths before sharing; do not attach game data or saves.
+

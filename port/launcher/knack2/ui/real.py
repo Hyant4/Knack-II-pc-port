@@ -399,10 +399,11 @@ class RealBackend(Backend):
                 self.closeReady.emit()
         if self._runner is not None:
             info = self._runner.session_info
-            details = ('Sessão ambígua; consulte a saída do supervisor.' if info.is_ambiguous else
-                       f'{info.current_executable or "Preparação"} · PID {self._runner.pid or "—"} · '
-                       f'Código {self._runner.exit_code if self._runner.exit_code is not None else "—"}\n'
-                       f'Logs do supervisor: {self._log_path}\nLogs do jogo: {info.session_dir or "aguardando sessão"}')
+            details = (self._translate('Sessão ambígua; consulte a saída do supervisor.') if info.is_ambiguous else
+                       f'{info.current_executable or self._translate("Preparação")} · PID {self._runner.pid or "—"} · '
+                       f'{self._translate("Código")} {self._runner.exit_code if self._runner.exit_code is not None else "—"}\n'
+                       f'{self._translate("Logs do supervisor")}: {self._log_path}\n'
+                       f'{self._translate("Logs do jogo")}: {info.session_dir or self._translate("aguardando sessão")}')
             if details != self._metadata or self._session != info.session_id:
                 self._metadata, self._session = details, info.session_id
                 self.changed.emit()
@@ -416,7 +417,7 @@ class RealBackend(Backend):
     @Slot()
     def copyLogs(self):
         QGuiApplication.clipboard().setText(f'Knack II / F3B / {self.sessionId}\n{self._metadata}\n\nSupervisor\n' +
-                                          '\n'.join(self.supervisor_model.lines) + '\n\nJogo\n' +
+                                          '\n'.join(self.supervisor_model.lines) + '\n\n' + self._translate('Jogo') + '\n' +
                                           '\n'.join(self.guest_model.lines))
         self._notice('Logs copiados.')
 

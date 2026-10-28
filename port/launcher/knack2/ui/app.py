@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 import sys
+from ..languages import BY_CODE
 
 
 def _configure_cli_streams():
@@ -68,6 +69,8 @@ def main(argv=None):
     mode.add_argument('--demo', action='store_true', help='Demonstração F3A, sem processos reais.')
     mode.add_argument('--real', action='store_true',
                       help='Supervisor oficial (padrão); sem --play, requer clicar em Jogar.')
+    parser.add_argument('--language', choices=tuple(BY_CODE),
+                        help='Launcher and game language (use en-US for English).')
     parser.add_argument('--play', action='store_true',
                         help='Pede início direto somente após revalidar uma instalação já validada.')
     parser.add_argument('--data-dir', type=Path, help='Dados persistentes; Windows: %%LOCALAPPDATA%%/KnackII-PC; Linux: $XDG_DATA_HOME/knack-ii-pc (ou ~/.local/share/knack-ii-pc).')
@@ -101,6 +104,8 @@ def main(argv=None):
         from .backend import Backend
         from .real import RealBackend
         backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play)
+        if args.language is not None:
+            backend.setLanguage(args.language)
         engine, window, backend = create_window(backend)
     except RuntimeError as error:
         print(str(error), file=sys.stderr)
