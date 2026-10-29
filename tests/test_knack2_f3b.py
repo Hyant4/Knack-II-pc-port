@@ -612,7 +612,10 @@ class F3BTests(unittest.TestCase):
         for profile in ('default', 'amd_compat', 'conservative'):
             self.assertFalse(card('gpuPreset_' + profile).property('enabled'))
         env = supervisor.runtime_environment(self.root / 'supervisor', config_file=session.contract.config_file)
-        self.assertTrue(all(env[variable] == '0' for variable in config.GPU_DIAGNOSTIC_ENV.values()))
+        for variable in ('TLG_PIPELINE_BINARIES', 'TLG_BP06', 'TLG_COMPUTE_ASYNC_BUILD'):
+            self.assertEqual(env[variable], '0')
+        self.assertNotIn('TLG_BARRIER_MERGE', env)
+        self.assertNotIn('TLG_BARRIER_TRACE', env)
         self.finish()
         self.assertTrue(QMetaObject.invokeMethod(card('gpuPreset_default'), 'clicked'))
         self.pump()
@@ -629,7 +632,9 @@ class F3BTests(unittest.TestCase):
         self.window.setProperty('gpuAdvanced', True)
         self.pump()
         controls = {'pipeline_binaries': 'gpuDiagnosticPipelineBinaries',
-                    'bp06': 'gpuDiagnosticBp06', 'compute_async_build': 'gpuDiagnosticComputeAsync'}
+                    'bp06': 'gpuDiagnosticBp06', 'compute_async_build': 'gpuDiagnosticComputeAsync',
+                    'barrier_merge': 'gpuDiagnosticBarrierMerge',
+                    'barrier_trace': 'gpuDiagnosticBarrierTrace'}
         for key, name in controls.items():
             item = self.window.findChild(QObject, name)
             self.assertIsNotNone(item)
@@ -667,6 +672,48 @@ class F3BTests(unittest.TestCase):
                 self.assertNotIn(variable, env)
             self.assertNotIn(key, config.load_knack2_ini(next_session.contract.config_file))
         self.finish()
+
+    def test_rx580_preset_persistence_and_localized_controls(self):
+        from port.launcher.knack2.gpu_presets import GPU_PRESETS
+        from port.launcher.knack2.ui.i18n import translate
+        self.assertEqual(self.backend.settings['barrier_merge'], 'auto')
+        self.assertEqual(self.backend.settings['barrier_trace'], 'auto')
+        before = dict(self.backend.settings)
+        self.backend.applyGpuPreset('rx580_barriers')
+        self.assertEqual(self.backend.settings, {**before, 'barrier_merge': '1'})
+        self.assertEqual(self.backend.gpuPresetId, 'rx580_barriers')
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gpuPresetId, 'rx580_barriers')
+            self.assertEqual(restored.settings['barrier_merge'], '1')
+        finally:
+            restored.shutdown()
+        profile = next(p for p in GPU_PRESETS if p['id'] == 'rx580_barriers')
+        self.backend.setSetting('barrier_trace', '0')
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.window.setProperty('gpuAdvanced', True)
+        for locale in ('pt-BR', 'en-US', 'ru-RU'):
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertIn(translate(locale, profile['label']),
+                          self.window.findChild(QObject, 'gpuPresetCurrent').property('text'))
+            for key in ('label', 'when', 'changes'):
+                if locale != 'pt-BR':
+                    self.assertNotEqual(translate(locale, profile[key]), profile[key])
+            for name, index in (('gpuDiagnosticBarrierMerge', 2), ('gpuDiagnosticBarrierTrace', 1)):
+                self.assertTrue(self.window.findChild(QObject, name).property('visible'))
+                self.assertEqual(self.window.findChild(QObject, name).property('currentIndex'), index)
+            self.assertEqual(self.backend.settings['barrier_merge'], '1')
+            self.assertEqual(self.backend.settings['barrier_trace'], '0')
+        self.backend.setSetting('barrier_merge', '0')
+        self.assertNotEqual(self.backend.gpuPresetId, 'rx580_barriers')
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.settings['barrier_merge'], 'auto')
+        for locale in ('es-419', 'fr-FR'):
+            for key in ('label', 'when', 'changes'):
+                self.assertNotEqual(translate(locale, profile[key]), profile[key])
 
     def test_gpu_diagnostic_labels_follow_launcher_language(self):
         from port.launcher.knack2.ui.i18n import translate

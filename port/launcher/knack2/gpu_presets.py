@@ -32,6 +32,15 @@ GPU_PRESETS = (
         'overrides': {'pipeline_binaries': '0', 'bp06': '0', 'compute_async_build': '0'},
     },
     {
+        'id': 'rx580_barriers',
+        'label': 'RX 580: compatibilidade experimental',
+        'when': 'Teste para o crash no carregamento relatado na issue #20. Correção no Knack ainda não confirmada.',
+        'changes': 'Junta barreiras de imagem equivalentes. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.',
+        'experimental': True,
+        'preserve_diagnostics': True,
+        'overrides': {'barrier_merge': '1'},
+    },
+    {
         'id': 'gtx_1060_black_texture',
         'label': 'GTX 1060: desempenho',
         'when': 'Ajustes relatados na issue #12 para GTX 1060 6 GB; o desempenho varia conforme a cena e o computador.',

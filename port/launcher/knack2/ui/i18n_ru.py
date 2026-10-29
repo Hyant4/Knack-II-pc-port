@@ -2,6 +2,13 @@
 """Russian launcher catalog; runtime and external errors remain verbatim."""
 
 RUSSIAN = {
+    'RX 580: compatibilidade experimental': 'RX 580: экспериментальная совместимость',
+    'Teste para o crash no carregamento relatado na issue #20. Correção no Knack ainda não confirmada.': 'Тест сбоя при загрузке из issue #20. Исправление в Knack пока не подтверждено.',
+    'Junta barreiras de imagem equivalentes. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': 'Объединяет эквивалентные барьеры изображений. Остальные настройки сохраняются. Сохраните настройки и перезапустите игру для сравнения.',
+    'Junção de barreiras de imagem': 'Объединение барьеров изображений',
+    'Diagnóstico de barreiras de imagem': 'Диагностика барьеров изображений',
+    'Experimental para RX 580. Padrão deixa desligado. Salve e reinicie o jogo para comparar.': 'Эксперимент для RX 580. По умолчанию выключено. Сохраните настройки и перезапустите игру для сравнения.',
+    'Registra lotes grandes no log, com limite de mensagens. Padrão deixa desligado. Reinicie para aplicar.': 'Записывает большие пакеты в журнал с ограничением числа сообщений. По умолчанию выключено. Перезапустите для применения.',
     'Preparação': 'Подготовка',
     'Código': 'Код выхода',
     'Logs do supervisor': 'Журналы супервизора',

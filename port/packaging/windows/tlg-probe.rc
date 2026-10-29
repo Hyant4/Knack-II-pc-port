@@ -7,8 +7,8 @@ CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "tlg-probe.manifest"
 #endif
 
 1 VERSIONINFO
-FILEVERSION 0,0,0,0
-PRODUCTVERSION 0,0,0,0
+FILEVERSION 0,17,7,5
+PRODUCTVERSION 0,17,7,5
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x2L
 FILEOS 0x40004L
@@ -21,11 +21,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Knack II PC Port contributors\0"
             VALUE "FileDescription", "Knack II PC Port Runtime\0"
-            VALUE "FileVersion", "0.0.0.0\0"
+            VALUE "FileVersion", "0.17.7.5\0"
             VALUE "InternalName", "knack2-runtime\0"
             VALUE "OriginalFilename", "knack2-runtime.exe\0"
             VALUE "ProductName", "Knack II PC Port\0"
-            VALUE "ProductVersion", "Local experimental build\0"
+            VALUE "ProductVersion", "0.17.7-rc5\0"
             VALUE "LegalCopyright", "Upstream authors credited in README.md and LICENSE files.\0"
         END
     END
