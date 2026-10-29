@@ -1341,7 +1341,27 @@ static void test_19_atrac9_pcm_continuity(void) {
 
     /* Render 4 consecutive quanta and check continuity */
     for (int i=1;i<=4;++i) {
-        assert(!test_render_retry(sys,renders,2));
+        /* main_renders can advance before a publication rollback. As in test 22,
+         * wait for FIFO consumption instead of counting an attempted render. */
+        int consumed=0;
+        for (int retry=0;retry<100 && !consumed;++retry) {
+            pthread_mutex_lock(&ngs2_lock);
+            uint32_t before=ngs2_voice_locked(v0)->atrac9->pcm_count;
+            pthread_mutex_unlock(&ngs2_lock);
+            assert(!ngs2_render(sys,renders,2));
+            pthread_mutex_lock(&ngs2_lock);
+            uint32_t after=ngs2_voice_locked(v0)->atrac9->pcm_count;
+            pthread_mutex_unlock(&ngs2_lock);
+            if (after!=before) {
+                assert(after+1==before);
+                consumed=1;
+            } else {
+                for (size_t sample=0;sample<256*8;++sample)
+                    assert(buf0[sample]==0.0f && buf1[sample]==0.0f);
+                Sleep(1);
+            }
+        }
+        assert(consumed);
         float expected=((float)(i*4096)/32768.0f)*0.25f;
         assert(fabsf(buf0[0]-expected)<1e-5f);
     }
@@ -1644,6 +1664,10 @@ static void test_25_shared_buffer_gate_exclusion(void) {
 }
 
 int main(void) {
+#ifdef _WIN32
+    /* Keep failed assertions visible in captured logs without a modal dialog. */
+    _set_error_mode(_OUT_TO_STDERR);
+#endif
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     puts("=== Running Knack 2 NGS2 HLE-2.2B Mixer Test Suite ===");

@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -893,7 +894,7 @@ int main(int argc, char** argv) {
                     self.assertEqual(result["pairs"][0]["content_path"], "not_proven")
                     self.assertEqual(len(list(previews.glob("*.png"))), 16 if kind == "missing" else 32)
                 else:
-                    result = subprocess.run([str(ROOT / ".venv/Scripts/python.exe"), "-B",
+                    result = subprocess.run([sys.executable, "-B",
                                              str(ROOT / "scripts/gpu_phy03_analyze.py"), str(final),
                                              "--stage-observations", str(observations)],
                                             capture_output=True, text=True, timeout=10)
