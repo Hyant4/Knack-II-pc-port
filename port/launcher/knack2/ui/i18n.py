@@ -109,10 +109,44 @@ MESSAGES = {
     'Logs copiados.': ['Logs copied.', 'Registros copiados.', 'Journaux copiés.'],
     'Modo de demonstração. O jogo real não será iniciado.': ['Demo mode. The real game will not start.', 'Modo de demostración. El juego real no se iniciará.', 'Mode démonstration. Le jeu réel ne sera pas lancé.'],
 }
+# Additional English diagnostics used by the real launcher. Raw guest logs stay verbatim.
+ENGLISH = {
+    'Preparação': 'Preparation',
+    'Código': 'Exit code',
+    'Logs do supervisor': 'Supervisor logs',
+    'Logs do jogo': 'Game logs',
+    'aguardando sessão': 'waiting for session',
+    'Sessão ambígua; consulte a saída do supervisor.': 'Ambiguous session; check supervisor output.',
+    'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.': 'Experimental build: files checked; gameplay compatibility is unverified.',
+    'Não foi possível abrir a pasta de logs.': 'Could not open the logs folder.',
+    'Não iniciou: a validação automática encontrou o erro acima.': 'Did not start: automatic validation found the error above.',
+    'Não iniciou: nenhuma pasta de dump foi salva. Escolha uma pasta e valide-a primeiro.': 'Did not start: no saved game folder. Choose a folder and validate it first.',
+    'Runtime ausente: compile tlg-probe antes de jogar.': 'Runtime missing: build tlg-probe before playing.',
+    'a validação automática ainda está em andamento. Aguarde o resultado.': 'automatic validation is still running. Please wait for the result.',
+    'já existe uma sessão em andamento.': 'a session is already running.',
+    'nenhuma instalação válida foi confirmada.': 'no valid installation has been confirmed.',
+    'este dump ainda não tinha uma validação salva antes desta abertura. A validação atual foi concluída; clique em Jogar para confirmar.': 'this dump had no saved validation before opening. Validation is now complete; click Play to continue.',
+    'o dump validado anteriormente não é o mesmo título, versão ou pasta da instalação atual. Revise o resultado e clique em Jogar para confirmar.': 'the previously validated dump has a different title, version, or folder. Review the result and click Play to continue.',
+}
+ENGLISH_PREFIXES = {
+    'Processo supervisor encerrou com código de saída ': 'Supervisor exited with code ',
+    'Falha ao iniciar processo supervisor: ': 'Failed to start supervisor: ',
+    'Falha ao gravar log do supervisor: ': 'Failed to write supervisor log: ',
+    'Validação concluída, mas não foi possível registrar o resultado: ': 'Validation complete, but the result could not be saved: ',
+    'Não iniciou automaticamente: ': 'Did not start automatically: ',
+    'Não iniciou: ': 'Did not start: ',
+}
+
 INDEX = {'en-US': 0, 'es-419': 1, 'fr-FR': 2}
 
 
 def translate(locale, source):
+    if locale == 'en-US':
+        if source in ENGLISH:
+            return ENGLISH[source]
+        for prefix, translated in ENGLISH_PREFIXES.items():
+            if source.startswith(prefix):
+                return translated + translate(locale, source[len(prefix):])
     values = MESSAGES.get(source)
     if values is not None and locale in INDEX:
         return values[INDEX[locale]]

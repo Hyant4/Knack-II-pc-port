@@ -1,0 +1,20 @@
+{
+  "title_id": "CUSA08014",
+  "version": "01.01",
+  "entry": "eboot.bin",
+  "executables": {
+    "eboot.bin": "e65b5fd039833ada7dddd8c197b8b47c283a3f46320cd13ece5ff3973a4041db",
+    "game.elf": "0b7843d39d11c5630a72727f286cde563aa74b7f6b22941bcbe05d907fbadf8b"
+  },
+  "modules": {
+    "eboot.bin": [
+      "libc.prx",
+      "libSceFios2.prx"
+    ],
+    "game.elf": [
+      "libc.prx",
+      "libSceFios2.prx",
+      "libSceJobManager.prx"
+    ]
+  }
+}

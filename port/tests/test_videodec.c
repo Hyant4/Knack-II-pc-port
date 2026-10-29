@@ -15,6 +15,7 @@ static void check_picture(const PictureInfo *p) {
     assert(p->frame_width==64 && p->frame_pitch==64 && p->frame_height==48 && !p->is_error_pic);
     /* B-frames: pictures come in display order, each with its own access unit's data. */
     assert(p->attached_data>=1000 && p->attached_data<1006 && !(seen>>(p->attached_data-1000)&1));
+    assert(p->pts_data<6 && p->attached_data==1000+p->pts_data);
     seen|=1<<(p->attached_data-1000);
     if (!pictures++) for (int i=0;i<64*48;++i) first_luma_sum+=frame_buffer[i];
 }

@@ -61,6 +61,7 @@
 - Placa de vídeo compatível com Vulkan e driver atualizado.
 - Seu próprio dump do jogo: **CUSA08014 (americana, versão 01.01)** ou **CUSA07670 (europeia, suporte experimental)**.
 - Dois controles para cooperativo local.
+- Opcional (build do código-fonte, veja [docs/LINUX.md](docs/LINUX.md#game-audio)): para testar o NGS2 do firmware no lugar do mixer do runtime, `libSceNgs2.sprx` do firmware do seu próprio console em `firmware/` e `run.py --firmware-ngs2`. Sem a opção o áudio não muda.
 
 O pacote inclui executáveis e dependências. **Não inclui o jogo, firmware, dumps, saves ou assets proprietários.** Não é necessário instalar Python, Qt ou MSYS2 para jogar.
 

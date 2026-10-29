@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+/* AppContent queries capacity without linking the file runtime. */
+const char *runtime_file_user_dir(void) { return "."; }
 typedef int32_t (ABI *Module)(uint16_t);
 typedef int32_t (ABI *Init)(const void *,void *);
 typedef int32_t (ABI *Param)(uint32_t,int32_t *);

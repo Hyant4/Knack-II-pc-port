@@ -102,6 +102,17 @@ If a problem occurs, use **View logs** in the launcher and open an [issue](https
 
 Development requires Windows, MSYS2 CLANG64, Python tooling, Vulkan development dependencies, and your own compatible game dump. See the [Windows development guide](docs/DESENVOLVIMENTO_WINDOWS.md). No game or firmware files are distributed with the sources.
 
+## Linux (experimental source build)
+
+The launcher and supervisor can use the native Linux x86-64 runtime. See the
+[Linux build and launch guide](docs/LINUX.md), including Fedora/Bazzite setup.
+Linux requires a source build and an extracted game dump; the Windows ZIP is
+not a Linux package. Automated build and synthetic tests do not certify gameplay.
+To try the console firmware's NGS2 mixer instead of the runtime's own, put
+`libSceNgs2.sprx` from your own console firmware in `firmware/` and pass
+`--firmware-ngs2` to `run.py` (see [Game audio](docs/LINUX.md#game-audio)).
+It is opt-in; without the flag audio is unchanged.
+
 ## How it works
 
 | Layer | Role |

@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 import unittest
+import venv
 from unittest.mock import MagicMock, patch
 
 # Ensure port/launcher is importable
@@ -55,6 +56,22 @@ class TestKnack2Runner(unittest.TestCase):
         self.mock_run_py = self.test_root / 'run.py'
         self.mock_run_py.write_text('# Dummy run.py\nimport sys\nsys.exit(0)\n', encoding='utf-8')
 
+    def test_supervisor_keeps_virtualenv_dependencies(self) -> None:
+        environment = self.test_root / 'python environment'
+        venv.EnvBuilder(with_pip=False, symlinks=os.name != 'nt').create(environment)
+        python = environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+        site = Path(subprocess.check_output([str(python), '-c',
+                    'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip())
+        (site / 'launcher_dependency_fixture.py').write_text('VALUE = "venv dependency found"\n')
+        self.mock_run_py.write_text('import launcher_dependency_fixture as fixture; print(fixture.VALUE)\n')
+        for explicit in (False, True):
+            with self.subTest(explicit=explicit), patch('sys.executable', str(python)):
+                runner = KnackRunner(self.game_dir, run_py_path=self.mock_run_py,
+                                     python_exe=python if explicit else None)
+                child = subprocess.run(runner.build_command(), capture_output=True, text=True, timeout=10)
+                self.assertEqual(child.returncode, 0, child.stderr)
+                self.assertIn('venv dependency found', child.stdout)
+
     def test_command_construction_defaults_and_options(self) -> None:
         runner = KnackRunner(
             game_dir=self.game_dir,
@@ -63,7 +80,7 @@ class TestKnack2Runner(unittest.TestCase):
             out_dir=self.out_dir,
         )
         cmd = runner.build_command()
-        self.assertEqual(cmd[0], str(Path(sys.executable).resolve()))
+        self.assertEqual(cmd[0], str(Path(sys.executable).absolute()))
         self.assertEqual(cmd[1], str(self.mock_run_py.resolve()))
         self.assertIn('--game-dir', cmd)
         self.assertEqual(cmd[cmd.index('--game-dir') + 1], str(self.game_dir.resolve()))
@@ -90,6 +107,9 @@ class TestKnack2Runner(unittest.TestCase):
         self.assertIn('--pad-file', cmd_opts)
         self.assertIn('--capture-dir', cmd_opts)
         self.assertIn('--analyze', cmd_opts)
+        self.assertNotIn('--firmware-ngs2', cmd_opts)
+        self.assertIn('--firmware-ngs2', KnackRunner(game_dir=self.game_dir, run_py_path=self.mock_run_py,
+                                                     out_dir=self.out_dir, firmware_ngs2=True).build_command())
 
         # Mutually exclusive flags
         with self.assertRaises(KnackRunnerConfigError):

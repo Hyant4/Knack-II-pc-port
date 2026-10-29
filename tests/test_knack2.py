@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+LOADEXEC_HARNESS = ROOT / 'out' / ('knack-loadexec-test.exe' if os.name == 'nt' else 'knack-loadexec-test')
 spec = importlib.util.spec_from_file_location('knack_run', ROOT / 'run.py')
 run = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run)
@@ -65,6 +66,54 @@ class KnackTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run.prepare.executable_path(self.root, target)
 
+    def test_firmware_ngs2_is_linked_into_game_elf_only(self):
+        self.assertIs(run.with_system_modules(self.profile, None), self.profile)
+        sprx = self.root / 'firmware' / run.NGS2_MODULE
+        linked = run.with_system_modules(self.profile, sprx)
+        self.assertEqual(linked['modules']['game.elf'], self.profile['modules']['game.elf'] + [str(sprx)])
+        self.assertEqual(linked['modules']['eboot.bin'], self.profile['modules']['eboot.bin'])
+        self.assertNotIn(str(sprx), self.profile['modules']['game.elf'])  # the loaded profile is not mutated
+        # The linker reads game / 'sce_module' / name: an absolute name must escape the dump.
+        self.assertEqual(self.root / 'dump' / 'sce_module' / str(sprx), sprx)
+
+    def test_firmware_ngs2_search_and_environment(self):
+        folder = self.root / 'modules'
+        folder.mkdir()
+        with patch.dict(os.environ, {'KNACK2_SYSTEM_MODULES': str(folder)}), \
+             patch.object(run, 'ROOT', self.root), patch.object(run.Path, 'home', return_value=self.root):
+            self.assertIsNone(run.ngs2_module())
+            (folder / run.NGS2_MODULE).write_bytes(b'module')
+            for platform in ('linux', 'win32'):  # explicit opt-in, so no platform restriction
+                with patch('sys.platform', platform), patch.object(run.link_modules, 'module') as parse:
+                    self.assertEqual(run.ngs2_module(), (folder / run.NGS2_MODULE).resolve())
+                parse.assert_called_once_with(folder / run.NGS2_MODULE)
+        with patch.dict(os.environ, {'TLG_NGS2': 'native'}):
+            self.assertNotIn('TLG_NGS2', run.runtime_environment(self.root))
+        self.assertEqual(run.runtime_environment(self.root, ngs2=True)['TLG_NGS2'], 'native')
+
+    def test_firmware_ngs2_is_opt_in(self):
+        game = self.root / 'dump'
+        base = ['--game-dir', str(game), '--out', str(self.root / 'out'), '--analyze']
+        seen = []
+        with patch.object(run, 'validate_game'), patch.object(run, 'ngs2_module', return_value=None) as search, \
+             patch.object(run, 'prepare_image', side_effect=lambda game, profile, name, out: seen.append(profile)), \
+             contextlib.redirect_stdout(io.StringIO()) as stdout:
+            self.assertEqual(run.main(base), 0)  # default: no search, no link, no audio hint
+            search.assert_not_called()
+            self.assertNotIn('Audio:', stdout.getvalue())
+            self.assertTrue(all(profile == self.profile for profile in seen))
+            with contextlib.redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit) as result:
+                run.main(base + ['--firmware-ngs2'])  # requested but absent: fail before preparing
+            self.assertEqual(result.exception.code, 2)
+            self.assertIn(run.NGS2_MODULE, stderr.getvalue())
+            self.assertEqual(len(seen), len(self.profile['executables']))
+            sprx = self.root / run.NGS2_MODULE
+            search.return_value = sprx
+            seen.clear()
+            self.assertEqual(run.main(base + ['--firmware-ngs2']), 0)
+            self.assertIn(f'Audio: firmware NGS2 {sprx}', stdout.getvalue())
+            self.assertTrue(all(profile['modules']['game.elf'][-1] == str(sprx) for profile in seen))
+
     def test_foreign_game_overrides_are_isolated(self):
         with patch.dict(os.environ, {'ISS_FORCE_PATCHES': '1', 'TLG_PATCHES': 'unsafe', 'GOW3_FPS': '240'}):
             env = run.runtime_environment(self.root)
@@ -74,10 +123,21 @@ class KnackTests(unittest.TestCase):
         self.assertEqual(env['KNACK2_PROFILE'], 'CUSA08014-01.01')
 
     def test_empty_toolchain_variable_uses_default(self):
-        with patch.dict(os.environ, {'MSYS2_ROOT': ''}):
+        with patch.dict(os.environ, {'MSYS2_ROOT': ''}), patch('sys.platform', 'win32'):
             env = run.runtime_environment(self.root)
         self.assertEqual(Path(env['PATH'].split(os.pathsep)[0]),
                          Path.home() / 'AppData/Local/knack2-toolchain/msys64/clang64/bin')
+
+    def test_linux_environment_uses_native_path_and_bundled_font(self):
+        with patch('sys.platform', 'linux'), patch.dict(os.environ, {'PATH': '/usr/bin', 'MSYS2_ROOT': '/unused'}, clear=True):
+            env = run.runtime_environment(self.root)
+        self.assertEqual(env['PATH'], '/usr/bin')
+        self.assertEqual(env['TLG_RED_ZONE_REWRITE'], '0')
+        self.assertEqual(Path(env['KNACK2_SYSTEM_FONT']), run.PORT / 'gpu/third_party/fonts/DejaVuSans.ttf')
+
+    def test_explicit_linux_system_font_is_preserved(self):
+        with patch('sys.platform', 'linux'), patch.dict(os.environ, {'KNACK2_SYSTEM_FONT': '/custom/font.ttf'}):
+            self.assertEqual(run.runtime_environment(self.root)['KNACK2_SYSTEM_FONT'], '/custom/font.ttf')
 
     def test_local_users_filter_and_decimal_contract(self):
         inherited = {'TLG_LOCAL_USERS': '2', 'TLG_LOCAL_P2_USER_ID': '99',
@@ -155,7 +215,7 @@ class KnackTests(unittest.TestCase):
                 game = self.root / 'synthetic dump'
                 port = self.root / 'synthetic port'
                 (port / 'out').mkdir(parents=True, exist_ok=True)
-                (port / 'out/tlg-probe.exe').write_bytes(b'not an executable')
+                (port / 'out' / ('tlg-probe.exe' if os.name == 'nt' else 'tlg-probe')).write_bytes(b'not an executable')
                 stages = []
 
                 def fake_child(command, env, log, seconds):
@@ -192,6 +252,8 @@ class KnackTests(unittest.TestCase):
                     self.assertEqual(run.main(options), 0)
                 self.assertEqual(len(stages), 2)
                 self.assertEqual(rewrite.call_count, 2)
+                for call in rewrite.call_args_list:
+                    self.assertEqual('--red-zone' in call.args[0], sys.platform == 'win32')
                 report = json.loads(next(out.glob('session-*/session.json')).read_text())
                 self.assertEqual(report['local_users'], 2 if coop else 1)
                 self.assertEqual(report['p2_user_id'], 4099 if coop else None)
@@ -218,9 +280,9 @@ class KnackTests(unittest.TestCase):
         command = [sys.executable, '-c', 'import time; time.sleep(20)']
         self.assertEqual(run.run_child(command, os.environ.copy(), log, 0.1), 124)
 
-    @unittest.skipUnless((ROOT / 'out/knack-loadexec-test.exe').is_file(), 'native harness has not been built')
+    @unittest.skipUnless(LOADEXEC_HARNESS.is_file(), 'native harness has not been built')
     def test_native_loadexec_roundtrip_and_rejection(self):
-        exe = ROOT / 'out/knack-loadexec-test.exe'
+        exe = LOADEXEC_HARNESS
         path = self.root / 'request.bin'
         env = {**run.runtime_environment(self.root), 'KNACK2_EXEC_REQUEST': str(path)}
         values = ['game.elf', 'argument with spaces', '--option', '']

@@ -161,6 +161,22 @@ class F3BTests(unittest.TestCase):
         self.backend.stop()
         self.until(lambda: self.backend.state == 'FINISHED' and not self.backend._working())
 
+    def test_english_session_details_and_copied_log_labels(self):
+        self.backend.setLanguage('en-US')
+        self.validate()
+        self.launch()
+        self.pump()
+        self.assertIn('Exit code', self.backend.sessionDetails)
+        self.assertIn('Supervisor logs:', self.backend.sessionDetails)
+        self.assertIn('Game logs:', self.backend.sessionDetails)
+        self.backend.copyLogs()
+        copied = QGuiApplication.clipboard().text()
+        self.assertIn('\n\nGame\n', copied)
+        self.assertNotIn('Logs do jogo', copied)
+        self.finish()
+        self.backend._notice('Processo supervisor encerrou com código de saída 1', True)
+        self.assertEqual(self.backend.notification, 'Supervisor exited with code 1')
+
     def test_default_validation_gate_p1_command_settings_and_logs(self):
         self.assertEqual(self.backend.players, 1)
         self.assertFalse(self.backend.canPlay)
@@ -380,6 +396,8 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: self.backend.state == 'FAILED' and not self.backend._working())
         self.assertEqual(self.backend._runner.exit_code, 7)
         self.assertIn('7', self.backend.notification)
+        # Process completion and the Qt log model's timer are independent.
+        self.until(lambda: 'real supervisor error' in self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend._log_path.read_text())
         self.pump()
@@ -407,7 +425,7 @@ class SupervisorConfigTests(unittest.TestCase):
             root = Path(temporary)
             port = root / 'port'
             (port / 'out').mkdir(parents=True)
-            (port / 'out/tlg-probe.exe').write_bytes(b'never executed')
+            (port / 'out' / ('tlg-probe.exe' if os.name == 'nt' else 'tlg-probe')).write_bytes(b'never executed')
             ini = root / 'settings.ini'
             config.update_knack2_ini(ini, {'vsync': '1', 'rcas_strength': 100})
             calls = []

@@ -4,9 +4,15 @@ on:
   pull_request:
     paths:
       - 'run.py'
+      - 'profiles/**'
+      - 'port/build.sh'
+      - 'port/shell.nix'
+      - 'port/src/**'
+      - 'port/gpu/**'
+      - 'port/packaging/linux/**'
       - 'port/launcher/**'
       - 'port/scripts/**'
-      - 'tests/test_knack2*.py'
+      - 'tests/**'
       - 'port/tests/**'
       - '.github/workflows/checks.yml'
   workflow_dispatch:
@@ -16,7 +22,11 @@ permissions:
 
 jobs:
   python:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: utf-8
@@ -39,3 +49,35 @@ jobs:
             python -B -m unittest discover -s port/tests -p $pattern -v
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+
+  linux-native:
+    runs-on: ubuntu-24.04
+    container: fedora:44
+    env:
+      TLG_LTO: 'OFF'
+      TLG_BUILD_JOBS: '2'
+    steps:
+      - name: Install Linux build dependencies
+        run: >-
+          dnf install -y git gcc gcc-c++ cmake ninja-build pkgconf-pkg-config
+          vulkan-loader-devel SDL3-devel ffmpeg-free-devel freetype-devel
+          fmt-devel boost-devel robin-map-devel xxhash-devel VulkanMemoryAllocator-devel
+          glslang zydis-devel libX11-devel python3
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install native H.264 decoder
+        run: |
+          dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
+          dnf install -y libavcodec-freeworld
+      - name: Build Linux runtime and run native tests
+        run: bash port/build.sh --test
+      - name: Check Knack II LoadExec handoff
+        run: |
+          mkdir -p out
+          gcc -std=c11 -Wall -Wextra -Werror -pthread -Iport/src tests/test_knack_loadexec.c port/src/runtime_knack.c -o out/knack-loadexec-test
+          python3 -B -m unittest discover -s tests -p test_knack2.py -v
+      - name: Check Knack II native font and save-data contracts
+        run: |
+          python3 -B -m unittest discover -s tests -p test_font.py -v
+          python3 -B -m unittest discover -s tests -p test_savedata.py -v

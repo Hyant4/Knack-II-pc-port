@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Prepare and supervise Knack 2's original executables on Windows."""
+"""Prepare and supervise Knack 2's original executables on Windows and Linux."""
 import argparse
 from contextlib import ExitStack
 import hashlib
@@ -24,6 +24,7 @@ import content_profile
 from port.launcher.knack2.languages import BY_CODE, discover_languages, language_environment
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
+from port.launcher.knack2.validator import default_profile_path
 
 
 def digest(path):
@@ -41,6 +42,37 @@ def validate_game(game, profile):
     for name in {m for modules in profile['modules'].values() for m in modules}:
         link_modules.module(game / 'sce_module' / name)
     return values
+
+
+NGS2_MODULE = 'libSceNgs2.sprx'
+NGS2_EXECUTABLE = 'game.elf'  # the only executable importing sceNgs2*
+
+
+def ngs2_module():
+    """The console firmware's NGS2 (audio mixer), which no game dump carries.
+
+    Only used with --firmware-ngs2 (explicit opt-in on any platform; the default
+    keeps the runtime's own NGS2). Searched in $KNACK2_SYSTEM_MODULES, firmware/
+    (ignored by git) and shadPS4's sys_modules; None when absent.
+    """
+    folders = [Path(os.environ['KNACK2_SYSTEM_MODULES'])] if os.environ.get('KNACK2_SYSTEM_MODULES') else []
+    folders += [ROOT / 'firmware', ROOT / 'firmware/sys_modules', Path.home() / '.local/share/shadPS4/sys_modules',
+                Path.home() / '.var/app/net.shadps4.shadPS4/data/shadPS4/sys_modules']
+    for folder in folders:
+        path = folder / NGS2_MODULE
+        if path.is_file():
+            link_modules.module(path)  # a readable SELF/ELF module, or raise
+            return path.resolve()
+    return None
+
+
+def with_system_modules(profile, ngs2):
+    """Profile copy that also links the firmware NGS2 (absolute path) into its executable."""
+    if ngs2 is None:
+        return profile
+    modules = {name: list(names) for name, names in profile['modules'].items()}
+    modules[NGS2_EXECUTABLE].append(str(ngs2))
+    return {**profile, 'modules': modules}
 
 
 def prepare_image(game, profile, executable, out):
@@ -116,7 +148,7 @@ def local_user_environment(local_users, second_user):
 
 
 def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None,
-                        config_file=None, language=None):
+                        config_file=None, language=None, ngs2=False):
     users = local_user_environment(local_users, second_user)
     locale = language_environment(language)
     if config_file is not None:
@@ -125,14 +157,21 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
             raise ValueError('--config must name an existing INI file')
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
-    toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
-    env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
-    system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
+    if sys.platform == 'win32':
+        toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
+        env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
+        system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
+    else:
+        # The licensed font is already shipped for the in-game overlay. Do not
+        # depend on a distro-specific font path or console system font files.
+        system_font = PORT / 'gpu/third_party/fonts/DejaVuSans.ttf'
     if system_font.is_file():
-        env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
+        env.setdefault('KNACK2_SYSTEM_FONT', str(system_font.resolve()))
     env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
-               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1',
+               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1' if sys.platform == 'win32' else '0',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
+    if ngs2:
+        env['TLG_NGS2'] = 'native'  # the linked firmware NGS2 wins over the silent placeholder
     env.update(users)  # Only validated CLI values may enable a second local user.
     env.update(locale)  # Inherited TLG_LANGUAGE remains filtered; only explicit CLI values survive.
     env.update(game_identity_environment(ROOT))  # Fixed local identity, never inherited from another port.
@@ -176,6 +215,10 @@ def _main(argv, lifetime):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--analyze', action='store_true')
     mode.add_argument('--check-imports', action='store_true')
+    parser.add_argument('--experimental-build', action='store_true',
+                        help='try the separately pinned experimental 01.01 executable build')
+    parser.add_argument('--firmware-ngs2', action='store_true',
+                        help=f'link {NGS2_MODULE} from your own console firmware into game.elf')
     parser.add_argument('--timeout', type=int, default=180,
                         help='maximum seconds for the entire guest session; 0 disables the time limit')
     parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
@@ -195,7 +238,7 @@ def _main(argv, lifetime):
         if args.local_users == 2 and args.out is None:
             raise ValueError('--local-users 2 requires --out with a fresh isolated directory')
         game = args.game_dir.resolve()
-        out = (args.out if args.out is not None else ROOT / 'out/knack2').resolve()
+        out = (args.out if args.out is not None else ROOT / ('out/knack2-experimental' if args.experimental_build else 'out/knack2')).resolve()
         user = args.user_data.resolve() if args.user_data is not None else out / 'user'
         if args.user_data is not None:
             for protected in (game, out, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
@@ -235,33 +278,45 @@ def _main(argv, lifetime):
                 raise ValueError('P2 --capture-dir must stay inside --out')
             if len(str(out / 'user').encode('utf-8')) >= 512:
                 raise ValueError('P2 user path exceeds the runtime limit of 511 UTF-8 bytes')
+        ngs2 = ngs2_module() if args.firmware_ngs2 else None  # never searched unless requested
+        if args.firmware_ngs2 and ngs2 is None:
+            raise ValueError(f'--firmware-ngs2: {NGS2_MODULE} not found; put it in {ROOT / "firmware"} '
+                             'or set KNACK2_SYSTEM_MODULES')
     except (ValueError, OSError) as error:
         parser.error(str(error))
-    profile = json.loads((ROOT / 'profiles/CUSA08014-01.01.json').read_text())
+    profile_path = default_profile_path(ROOT, experimental_build=args.experimental_build)
+    profile = json.loads(profile_path.read_text())
+    if args.experimental_build:
+        print('Experimental executable build selected; gameplay compatibility is unverified.', flush=True)
     validate_game(game, profile)
     if args.language is not None and args.language not in discover_languages(game):
         raise ValueError('--language is not installed in this dump')
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
     out.mkdir(parents=True, exist_ok=True)
+    if ngs2 is not None:
+        print(f'Audio: firmware NGS2 {ngs2}', flush=True)
+    profile = with_system_modules(profile, ngs2)
     images = {name: prepare_image(game, profile, name, out) for name in profile['executables']}
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
         return 0
     probe = runtime_path(PORT)
     if not probe.is_file():
-        raise ValueError('Build the runtime first: .\\build.ps1')
+        build = r'.\build.ps1' if sys.platform == 'win32' else 'bash port/build.sh'
+        raise ValueError(f'Build the runtime first: {build}')
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
-                              config_file=args.config, language=args.language)
+                              config_file=args.config, language=args.language, ngs2=ngs2 is not None)
     user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
         for folder in images.values():
             subprocess.run([sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
-                            '--out', str(folder), '--red-zone'], check=True)
+                            '--out', str(folder)] +
+                           (['--red-zone'] if sys.platform == 'win32' else []), check=True)
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
-    report = {'profile': 'CUSA08014-01.01', 'mode': 'imports' if args.check_imports else 'run',
+    report = {'profile': profile_path.stem, 'experimental_build': args.experimental_build, 'mode': 'imports' if args.check_imports else 'run',
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
               'user_data': str(user),
               'visual_verified': False, 'stages': []}

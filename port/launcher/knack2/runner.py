@@ -134,10 +134,14 @@ class KnackRunner:
         config_file: Path | str | None = None,
         language: str | None = None,
         user_data: Path | str | None = None,
+        experimental_build: bool = False,
+        firmware_ngs2: bool = False,
     ) -> None:
         if not game_dir:
             raise KnackRunnerConfigError('O parâmetro game_dir é obrigatório')
 
+        self.experimental_build = bool(experimental_build)
+        self.firmware_ngs2 = bool(firmware_ngs2)  # opt-in: link the console firmware's NGS2
         self.game_dir = Path(game_dir).resolve()
 
         if run_py_path is None:
@@ -169,7 +173,9 @@ class KnackRunner:
             raise KnackRunnerConfigError('Arquivo INI não encontrado.')
 
         if out_dir is None:
-            self.out_dir = (self.run_py_path.parent / 'out' / 'knack2').resolve()
+            # Same default as run.py: the experimental build never shares the normal saves (out/user).
+            name = 'knack2-experimental' if self.experimental_build else 'knack2'
+            self.out_dir = (self.run_py_path.parent / 'out' / name).resolve()
         else:
             self.out_dir = Path(out_dir).resolve()
 
@@ -181,7 +187,9 @@ class KnackRunner:
         self.analyze_only = bool(analyze_only)
         self.check_imports = bool(check_imports)
 
-        self.python_exe = Path(python_exe).resolve() if python_exe else Path(sys.executable).resolve()
+        # Resolving a venv's interpreter symlink selects the system Python and
+        # loses its site-packages (including iced_x86 used by preparation).
+        self.python_exe = Path(os.path.abspath(python_exe or sys.executable))
         self.max_log_lines = max_log_lines
         self.log_poll_interval = max(0.05, float(log_poll_interval))
 
@@ -271,6 +279,10 @@ class KnackRunner:
             '--timeout', str(self.timeout),
             '--out', str(self.out_dir),
         ]
+        if self.experimental_build:
+            cmd.append('--experimental-build')
+        if self.firmware_ngs2:
+            cmd.append('--firmware-ngs2')
         if self.pad_file:
             cmd.extend(['--pad-file', str(self.pad_file)])
         if self.capture_dir:

@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 import sys
+from ..languages import BY_CODE
 
 
 def _configure_cli_streams():
@@ -18,6 +19,7 @@ def _configure_cli_streams():
 
 
 def create_window(backend=None):
+    from shiboken6 import isValid
     from PySide6.QtCore import QUrl
     from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QIcon
     from PySide6.QtQml import QQmlApplicationEngine
@@ -49,7 +51,9 @@ def create_window(backend=None):
         translator.locale = backend.uiLanguage
         engine.retranslate()
     backend.uiLanguageChanged.connect(retranslate)
-    engine.destroyed.connect(lambda: app.removeTranslator(translator))
+    # During interpreter shutdown Qt can destroy either QObject first.
+    engine.destroyed.connect(lambda: app.removeTranslator(translator)
+                             if isValid(app) and isValid(translator) else None)
     engine.setInitialProperties({'backend': backend})
     engine.load(QUrl.fromLocalFile(str(Path(__file__).with_name('Main.qml'))))
     if not engine.rootObjects():
@@ -65,9 +69,13 @@ def main(argv=None):
     mode.add_argument('--demo', action='store_true', help='Demonstração F3A, sem processos reais.')
     mode.add_argument('--real', action='store_true',
                       help='Supervisor oficial (padrão); sem --play, requer clicar em Jogar.')
+    parser.add_argument('--language', choices=tuple(BY_CODE),
+                        help='Launcher and game language (use en-US for English).')
+    parser.add_argument('--experimental-build', action='store_true',
+                        help='Testar o executável 01.01 experimental com perfil e saves separados.')
     parser.add_argument('--play', action='store_true',
                         help='Pede início direto somente após revalidar uma instalação já validada.')
-    parser.add_argument('--data-dir', type=Path, help='Dados persistentes; padrão Windows: %%LOCALAPPDATA%%/KnackII-PC.')
+    parser.add_argument('--data-dir', type=Path, help='Dados persistentes; Windows: %%LOCALAPPDATA%%/KnackII-PC; Linux: $XDG_DATA_HOME/knack-ii-pc (ou ~/.local/share/knack-ii-pc).')
     parser.add_argument('--offscreen', action='store_true', help='Renderização Qt sem janela visível.')
     parser.add_argument('--quit-after-ms', type=int, default=0, help='Fechar após N ms, para smoke finito.')
     parser.add_argument('--screenshot', type=Path, help='Salvar captura PNG da interface antes de fechar.')
@@ -76,6 +84,8 @@ def main(argv=None):
         parser.error('--quit-after-ms deve ser >= 0')
     if args.screenshot and not args.quit_after_ms:
         parser.error('--screenshot requer --quit-after-ms')
+    if args.demo and args.experimental_build:
+        parser.error('--experimental-build requer o launcher real')
     if args.demo and args.play:
         parser.error('--play não está disponível na demonstração')
     if args.offscreen:
@@ -97,7 +107,10 @@ def main(argv=None):
     try:
         from .backend import Backend
         from .real import RealBackend
-        backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play)
+        backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play,
+                                                                       experimental_build=args.experimental_build)
+        if args.language is not None:
+            backend.setLanguage(args.language)
         engine, window, backend = create_window(backend)
     except RuntimeError as error:
         print(str(error), file=sys.stderr)

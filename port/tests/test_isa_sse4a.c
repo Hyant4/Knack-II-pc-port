@@ -218,6 +218,7 @@ __asm__(".text\n"
         "mov 112(%rsi), %r14\n mov 120(%rsi), %r15\n mov 48(%rsi), %rsi\n"
         "call *(%rsp)\n"
         "pushfq\n"
+        "cld\n" /* preserve guest DF above, restore the C ABI before returning */
         "xchg %rsi, 16(%rsp)\n"                       /* rsi = state, slot = the guest's rsi */
         "mov %rax, 0(%rsi)\n mov %rcx, 8(%rsi)\n mov %rdx, 16(%rsi)\n mov %rbx, 24(%rsi)\n"
         "mov %rbp, 40(%rsi)\n mov %rdi, 56(%rsi)\n mov %r8, 64(%rsi)\n mov %r9, 72(%rsi)\n"
