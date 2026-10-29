@@ -128,22 +128,24 @@ make sure its mount point is visible and readable inside the Distrobox.
 
 ## Game audio
 
-The game mixes its sound with the console's NGS2 library, which is a firmware
-module and not part of the game dump. Without it the runtime renders silence
-(`Runtime: NGS2 system (silent) (placeholder)` in the game log). Copy
-`libSceNgs2.sprx` from your own console firmware dump (the same file shadPS4
-uses from its `sys_modules` folder) into `firmware/` at the repository root:
+The game mixes its sound with the console's NGS2 library, a firmware module
+that is not part of the game dump. By default the runtime uses its own NGS2
+mixer. To compare it with the console firmware's NGS2, copy `libSceNgs2.sprx`
+from your own console firmware dump (the same file shadPS4 uses from its
+`sys_modules` folder) into `firmware/` at the repository root and pass
+`--firmware-ngs2`:
 
 ```sh
 mkdir -p firmware && cp /path/to/sys_modules/libSceNgs2.sprx firmware/
+python run.py --game-dir /path/to/extracted/dump --firmware-ngs2 --timeout 0
 ```
 
-`run.py` also looks in `$KNACK2_SYSTEM_MODULES` and in shadPS4's
-`~/.local/share/shadPS4/sys_modules`. When it finds the module it prints
-`Audio: firmware NGS2 ...`, links it into `game.elf` and the game log shows
-`Config env: TLG_NGS2=native`. `firmware/` is ignored by git; never commit it.
-This applies to Linux only: on Windows `run.py` does not look for the module
-and audio is unchanged.
+With the flag `run.py` also looks in `$KNACK2_SYSTEM_MODULES` and in shadPS4's
+`~/.local/share/shadPS4/sys_modules`; if the module is not found it stops with
+an error instead of continuing. When found it prints `Audio: firmware NGS2 ...`,
+links it into `game.elf` and the game log shows `Config env: TLG_NGS2=native`.
+`KnackRunner(firmware_ngs2=True)` passes the same flag. Without the flag nothing
+is searched or linked. `firmware/` is ignored by git; never commit it.
 
 ## Language
 

@@ -79,20 +79,40 @@ class KnackTests(unittest.TestCase):
     def test_firmware_ngs2_search_and_environment(self):
         folder = self.root / 'modules'
         folder.mkdir()
-        with patch.dict(os.environ, {'KNACK2_SYSTEM_MODULES': str(folder)}), patch('sys.platform', 'linux'), \
+        with patch.dict(os.environ, {'KNACK2_SYSTEM_MODULES': str(folder)}), \
              patch.object(run, 'ROOT', self.root), patch.object(run.Path, 'home', return_value=self.root):
             self.assertIsNone(run.ngs2_module())
             (folder / run.NGS2_MODULE).write_bytes(b'module')
-            with patch.object(run.link_modules, 'module') as parse:
-                self.assertEqual(run.ngs2_module(), (folder / run.NGS2_MODULE).resolve())
-            parse.assert_called_once_with(folder / run.NGS2_MODULE)
-            # Windows keeps its existing audio path even when the module is present.
-            with patch('sys.platform', 'win32'), patch.object(run.link_modules, 'module') as parse:
-                self.assertIsNone(run.ngs2_module())
-            parse.assert_not_called()
+            for platform in ('linux', 'win32'):  # explicit opt-in, so no platform restriction
+                with patch('sys.platform', platform), patch.object(run.link_modules, 'module') as parse:
+                    self.assertEqual(run.ngs2_module(), (folder / run.NGS2_MODULE).resolve())
+                parse.assert_called_once_with(folder / run.NGS2_MODULE)
         with patch.dict(os.environ, {'TLG_NGS2': 'native'}):
             self.assertNotIn('TLG_NGS2', run.runtime_environment(self.root))
         self.assertEqual(run.runtime_environment(self.root, ngs2=True)['TLG_NGS2'], 'native')
+
+    def test_firmware_ngs2_is_opt_in(self):
+        game = self.root / 'dump'
+        base = ['--game-dir', str(game), '--out', str(self.root / 'out'), '--analyze']
+        seen = []
+        with patch.object(run, 'validate_game'), patch.object(run, 'ngs2_module', return_value=None) as search, \
+             patch.object(run, 'prepare_image', side_effect=lambda game, profile, name, out: seen.append(profile)), \
+             contextlib.redirect_stdout(io.StringIO()) as stdout:
+            self.assertEqual(run.main(base), 0)  # default: no search, no link, no audio hint
+            search.assert_not_called()
+            self.assertNotIn('Audio:', stdout.getvalue())
+            self.assertTrue(all(profile == self.profile for profile in seen))
+            with contextlib.redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit) as result:
+                run.main(base + ['--firmware-ngs2'])  # requested but absent: fail before preparing
+            self.assertEqual(result.exception.code, 2)
+            self.assertIn(run.NGS2_MODULE, stderr.getvalue())
+            self.assertEqual(len(seen), len(self.profile['executables']))
+            sprx = self.root / run.NGS2_MODULE
+            search.return_value = sprx
+            seen.clear()
+            self.assertEqual(run.main(base + ['--firmware-ngs2']), 0)
+            self.assertIn(f'Audio: firmware NGS2 {sprx}', stdout.getvalue())
+            self.assertTrue(all(profile['modules']['game.elf'][-1] == str(sprx) for profile in seen))
 
     def test_foreign_game_overrides_are_isolated(self):
         with patch.dict(os.environ, {'ISS_FORCE_PATCHES': '1', 'TLG_PATCHES': 'unsafe', 'GOW3_FPS': '240'}):

@@ -57,7 +57,7 @@ class ExperimentalBuildTests(unittest.TestCase):
             runner = KnackRunner(game, experimental_build=True, analyze_only=True,
                                  out_dir=Path(temporary) / 'analysis')
             seen = []
-            with patch.object(supervisor, 'validate_game') as validate, patch.object(supervisor, 'ngs2_module', return_value=None), patch.object(supervisor, 'prepare_image', side_effect=lambda game, profile, name, out: seen.append(profile) or out), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(supervisor, 'validate_game') as validate, patch.object(supervisor, 'prepare_image', side_effect=lambda game, profile, name, out: seen.append(profile) or out), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(supervisor.main(runner.build_command()[2:]), 0)
             expected = validator.load_profile(validator.default_profile_path(experimental_build=True))
             self.assertEqual(validate.call_args.args[1], expected)

@@ -51,12 +51,10 @@ NGS2_EXECUTABLE = 'game.elf'  # the only executable importing sceNgs2*
 def ngs2_module():
     """The console firmware's NGS2 (audio mixer), which no game dump carries.
 
-    Without it the runtime's NGS2 placeholder renders silence. Searched in
-    $KNACK2_SYSTEM_MODULES, firmware/ (ignored by git) and shadPS4's sys_modules.
-    Linux only: Windows builds keep their own audio path, unchanged.
+    Only used with --firmware-ngs2 (explicit opt-in on any platform; the default
+    keeps the runtime's own NGS2). Searched in $KNACK2_SYSTEM_MODULES, firmware/
+    (ignored by git) and shadPS4's sys_modules; None when absent.
     """
-    if sys.platform == 'win32':
-        return None
     folders = [Path(os.environ['KNACK2_SYSTEM_MODULES'])] if os.environ.get('KNACK2_SYSTEM_MODULES') else []
     folders += [ROOT / 'firmware', ROOT / 'firmware/sys_modules', Path.home() / '.local/share/shadPS4/sys_modules',
                 Path.home() / '.var/app/net.shadps4.shadPS4/data/shadPS4/sys_modules']
@@ -219,6 +217,8 @@ def _main(argv, lifetime):
     mode.add_argument('--check-imports', action='store_true')
     parser.add_argument('--experimental-build', action='store_true',
                         help='try the separately pinned experimental 01.01 executable build')
+    parser.add_argument('--firmware-ngs2', action='store_true',
+                        help=f'link {NGS2_MODULE} from your own console firmware into game.elf')
     parser.add_argument('--timeout', type=int, default=180,
                         help='maximum seconds for the entire guest session; 0 disables the time limit')
     parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
@@ -278,6 +278,10 @@ def _main(argv, lifetime):
                 raise ValueError('P2 --capture-dir must stay inside --out')
             if len(str(out / 'user').encode('utf-8')) >= 512:
                 raise ValueError('P2 user path exceeds the runtime limit of 511 UTF-8 bytes')
+        ngs2 = ngs2_module() if args.firmware_ngs2 else None  # never searched unless requested
+        if args.firmware_ngs2 and ngs2 is None:
+            raise ValueError(f'--firmware-ngs2: {NGS2_MODULE} not found; put it in {ROOT / "firmware"} '
+                             'or set KNACK2_SYSTEM_MODULES')
     except (ValueError, OSError) as error:
         parser.error(str(error))
     profile_path = default_profile_path(ROOT, experimental_build=args.experimental_build)
@@ -290,12 +294,8 @@ def _main(argv, lifetime):
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
     out.mkdir(parents=True, exist_ok=True)
-    ngs2 = ngs2_module()
     if ngs2 is not None:
         print(f'Audio: firmware NGS2 {ngs2}', flush=True)
-    elif sys.platform != 'win32':
-        print(f'Audio: {NGS2_MODULE} not found (put it in {ROOT / "firmware"} or set KNACK2_SYSTEM_MODULES); '
-              'game sound will be silent', flush=True)
     profile = with_system_modules(profile, ngs2)
     images = {name: prepare_image(game, profile, name, out) for name in profile['executables']}
     if args.analyze:

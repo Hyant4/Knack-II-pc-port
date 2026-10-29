@@ -108,9 +108,10 @@ The launcher and supervisor can use the native Linux x86-64 runtime. See the
 [Linux build and launch guide](docs/LINUX.md), including Fedora/Bazzite setup.
 Linux requires a source build and an extracted game dump; the Windows ZIP is
 not a Linux package. Automated build and synthetic tests do not certify gameplay.
-For game sound on Linux, supply `libSceNgs2.sprx` from your own console firmware
-in `firmware/` (see [Game audio](docs/LINUX.md#game-audio)); Windows builds keep
-their existing audio path.
+To try the console firmware's NGS2 mixer instead of the runtime's own, put
+`libSceNgs2.sprx` from your own console firmware in `firmware/` and pass
+`--firmware-ngs2` to `run.py` (see [Game audio](docs/LINUX.md#game-audio)).
+It is opt-in; without the flag audio is unchanged.
 
 ## How it works
 

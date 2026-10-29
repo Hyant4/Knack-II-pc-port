@@ -135,11 +135,13 @@ class KnackRunner:
         language: str | None = None,
         user_data: Path | str | None = None,
         experimental_build: bool = False,
+        firmware_ngs2: bool = False,
     ) -> None:
         if not game_dir:
             raise KnackRunnerConfigError('O parâmetro game_dir é obrigatório')
 
         self.experimental_build = bool(experimental_build)
+        self.firmware_ngs2 = bool(firmware_ngs2)  # opt-in: link the console firmware's NGS2
         self.game_dir = Path(game_dir).resolve()
 
         if run_py_path is None:
@@ -277,6 +279,8 @@ class KnackRunner:
         ]
         if self.experimental_build:
             cmd.append('--experimental-build')
+        if self.firmware_ngs2:
+            cmd.append('--firmware-ngs2')
         if self.pad_file:
             cmd.extend(['--pad-file', str(self.pad_file)])
         if self.capture_dir:

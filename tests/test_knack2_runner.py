@@ -107,6 +107,9 @@ class TestKnack2Runner(unittest.TestCase):
         self.assertIn('--pad-file', cmd_opts)
         self.assertIn('--capture-dir', cmd_opts)
         self.assertIn('--analyze', cmd_opts)
+        self.assertNotIn('--firmware-ngs2', cmd_opts)
+        self.assertIn('--firmware-ngs2', KnackRunner(game_dir=self.game_dir, run_py_path=self.mock_run_py,
+                                                     out_dir=self.out_dir, firmware_ngs2=True).build_command())
 
         # Mutually exclusive flags
         with self.assertRaises(KnackRunnerConfigError):
