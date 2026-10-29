@@ -5,6 +5,7 @@
   <img src="https://img.shields.io/badge/Windows-x64-555?style=flat-square" alt="Windows x64" />
   <img src="https://img.shields.io/badge/Linux-AppImage%20experimental-555?style=flat-square" alt="Linux experimental" />
   <img src="https://img.shields.io/badge/Vulkan-1.3%2B-555?style=flat-square" alt="Vulkan 1.3+" />
+  <a href="https://buymeacoffee.com/hyant4"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Apoiar-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000000" alt="Apoiar no Buy Me a Coffee" /></a>
 </p>
 <p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Baixar a última versão</a></strong> · <a href="RELEASE-NOTES.md">Novidades da v0.18</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Reportar um problema</a></p>
 <p align="center"><a href="README.md">English</a> · <strong>Português (Brasil)</strong></p>
