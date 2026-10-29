@@ -1,19 +1,13 @@
-<div align="center">
-
-# Knack II — Native PC Port
-
-**An independent, experimental native port of Knack II for Windows and Linux (x86-64).**
-
-[![Release](https://img.shields.io/badge/release-v0.18-0969da?style=flat-square)](https://github.com/Hyant4/Knack-II-pc-port/releases/latest)
-![Windows](https://img.shields.io/badge/Windows-x64-555?style=flat-square)
-![Linux](https://img.shields.io/badge/Linux-AppImage%20experimental-555?style=flat-square)
-![Vulkan](https://img.shields.io/badge/Vulkan-1.3%2B-555?style=flat-square)
-
-**[Download the latest release](https://github.com/Hyant4/Knack-II-pc-port/releases/latest)** · **[What's new in v0.18](RELEASE-NOTES.md)** · **[Report an issue](https://github.com/Hyant4/Knack-II-pc-port/issues)**
-
-**English** · [Português (Brasil)](README.pt-BR.md)
-
-</div>
+<h1 align="center">Knack II — Native PC Port</h1>
+<p align="center"><strong>An independent, experimental native port of Knack II for Windows and Linux (x86-64).</strong></p>
+<p align="center">
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18-0969da?style=flat-square" alt="Release v0.18" /></a>
+  <img src="https://img.shields.io/badge/Windows-x64-555?style=flat-square" alt="Windows x64" />
+  <img src="https://img.shields.io/badge/Linux-AppImage%20experimental-555?style=flat-square" alt="Linux experimental" />
+  <img src="https://img.shields.io/badge/Vulkan-1.3%2B-555?style=flat-square" alt="Vulkan 1.3+" />
+</p>
+<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">What's new in v0.18</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
+<p align="center"><strong>English</strong> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
 
 <p align="center">
   <img src="docs/screenshots/knack-ii-title-screen.png" alt="Knack II title screen running on the PC port" width="48%" />
