@@ -189,8 +189,8 @@ X-AppImage-Version={version}
         'Requer Vulkan 1.3 e dump próprio já extraído. Não inclui jogo ou saves.\n'
         'Dar permissão de execução e abrir o AppImage não inicia o jogo automaticamente.\n'
         'Sem FUSE, usar --appimage-extract-and-run. Preferências ficam no diretório de usuário.\n'
-        'As quatro falhas nativas e demais limites da revisão anterior permanecem; '
-        'consulte docs/REVISAO_BUILD_LOCAL_20261030.md.\n', encoding='utf-8')
+        'Resultados de testes pertencem à revisão identificada no BUILDINFO.json. '
+        'Consulte CANDIDATE-NOTES.md para resultados e limites desta compilação.\n', encoding='utf-8')
     report = {'input_manifest_sha256': sha(source / 'FILE-MANIFEST.json'),
               'bundled_libraries': bundled, 'external_libraries': external,
               'scanned_elf_files': len(scan), 'required_glibc': required_glibc}
