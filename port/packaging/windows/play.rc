@@ -1,1 +1,5 @@
-1 ICON "../../launcher/infamous.ico"
+// Original Knack II icon is supplied locally by the Windows build.
+#include "knack2-icon.h"
+#ifdef KNACK2_ICON_PATH
+1 ICON KNACK2_ICON_PATH
+#endif

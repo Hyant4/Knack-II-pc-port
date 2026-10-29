@@ -363,6 +363,20 @@ if (WIN32)
     add_executable(tlg-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
     target_compile_options(tlg-play PRIVATE -municode)
     target_link_options(tlg-play PRIVATE -municode)
+
+    # Original Knack artwork stays local; never fall back to another game's icon.
+    set(KNACK2_ICON_FILE "$ENV{LOCALAPPDATA}/KnackII-PC/identity/Knack.ico" CACHE FILEPATH
+        "Optional local Knack II icon for Windows executables")
+    set(KNACK2_ICON_PATH "")
+    if(EXISTS "${KNACK2_ICON_FILE}")
+        file(TO_CMAKE_PATH "${KNACK2_ICON_FILE}" KNACK2_ICON_PATH)
+    endif()
+    configure_file(../packaging/windows/knack2-icon.h.in
+        "${CMAKE_CURRENT_BINARY_DIR}/knack2-branding/knack2-icon.h" @ONLY)
+    foreach(KNACK2_ICON_TARGET IN ITEMS tlg-play tlg-gpu-capabilities)
+        target_include_directories(${KNACK2_ICON_TARGET} PRIVATE
+            "${CMAKE_CURRENT_BINARY_DIR}/knack2-branding")
+    endforeach()
 endif()
 
 # Explicit test targets; neither launches the game nor needs a Vulkan device.
