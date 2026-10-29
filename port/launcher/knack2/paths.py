@@ -24,7 +24,7 @@ def display_version(root=None):
         value = path.read_text(encoding='utf-8').strip()
     except (OSError, UnicodeError):
         return 'dev'
-    return value if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}', value) else 'dev'
+    return value if re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', value) else 'dev'
 
 
 def supervisor_executable():

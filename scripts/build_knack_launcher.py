@@ -25,6 +25,11 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root))
+    from port.launcher.knack2.paths import display_version
+    application_version = display_version(root)
+    if application_version == 'dev':
+        raise ValueError('A semantic application version is required in VERSION before packaging.')
+    major, minor, patch = map(int, application_version.split('-', 1)[0].split('.'))
     from port.launcher.knack2.identity import identity_assets
     icon = identity_assets() / 'Knack.ico'
     if not icon.is_file():
@@ -53,14 +58,14 @@ def main():
             if Path(name).name != name or sha(pkg_helper / name) != expected:
                 raise ValueError('PKG helper bundle differs from its manifest.')
     version = build / 'launcher-version.txt'
-    version.write_text("""VSVersionInfo(
-ffi=FixedFileInfo(filevers=(0,1,0,0),prodvers=(0,1,0,0),mask=0x3f,flags=2,OS=0x40004,fileType=1,subtype=0,date=(0,0)),
+    version.write_text(f"""VSVersionInfo(
+ffi=FixedFileInfo(filevers=({major},{minor},{patch},0),prodvers=({major},{minor},{patch},0),mask=0x3f,flags=2,OS=0x40004,fileType=1,subtype=0,date=(0,0)),
 kids=[StringFileInfo([StringTable('040904B0',[
 StringStruct('CompanyName','Knack II PC Port contributors'),
 StringStruct('FileDescription','Knack II PC Launcher'),
-StringStruct('FileVersion','0.1.0.0'),StringStruct('InternalName','KnackII.Launcher'),
+StringStruct('FileVersion','{major}.{minor}.{patch}.0'),StringStruct('InternalName','KnackII.Launcher'),
 StringStruct('OriginalFilename','Knack II.exe'),StringStruct('ProductName','Knack II PC Port'),
-StringStruct('ProductVersion','0.1.0'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
+StringStruct('ProductVersion','{application_version}'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
 VarFileInfo([VarStruct('Translation',[1033,1200])])])""", encoding='utf-8')
     env = dict(os.environ, KNACK_BUILD_ROOT=str(root), KNACK_BUILD_ICON=str(icon), KNACK_BUILD_VERSION=str(version))
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--log-level', 'WARN',
@@ -75,6 +80,7 @@ VarFileInfo([VarStruct('Translation',[1033,1200])])])""", encoding='utf-8')
     output.parent.mkdir(parents=True, exist_ok=True)
     with executable.open('rb') as source, output.open('xb') as destination:
         shutil.copyfileobj(source, destination)
+    shutil.copy2(root / 'VERSION', output.parent / 'VERSION')
     if args.pkg_helper_dir:
         pkg_output = output.parent / 'port/out/knack-pkg-helper'
         pkg_output.mkdir(parents=True, exist_ok=False)

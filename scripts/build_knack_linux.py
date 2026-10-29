@@ -59,6 +59,7 @@ def main(argv=None):
     for name in ('tlg-probe', 'libtlggpu.so'):
         shutil.copy2(native / name, runtime_dir / name)
     shutil.copy2(root / 'run.py', stage / 'run.py')
+    shutil.copy2(root / 'VERSION', stage / 'VERSION')
     (stage / 'profiles').mkdir()
     sys.path.insert(0, str(root))
     from port.launcher.knack2.validator import SUPPORTED_PROFILES

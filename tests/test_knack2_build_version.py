@@ -12,14 +12,14 @@ class BuildVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(display_version(root), 'dev')
-            for label in ['0.17.7-rc4', 'pr19-8d7f434']:
+            for label in ['0.17.7-rc4', '0.17.7-dev']:
                 (root / 'VERSION').write_text(label + '\n', encoding='utf-8')
                 self.assertEqual(display_version(root), label)
 
     def test_malformed_labels_do_not_reach_qml(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for data in [b'', b'one\ntwo', b'<b>version</b>', b'x' * 129, b'\xff']:
+            for data in [b'', b'pr19-8d7f434', b'one\ntwo', b'<b>version</b>', b'x' * 129, b'\xff']:
                 (root / 'VERSION').write_bytes(data)
                 self.assertEqual(display_version(root), 'dev')
 

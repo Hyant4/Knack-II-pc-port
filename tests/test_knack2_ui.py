@@ -104,9 +104,9 @@ class QtUiTests(unittest.TestCase):
         self.assertEqual(failures, [])
 
     def test_header_uses_the_packaged_build_label(self):
-        self.engine.rootContext().setContextProperty('launcherVersion', 'pr19-abcdef0')
+        self.engine.rootContext().setContextProperty('launcherVersion', '0.17.7-dev')
         self.pump()
-        self.assertEqual(self.item('launcherVersionLabel').property('text'), 'pr19-abcdef0')
+        self.assertEqual(self.item('launcherVersionLabel').property('text'), 'V0.17.7-dev')
 
     def pump(self, milliseconds=20):
         QTest.qWait(milliseconds)
