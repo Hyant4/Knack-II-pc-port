@@ -3,11 +3,16 @@
 # fsr4_shaders/opt/ (vk_fsr4.cpp prefers files there; TLG_FSR4_OPT=0 uses the originals):
 #   *_post.spv    stores through shared memory, bit-exact, ~3.5x faster (fsr4_post_lds.pl);
 #   *_pass11.spv  no out-of-bounds writes (a data race at the 1080 tier; fsr4_pass11_guard.pl).
-# Each pass is decompiled (spirv-cross), rewritten and compiled again (glslang). Needs
-# spirv-cross and glslangValidator (shell.nix). tools/fsr4_verify.sh checks the results.
+# Unix variants use spirv-cross/glslang. Windows preserves the upstream SPIR-V,
+# adding only a bounds guard (Python and SPIR-V Tools). See fsr4_prepare_windows.py.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
 src=${TLG_FSR4_DIR:-fsr4_shaders}
+# Avoid the costly GLSL round trip on the tested AMD Windows driver.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) exec python tools/fsr4_prepare_windows.py "$src" ;;
+esac
+
 dest=$src/opt
 mkdir -p "$dest"
 tmp=$(mktemp -d)

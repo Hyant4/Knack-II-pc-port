@@ -5,9 +5,10 @@
 // post-processing combine pass, with the scene depth and camera motion vectors, and writes the
 // result back so the game's own post, tonemap and UI continue unchanged (Native AA preset).
 //
-// Guest targets stay at 1920x1080. Host scene targets use output/preset dimensions,
-// resized at frame boundaries. At 1080p HDR reconstruction precedes post; other outputs
-// reconstruct tonemapped scene proxies before output-size UI/display composition.
+// The host-proxy path keeps guest targets at 1920x1080. Knack's guarded QHD/4K
+// startup presets instead use native guest targets through post/UI/display and
+// bypass scene proxies. Other profiles can reconstruct tonemapped scene proxies
+// before output-size UI/display composition.
 // TLG_RENDER_RES retains the older startup-patched guest-resolution path.
 
 #pragma once
@@ -21,6 +22,7 @@
 
 #include "common/types.h"
 #include "video_core/renderer_vulkan/vk_common.h"
+#include "video_core/renderer_vulkan/scene_resolution.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_fsr4.h"
 #include "video_core/texture_cache/image.h"
@@ -41,6 +43,33 @@ class SceneTargets;
 
 class TemporalUpscaler {
 public:
+    struct NativeAaTarget {
+        vk::Image image;
+        vk::Format format;
+        u32 width, height, depth, layers, samples, levels;
+        vk::ImageUsageFlags usage;
+        u64 guest_address, guest_size;
+    };
+    // A strict, testable contract for an unfiltered native-size HDR copy.
+    static bool NativeAaCompatible(const std::array<NativeAaTarget, 3>& targets, u32 w, u32 h) {
+        if (!w || !h) return false;
+        for (unsigned i = 0; i < targets.size(); ++i) {
+            const auto& t = targets[i];
+            const auto transfer = i == 0 ? vk::ImageUsageFlagBits::eTransferSrc
+                                         : vk::ImageUsageFlagBits::eTransferDst;
+            if (!t.image || t.format != vk::Format::eB10G11R11UfloatPack32 ||
+                t.width != w || t.height != h || t.depth != 1 || t.layers != 1 ||
+                t.samples != 1 || t.levels != 1 || !(t.usage & transfer) || !t.guest_address || !t.guest_size ||
+                t.guest_address > UINT64_MAX - t.guest_size) return false;
+            for (unsigned j = 0; j < i; ++j) {
+                const auto& other = targets[j];
+                if (t.image == other.image ||
+                    (t.guest_address < other.guest_address + other.guest_size &&
+                     other.guest_address < t.guest_address + t.guest_size)) return false;
+            }
+        }
+        return true;
+    }
     TemporalUpscaler(const Instance& instance, Scheduler& scheduler,
                      VideoCore::TextureCache& texture_cache, Runtime& runtime,
                      CameraMotion& camera_motion, SceneTargets& scene_targets);
@@ -63,6 +92,10 @@ public:
 
     /// Before a compute dispatch: the post-processing combine shader triggers the upscale.
     void OnDispatch(u64 cs_hash);
+    [[nodiscard]] bool KnackProfile() const noexcept { return knack_profile; }
+    void ObserveKnackImage(u64 shader, u32 index, VideoCore::ImageId image, bool storage);
+    /// True only after FSR wrote both destinations of the game's temporal pass.
+    bool ReplaceKnackDispatch(u64 shader);
 
     /// Start of a frame in the command stream (display pass).
     bool OnFrameStart();
@@ -139,7 +172,10 @@ private:
     std::array<ViewEntry, 6> view_cache{};
     u64 view_uses = 0;
 
-    void Run();
+    bool Run();
+    void CopyKnackOutput(vk::CommandBuffer, u32 width, u32 height);
+    bool CopyKnackNativeColor();
+    u64 native_aa_frames = 0;
     void RunScaled();
     void RunUiOnly(VideoCore::ImageId color, VideoCore::ImageId depth);
     void EnsureUiResources(u32 width, u32 height, vk::Format color, vk::Format depth);
@@ -193,12 +229,18 @@ private:
 
 
     bool enabled = false;
+    bool knack_profile = false, knack_copy_supported = false;
+    std::array<VideoCore::ImageId, 5> knack_images{};
+    u64 knack_dispatch = 0, knack_frames = 0;
+    int knack_last_provider = -1;
     bool failed = false;
     u64 trigger_hash = 0x9a9cf8a9;
     VideoCore::ImageId scene_color{};
     bool done_this_frame = false;
     u32 preset_file_frames = 0; ///< TLG_PRESET_FILE polling
     int applied_output = -1;
+    int applied_internal = -1;
+    SceneResolution::Size knack_temporal_size{};
     bool snapshot_taken = false;
     bool opaque_valid = false;
     bool mask_ready = false;

@@ -1,0 +1,2 @@
+// Generated only in the build directory; proprietary artwork stays local.
+#cmakedefine KNACK2_ICON_PATH "@KNACK2_ICON_PATH@"

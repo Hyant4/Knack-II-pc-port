@@ -218,7 +218,7 @@ __asm__(".text\n"
         "mov 112(%rsi), %r14\n mov 120(%rsi), %r15\n mov 48(%rsi), %rsi\n"
         "call *(%rsp)\n"
         "pushfq\n"
-        "cld\n" /* preserve guest DF above, restore the C ABI before returning */
+        "cld\n" /* Keep captured guest flags, then restore the C ABI direction flag. */
         "xchg %rsi, 16(%rsp)\n"                       /* rsi = state, slot = the guest's rsi */
         "mov %rax, 0(%rsi)\n mov %rcx, 8(%rsi)\n mov %rdx, 16(%rsi)\n mov %rbx, 24(%rsi)\n"
         "mov %rbp, 40(%rsi)\n mov %rdi, 56(%rsi)\n mov %r8, 64(%rsi)\n mov %r9, 72(%rsi)\n"
@@ -320,15 +320,33 @@ static unsigned sites_run[4];   /* by mode */
 static void run_site(uint8_t kind, int dst, int src, unsigned length, unsigned index, uint8_t mode, int rounds) {
     static const uint8_t lea_rax[] = {0x48, 0x8d, 0x40, 0x01};   /* lea rax, [rax+1]: plain, 4 bytes */
     uint8_t code[32];
-    size_t n = encode(code, kind, dst, src, length, index);
+    size_t instruction_at = 0;
+#ifdef _WIN32
+    /* Windows exception dispatch owns memory below RSP. Reserve the synthetic
+     * caller's canary region across INT3, as prepared guest frames do. LEA
+     * preserves the flags being checked; every State comparison stays enabled. */
+    const int guard = mode == ISA_MODE_INT3;
+    if (guard) {
+        memcpy(code, "\x48\x8d\xa4\x24\x80\xff\xff\xff", 8); /* lea rsp,[rsp-128] */
+        instruction_at = 8;
+    }
+#endif
+    size_t n = encode(code + instruction_at, kind, dst, src, length, index);
     const int relocated = mode == ISA_MODE_JMP_RELOCATE;
     assert(mode == ISA_MODE_JMP ? n >= 5 : n == 4);
-    size_t total = n;
+    size_t total = instruction_at + n;
     if (relocated) {
         memcpy(code + total, lea_rax, sizeof lea_rax);
         total += sizeof lea_rax;
     }
+#ifdef _WIN32
+    if (guard) {
+        memcpy(code + total, "\x48\x8d\xa4\x24\x80\x00\x00\x00", 8); /* lea rsp,[rsp+128] */
+        total += 8;
+    }
+#endif
     code[total++] = 0xc3;
+    assert(total <= sizeof code);
     memset(pristine, 0xcc, PAGE);
     memcpy(pristine + SITE_AT, code, total);
     memcpy(image, pristine, PAGE);
@@ -338,10 +356,10 @@ static void run_site(uint8_t kind, int dst, int src, unsigned length, unsigned i
     static IsaTable t;
     static uint64_t hits;
     s = sse4a_site(kind, (uint8_t)dst, (uint8_t)src, length, index);
-    s.offset = SITE_AT;
+    s.offset = SITE_AT + instruction_at;
     s.length = (uint8_t)n;
     s.mode = mode;
-    memcpy(s.original, code, n);
+    memcpy(s.original, code + instruction_at, n);
     if (relocated) {
         s.relocated_length = sizeof lea_rax;
         memcpy(s.relocated, lea_rax, sizeof lea_rax);

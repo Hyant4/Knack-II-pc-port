@@ -141,7 +141,8 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
         return input;
     }
 
-    DebugState.is_using_fsr = true;
+    const bool easu = input_size != output_size;
+    DebugState.is_using_fsr = settings.enable && easu;
 
     if (output_size != cur_size) {
         ResizeAndInvalidate(output_size.width, output_size.height);
@@ -180,7 +181,7 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
             .dstAccessMask = vk::AccessFlagBits2::eShaderWrite,
             .oldLayout = vk::ImageLayout::eUndefined,
             .newLayout = vk::ImageLayout::eGeneral,
-            .image = img.intermediary_image,
+            .image = settings.use_rcas && easu ? img.intermediary_image : img.output_image,
             .subresourceRange = simple_subresource,
         },
     };
@@ -199,7 +200,7 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
 
     if (settings.use_rcas) {
 
-        { // easu
+        if (easu) {
             std::array<vk::DescriptorImageInfo, 3> img_info{{
                 {
                     .imageView = input,
@@ -243,32 +244,35 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
             cmdbuf.dispatch(dispatch_x, dispatch_y, 1);
         }
 
-        std::array img_barrier{
-            vk::ImageMemoryBarrier2{
-                .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-                .srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
-                .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-                .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
-                .oldLayout = vk::ImageLayout::eGeneral,
-                .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-                .image = img.intermediary_image,
-                .subresourceRange = simple_subresource,
-            },
-            vk::ImageMemoryBarrier2{
-                .srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
-                .srcAccessMask = vk::AccessFlagBits2::eNone,
-                .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-                .dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
-                .oldLayout = vk::ImageLayout::eUndefined,
-                .newLayout = vk::ImageLayout::eGeneral,
-                .image = img.output_image,
-                .subresourceRange = simple_subresource,
-            },
-        };
-        cmdbuf.pipelineBarrier2(vk::DependencyInfo{
-            .imageMemoryBarrierCount = img_barrier.size(),
-            .pImageMemoryBarriers = img_barrier.data(),
-        });
+        // Native-size RCAS reads the source directly; no EASU dispatch or intermediate barrier.
+        if (easu) {
+            std::array img_barrier{
+                vk::ImageMemoryBarrier2{
+                    .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+                    .srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
+                    .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+                    .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+                    .oldLayout = vk::ImageLayout::eGeneral,
+                    .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+                    .image = img.intermediary_image,
+                    .subresourceRange = simple_subresource,
+                },
+                vk::ImageMemoryBarrier2{
+                    .srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
+                    .srcAccessMask = vk::AccessFlagBits2::eNone,
+                    .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+                    .dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
+                    .oldLayout = vk::ImageLayout::eUndefined,
+                    .newLayout = vk::ImageLayout::eGeneral,
+                    .image = img.output_image,
+                    .subresourceRange = simple_subresource,
+                },
+            };
+            cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+                .imageMemoryBarrierCount = img_barrier.size(),
+                .pImageMemoryBarriers = img_barrier.data(),
+            });
+        }
 
         { // rcas
             consts = {};
@@ -277,7 +281,7 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
 
             std::array<vk::DescriptorImageInfo, 3> img_info{{
                 {
-                    .imageView = img.intermediary_image_view.get(),
+                    .imageView = easu ? img.intermediary_image_view.get() : input,
                     .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
                 },
                 {

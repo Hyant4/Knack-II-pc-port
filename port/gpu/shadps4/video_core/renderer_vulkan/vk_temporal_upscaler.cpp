@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "video_core/renderer_vulkan/vk_temporal_upscaler.h"
+#include "video_core/renderer_vulkan/knack_temporal.h"
 #include "video_core/renderer_vulkan/vk_gpu_profiler.h"
 #include "video_core/renderer_vulkan/motion_history.h"
 #include "video_core/renderer_vulkan/vk_scene_resolution.h"
@@ -15,6 +16,7 @@
 #include <vk_mem_alloc.h>
 
 #include "tlg_settings.h"
+#include "tlg_graphics.h"
 #include "tlg_toggles.h"
 #include "ffx_vk_portable.h"
 #include "video_core/host_shaders/upscale_merge_comp.h"
@@ -161,6 +163,17 @@ TemporalUpscaler::TemporalUpscaler(const Instance& instance_, Scheduler& schedul
                                    CameraMotion& camera_motion_, SceneTargets& scene_targets_)
     : instance{instance_}, scheduler{scheduler_}, texture_cache{texture_cache_},
       runtime{runtime_}, camera_motion{camera_motion_}, scene_targets{scene_targets_} {
+    const char* profile = std::getenv("KNACK2_PROFILE");
+    knack_profile = profile && (std::strcmp(profile, "CUSA08014-01.00") == 0 ||
+        std::strcmp(profile, "CUSA08014-01.01") == 0 ||
+        std::strcmp(profile, "CUSA07670-01.01") == 0);
+    if (knack_profile) {
+        const auto physical = instance.GetPhysicalDevice();
+        knack_copy_supported = bool(physical.getFormatProperties(vk::Format::eR16G16B16A16Sfloat)
+            .optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc) &&
+            bool(physical.getFormatProperties(vk::Format::eB10G11R11UfloatPack32)
+            .optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst);
+    }
     // Reject unsupported shaders before allocating resources or recording a frame.
     TlgSettings::ConfigureUpscalerSupport(instance.IsFsr4Int8Supported(),
                                          instance.IsFsr411Supported());
@@ -228,7 +241,7 @@ TemporalUpscaler::~TemporalUpscaler() {
 
 bool TemporalUpscaler::Active() const {
     // Toggle 1 << 24 switches it off at run time (A/B); history restarts after.
-    return enabled && !failed &&
+    return enabled && !failed && !TlgSettings::Get().native_aa_disabled &&
            (TlgSettings::Get().upscaler == TlgSettings::UpscalerFsr3 ||
             TlgSettings::IsFsr4(TlgSettings::Get().upscaler) ||
             TlgSettings::Get().upscaler == TlgSettings::UpscalerTaa ||
@@ -237,6 +250,7 @@ bool TemporalUpscaler::Active() const {
 }
 
 bool TemporalUpscaler::ReactiveOn() const {
+    if (knack_profile) return false; // Native motion path has no validated reactive mask yet.
     // FSR 4 takes no reactive mask: the opaque snapshot and the mask pass would be wasted.
     return TlgSettings::Get().reactive && !TlgToggle::Disabled(1u << 27) && !UseFsr4() && !UseDlss() &&
            TlgSettings::Get().upscaler != TlgSettings::UpscalerTaa;
@@ -266,6 +280,7 @@ bool TemporalUpscaler::RasterScaling() const {
 }
 
 bool TemporalUpscaler::OnFrameStart() {
+    if (knack_profile) TlgSettings::Get().temporal_applied = dispatched_last_frame;
     // tlg: TLG_PRESET_FILE=<file> holding a preset number, read about once a second: switches
     // the preset like the menu does (scripted tests of live preset changes).
     static const char* preset_file = std::getenv("TLG_PRESET_FILE");
@@ -288,11 +303,21 @@ bool TemporalUpscaler::OnFrameStart() {
             std::fclose(f);
         }
     }
+    if (knack_profile && TlgSettings::Get().native_aa_disabled &&
+        TlgSettings::Get().upscaler != TlgSettings::UpscalerOff) {
+        std::printf("Knack native AA: live temporal provider rejected; restart with native AA to enable FSR\n");
+        TlgSettings::Get().upscaler = TlgSettings::UpscalerOff;
+    }
     const auto& settings = TlgSettings::Get();
     // The guest's startup resolution patch remains in effect until restart. Keep the FSR
     // model at the applied preset while the menu saves the requested one for run.sh.
     const int preset = TlgSettings::RenderPreset();
-    if (applied_preset != preset || settings.upscaler == TlgSettings::UpscalerOff) failed = false;
+    const int internal = knack_profile ? settings.startup_internal_resolution : 0;
+    const bool native = knack_profile && settings.native_resolution_active.load();
+    const bool internal_changed = knack_profile && applied_internal != internal;
+    if (applied_preset != preset || internal_changed || settings.upscaler == TlgSettings::UpscalerOff)
+        failed = false;
+    if (internal_changed) fsr4_failed = false;
     const bool active = Active();
     const bool jitter_on = active && settings.jitter && !TlgToggle::Disabled(1u << 25);
     const int upscaler = settings.upscaler.load();
@@ -305,29 +330,48 @@ bool TemporalUpscaler::OnFrameStart() {
         failed = false;
         fsr4_failed = false;
     }
-    const bool changed = output_changed || applied_preset != preset || active != last_active ||
+    const bool changed = internal_changed || output_changed || applied_preset != preset || active != last_active ||
                          jitter_on != last_jitter || applied_upscaler != upscaler;
     if (applied_upscaler != upscaler) {
         // A failed provider keeps a fatal flag internally; a user retry gets a fresh context.
         scheduler.Finish();
-        fsr4 = std::make_unique<Fsr4Upscaler>(instance, scheduler);
+        if (!fsr4->Preparing()) fsr4 = std::make_unique<Fsr4Upscaler>(instance, scheduler);
         if (TlgSettings::IsFsr4(upscaler)) TlgSettings::Get().fsr4_problem = nullptr;
     }
     if (applied_upscaler != upscaler) fsr4_failed = false; // retry after a menu change
     // Dynamic scene resolution scaling (live preset switching) works on all GPUs.
     // On GPUs without D32S8 blit support, UI depth is cleared instead of copied from scene.
     if (!scaled_session) {
-        scene_targets.SetSize(SceneResolution::ForPreset(active ? preset : 0,
-                                                        {target_width, target_height}));
-        render_width = scene_targets.Size().width;
-        render_height = scene_targets.Size().height;
+        if (native) {
+            // The game owns the high-resolution allocations, compute and post chain.
+            // Do not proxy half-size native targets that happen to be 1920x1080.
+            scene_targets.SetSize({});
+            render_width = settings.native_width;
+            render_height = settings.native_height;
+            knack_temporal_size = {render_width, render_height};
+        } else if (knack_profile) {
+            const auto requested = TlgGraphics::InternalSizes[std::clamp(internal, 0,
+                int(TlgGraphics::InternalSizes.size()) - 1)];
+            const auto plan = KnackTemporal::PlanResolution(
+                {u32(requested.width), u32(requested.height)}, active, preset);
+            scene_targets.SetSize(plan.raster);
+            knack_temporal_size = plan.temporal;
+        } else {
+            scene_targets.SetSize(SceneResolution::ForPreset(active ? preset : 0,
+                                                            {target_width, target_height}));
+        }
+        if (!native) {
+            render_width = scene_targets.Size().width;
+            render_height = scene_targets.Size().height;
+        }
     }
-    TlgSettings::Get().active_render_width = Scaled() ? render_width : scene_targets.Size().width;
-    TlgSettings::Get().active_render_height = Scaled() ? render_height : scene_targets.Size().height;
+    TlgSettings::Get().active_render_width = native || Scaled() ? render_width : scene_targets.Size().width;
+    TlgSettings::Get().active_render_height = native || Scaled() ? render_height : scene_targets.Size().height;
     if (changed || !dispatched_last_frame) reset = true;
     if (changed) jitter_index = 0;
     applied_preset = preset;
     applied_output = output;
+    applied_internal = internal;
     applied_upscaler = upscaler;
     last_active = active;
     last_jitter = jitter_on;
@@ -344,7 +388,7 @@ bool TemporalUpscaler::OnFrameStart() {
     opaque_valid = false;
     mask_ready = false;
     // Halton(2, 3); the menu or toggle 1 << 25 disables it.
-    if (!jitter_on) {
+    if (!jitter_on || knack_profile) {
         jitter = {};
         return changed;
     }
@@ -358,6 +402,11 @@ bool TemporalUpscaler::OnFrameStart() {
 }
 
 void TemporalUpscaler::OnDispatch(u64 cs_hash) {
+    if (knack_profile) {
+        knack_dispatch = cs_hash;
+        knack_images = {};
+        return;
+    }
     if (cs_hash != trigger_hash || done_this_frame || failed || Scaled()) {
         return;
     }
@@ -367,6 +416,126 @@ void TemporalUpscaler::OnDispatch(u64 cs_hash) {
         return;
     }
     Run();
+}
+
+void TemporalUpscaler::ObserveKnackImage(u64 shader, u32 index, VideoCore::ImageId image, bool storage) {
+    if (!knack_profile || shader != KnackTemporal::TemporalShader ||
+        knack_dispatch != shader || index >= knack_images.size() || storage != (index >= 3)) return;
+    knack_images[index] = image;
+}
+
+bool TemporalUpscaler::ReplaceKnackDispatch(u64 shader) {
+    // Replace every matching pass, including additional views within the same frame.
+    if (knack_profile && shader == KnackTemporal::TemporalShader &&
+        TlgSettings::Get().native_aa_disabled) {
+        done_this_frame = true;
+        return CopyKnackNativeColor();
+    }
+    if (knack_profile && shader == KnackTemporal::TemporalShader &&
+        TlgSettings::IsFsr4(TlgSettings::Get().upscaler)) {
+        TlgSettings::ConfigureUpscalerSupport(instance.IsFsr4Int8Supported(), instance.IsFsr411Supported());
+    }
+    if (!knack_profile || shader != KnackTemporal::TemporalShader || done_this_frame) return false;
+    // End raster scaling at the native TAA boundary even when FSR is off or fails.
+    // Post-processing and UI must not inherit a manual scene resolution.
+    done_this_frame = true;
+    if (!Active() || !knack_copy_supported || !camera_motion.Ready()) return false;
+    const u32 guest_width = TlgSettings::Get().native_width;
+    const u32 guest_height = TlgSettings::Get().native_height;
+    for (unsigned i : {0u, 1u, 3u, 4u}) {
+        if (!knack_images[i]) return false;
+        const auto& image = texture_cache.GetImage(knack_images[i]);
+        const auto expected = i == 1 ? vk::Format::eR16G16B16A16Sfloat : vk::Format::eB10G11R11UfloatPack32;
+        if (image.info.pixel_format != expected || image.info.size.width != guest_width ||
+            image.info.size.height != guest_height || image.info.size.depth != 1 ||
+            image.info.num_samples != 1 || image.info.resources.layers != 1) return false;
+    }
+    if (knack_images[3] == knack_images[0] || knack_images[4] == knack_images[0] ||
+        TlgSettings::Get().output_res != TlgSettings::OutputDefault) return false;
+    scene_color = knack_images[0];
+    const bool replaced = Run();
+    return replaced;
+}
+
+bool TemporalUpscaler::CopyKnackNativeColor() {
+    const auto fatal = [] {
+        std::fprintf(stderr, "ERROR: Knack native AA off: unsafe temporal targets; refusing native TAA fallback\n");
+        std::fflush(stderr);
+        std::abort();
+    };
+    const std::array<unsigned, 3> indices{0, 3, 4};
+    std::array<NativeAaTarget, 3> targets{};
+    for (unsigned i = 0; i < indices.size(); ++i) {
+        if (!knack_images[indices[i]]) fatal();
+        const auto& image = texture_cache.GetImage(knack_images[indices[i]]);
+        targets[i] = {image.GetImage(), image.info.pixel_format, image.info.size.width,
+                      image.info.size.height, image.info.size.depth, image.info.resources.layers,
+                      image.info.num_samples, image.info.resources.levels, image.usage_flags,
+                      image.info.guest_address, image.info.guest_size};
+    }
+    const auto& settings = TlgSettings::Get();
+    const u32 w = settings.native_width, h = settings.native_height;
+    if (scene_targets.Reduced() || settings.output_res != TlgSettings::OutputDefault ||
+        !NativeAaCompatible(targets, w, h)) fatal();
+    scheduler.EndRendering();
+    auto& source = texture_cache.GetImage(knack_images[0]);
+    runtime.Transit(&source, vk::ImageLayout::eTransferSrcOptimal,
+                    vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead);
+    const vk::ImageCopy region{
+        .srcSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+        .dstSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+        .extent = {w, h, 1}};
+    for (unsigned index : {3u, 4u}) {
+        auto& destination = texture_cache.GetImage(knack_images[index]);
+        runtime.Transit(&destination, vk::ImageLayout::eTransferDstOptimal,
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite);
+        runtime.FlushBarriers();
+        scheduler.CommandBuffer().copyImage(source.GetImage(), vk::ImageLayout::eTransferSrcOptimal,
+            destination.GetImage(), vk::ImageLayout::eTransferDstOptimal, region);
+    }
+    TlgSettings::Get().native_aa_applied = true;
+    if (++native_aa_frames == 1 || native_aa_frames % 300 == 0)
+        std::printf("Knack native AA: applied=off render=%ux%u destinations=2 history=0 dispatches=%llu\n",
+                    w, h, static_cast<unsigned long long>(native_aa_frames));
+    return true;
+}
+
+void TemporalUpscaler::CopyKnackOutput(vk::CommandBuffer cmd, u32 w, u32 h) {
+    const u32 guest_width = TlgSettings::Get().native_width;
+    const u32 guest_height = TlgSettings::Get().native_height;
+    const vk::ImageMemoryBarrier2 read{
+        .srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
+        .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+        .oldLayout = vk::ImageLayout::eGeneral, .newLayout = vk::ImageLayout::eTransferSrcOptimal,
+        .image = output_image, .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}};
+    cmd.pipelineBarrier2({.imageMemoryBarrierCount = 1, .pImageMemoryBarriers = &read});
+    const vk::ImageBlit region{
+        .srcSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+        .srcOffsets = std::array{vk::Offset3D{0, 0, 0}, vk::Offset3D{int(w), int(h), 1}},
+        .dstSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+        .dstOffsets = std::array{vk::Offset3D{0, 0, 0}, vk::Offset3D{int(guest_width), int(guest_height), 1}}};
+    const bool linear = (w > guest_width || h > guest_height) &&
+        bool(instance.GetPhysicalDevice().getFormatProperties(vk::Format::eR16G16B16A16Sfloat)
+            .optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear);
+    for (unsigned i : {3u, 4u}) {
+        auto& image = texture_cache.GetImage(knack_images[i]);
+        runtime.Transit(&image, vk::ImageLayout::eTransferDstOptimal,
+                        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite);
+        runtime.FlushBarriers();
+        cmd.blitImage(output_image, vk::ImageLayout::eTransferSrcOptimal,
+                      image.GetImage(), vk::ImageLayout::eTransferDstOptimal, region,
+                      linear ? vk::Filter::eLinear : vk::Filter::eNearest);
+    }
+    ++knack_frames;
+    const int provider = TlgSettings::Get().upscaler.load();
+    if (provider != knack_last_provider || knack_frames % 300 == 0) {
+        std::printf("Knack temporal: provider=%s render=%ux%u output=%ux%u frames=%llu native-motion=1 guest-output=%ux%u\n",
+            TlgSettings::UpscalerName(provider), width, height, w, h,
+            static_cast<unsigned long long>(knack_frames), guest_width, guest_height);
+        knack_last_provider = provider;
+    }
 }
 
 bool TemporalUpscaler::EnsureResources(u32 w, u32 h, u32 ow, u32 oh, bool hdr) {
@@ -994,7 +1163,7 @@ bool TemporalUpscaler::RecordReactive(vk::ImageView color_view) {
     return true;
 }
 
-void TemporalUpscaler::Run() {
+bool TemporalUpscaler::Run() {
     if (auto* profiler = GpuProfiler::Get()) {
         const char* label = TlgSettings::Get().upscaler == TlgSettings::UpscalerTaa
             ? "upscaler Run (TAA)" : "upscaler Run (FSR)";
@@ -1003,24 +1172,26 @@ void TemporalUpscaler::Run() {
     }
     auto& color = texture_cache.GetImage(scene_color);
     auto& depth = texture_cache.GetImage(camera_motion.Depth());
-    const u32 ow = color.info.size.width, oh = color.info.size.height;
+    const u32 native_w = color.info.size.width, native_h = color.info.size.height;
     const bool reduced = ReducedScene(color) && scene_targets.EligibleScene(depth);
-    const u32 w = reduced ? scene_targets.Size().width : ow;
-    const u32 h = reduced ? scene_targets.Size().height : oh;
-    if (color.info.pixel_format != vk::Format::eR16G16B16A16Sfloat ||
-        depth.info.size.width != ow || depth.info.size.height != oh ||
-        !(color.usage_flags & vk::ImageUsageFlagBits::eStorage)) {
-        return;
+    const u32 ow = knack_profile && reduced ? knack_temporal_size.width : native_w;
+    const u32 oh = knack_profile && reduced ? knack_temporal_size.height : native_h;
+    const u32 w = reduced ? scene_targets.Size().width : native_w;
+    const u32 h = reduced ? scene_targets.Size().height : native_h;
+    if ((!knack_profile && color.info.pixel_format != vk::Format::eR16G16B16A16Sfloat) ||
+        depth.info.size.width != native_w || depth.info.size.height != native_h ||
+        (!knack_profile && !(color.usage_flags & vk::ImageUsageFlagBits::eStorage))) {
+        return false;
     }
     if (!EnsureResources(w, h, ow, oh, true)) {
         failed = true;
-        return;
+        return false;
     }
     const auto depth_format = depth.info.pixel_format;
     const auto depth_view =
         CachedView(depth, depth_format, vk::ImageAspectFlagBits::eDepth);
     const auto color_view =
-        CachedView(color, vk::Format::eR16G16B16A16Sfloat, vk::ImageAspectFlagBits::eColor);
+        CachedView(color, color.info.pixel_format, vk::ImageAspectFlagBits::eColor);
 
     scheduler.EndRendering();
     runtime.Transit(&depth, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
@@ -1068,7 +1239,22 @@ void TemporalUpscaler::Run() {
     own_barrier(vk::Image(output_image), vk::ImageLayout::eUndefined, all,
                 vk::AccessFlagBits2::eNone, vk::ImageLayout::eGeneral, all, rw);
 
-    camera_motion.RecordMotion(cmdbuf, input_depth_view, *motion_view, w, h);
+    vk::ImageView native_motion_view{};
+    if (knack_profile) {
+        auto& native = texture_cache.GetImage(knack_images[1]);
+        runtime.Transit(&native, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
+                        vk::AccessFlagBits2::eShaderRead);
+        runtime.FlushBarriers();
+        native_motion_view = CachedView(native, native.info.pixel_format, vk::ImageAspectFlagBits::eColor);
+        if (reduced) {
+            VideoCore::ImageViewInfo view;
+            view.format = native.info.pixel_format;
+            native_motion_view = scene_targets.Read(knack_images[1], view).view;
+        }
+        const auto raw = camera_motion.NativeJitter();
+        jitter = {raw[0] * float(w) / native_w, raw[1] * float(h) / native_h};
+    }
+    camera_motion.RecordMotion(cmdbuf, input_depth_view, *motion_view, w, h, native_motion_view);
     own_barrier(vk::Image(motion_image), vk::ImageLayout::eGeneral,
                 vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
                 vk::ImageLayout::eGeneral, all, vk::AccessFlagBits2::eShaderRead);
@@ -1134,13 +1320,13 @@ void TemporalUpscaler::Run() {
         info.frameTimeMilliseconds = frame_ms;
         info.preExposure = 1.0f;
         info.cameraNear = camera_motion.Near();
-        info.cameraFar = 3000.0f;
+        info.cameraFar = camera_motion.Far();
         info.cameraVerticalFovRadians = camera_motion.VerticalFov();
         info.viewSpaceToMeters = 1.0f;
         // RCAS strength 0..1 (menu, TLG_FSR_SHARPNESS); jitter at 1:1 softens the image slightly.
         // AMD's RCAS ends at 1; ExtraSharpen adds the rest of the menu's 0..2.
         info.sharpness = std::min(TlgSettings::Get().sharpness.load(), 1.0f);
-        info.enableSharpening = TlgSettings::Get().sharpen ? VK_TRUE : VK_FALSE;
+        info.enableSharpening = !knack_profile && TlgSettings::Get().sharpen ? VK_TRUE : VK_FALSE;
         info.reset = reset ? VK_TRUE : VK_FALSE;
         info.frameId = frame_id++;
     
@@ -1167,8 +1353,12 @@ void TemporalUpscaler::Run() {
     if (dispatched) {
         reset = false;
         dispatched_last_frame = true;
-        if (TlgSettings::Get().upscaler != TlgSettings::UpscalerTaa) {
+        if (!knack_profile && TlgSettings::Get().upscaler != TlgSettings::UpscalerTaa) {
             ExtraSharpen(cmdbuf, vk::Image(output_image), false, ow, oh);
+        }
+        if (knack_profile) {
+            CopyKnackOutput(cmdbuf, ow, oh);
+            return true;
         }
         // The result replaces the scene color's RGB (its alpha carries data for the post).
         own_barrier(vk::Image(output_image), vk::ImageLayout::eGeneral, all, rw,
@@ -1227,6 +1417,7 @@ void TemporalUpscaler::Run() {
                              sizeof(mode), &mode);
         cmdbuf.dispatch((ow + 7) / 8, (oh + 7) / 8, 1);
     }
+    return dispatched;
 }
 
 vk::ImageView TemporalUpscaler::CachedView(const VideoCore::Image& image, vk::Format format,
@@ -1285,6 +1476,7 @@ float TemporalUpscaler::SceneMipBias() const {
 }
 
 bool TemporalUpscaler::Scaled() const {
+    if (knack_profile && TlgSettings::Get().native_resolution_active) return false;
     return scaled_session || target_width != 1920 || target_height != 1080;
 }
 
@@ -1951,10 +2143,10 @@ bool TemporalUpscaler::RecordFsr4(vk::CommandBuffer cmdbuf, Fsr4Upscaler::Image 
         .jitter = {sign * jitter[0], sign * jitter[1]},
         .frame_ms = frame_ms,
         .near_plane = camera_motion.Near(),
-        .far_plane = 3000.0f,
+        .far_plane = camera_motion.Far(),
         .vertical_fov = camera_motion.VerticalFov(),
         .sharpness = std::min(settings.sharpness.load(), 1.0f),
-        .sharpen = settings.sharpen,
+        .sharpen = !knack_profile && settings.sharpen,
         .reset = reset,
         .auto_exposure = settings.fsr4_auto_exposure,
     });

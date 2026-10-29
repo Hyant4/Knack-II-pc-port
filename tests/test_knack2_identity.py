@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from port.launcher.knack2.identity import game_identity_environment, runtime_path, LAUNCHER_APP_ID, set_launcher_app_id, identity_assets
+from port.launcher.knack2.identity import game_identity_environment, runtime_names, runtime_path, LAUNCHER_APP_ID, set_launcher_app_id, identity_assets
 from port.launcher.knack2.branding import convert_original_icon, pe_contract, read_resources, icon_resources, VERSION_STRINGS, brand_runtime, digest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,18 +30,30 @@ class IdentityTests(unittest.TestCase):
         convert_original_icon(source, self.ui)
 
     def test_canonical_name_and_legacy_diagnostic_fallback(self):
-        for platform, suffix in [('win32', '.exe'), ('linux', '')]:
-            with self.subTest(platform=platform), patch('sys.platform', platform), tempfile.TemporaryDirectory() as temporary:
-                port = Path(temporary)
-                (port/'out').mkdir()
-                other_suffix = '' if suffix else '.exe'
-                (port/'out'/('knack2-runtime' + other_suffix)).write_bytes(b'foreign artifact')
-                (port/'out'/('tlg-probe' + other_suffix)).write_bytes(b'foreign artifact')
-                self.assertEqual(runtime_path(port).name, 'knack2-runtime' + suffix)
-                (port/'out'/('tlg-probe' + suffix)).write_bytes(b'not executable')
-                self.assertEqual(runtime_path(port).name, 'tlg-probe' + suffix)
-                (port/'out'/('knack2-runtime' + suffix)).write_bytes(b'not executable')
-                self.assertEqual(runtime_path(port).name, 'knack2-runtime' + suffix)
+        with tempfile.TemporaryDirectory() as temporary, patch(
+                'port.launcher.knack2.identity.runtime_names', return_value=('knack2-runtime.exe', 'tlg-probe.exe')):
+            port = Path(temporary)
+            (port/'out').mkdir()
+            self.assertEqual(runtime_path(port).name, 'knack2-runtime.exe')
+            (port/'out/tlg-probe.exe').write_bytes(b'not executable')
+            self.assertEqual(runtime_path(port).name, 'tlg-probe.exe')
+            (port/'out/knack2-runtime.exe').write_bytes(b'not executable')
+            self.assertEqual(runtime_path(port).name, 'knack2-runtime.exe')
+
+    def test_linux_runtime_name_and_legacy_diagnostic_fallback(self):
+        self.assertEqual(runtime_names(is_windows=False), ('knack2-runtime', 'tlg-probe'))
+        with tempfile.TemporaryDirectory() as temporary, patch(
+                'port.launcher.knack2.identity.runtime_names', return_value=('knack2-runtime', 'tlg-probe')):
+            port = Path(temporary)
+            (port/'out').mkdir()
+            self.assertEqual(runtime_path(port).name, 'knack2-runtime')
+            (port/'out/tlg-probe').write_bytes(b'not executable')
+            self.assertEqual(runtime_path(port).name, 'tlg-probe')
+            (port/'out/knack2-runtime').write_bytes(b'not executable')
+            self.assertEqual(runtime_path(port).name, 'knack2-runtime')
+            (port/'out-linux').mkdir()
+            (port/'out-linux/tlg-probe').write_bytes(b'not executable')
+            self.assertEqual(runtime_path(port), port/'out-linux/tlg-probe')
 
     def test_fixed_game_identity_and_local_bmp(self):
         env = game_identity_environment(ROOT)

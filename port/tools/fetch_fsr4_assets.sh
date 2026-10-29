@@ -31,7 +31,12 @@ for file in "${files[@]}"; do
     fetched=$((fetched + 1))
 done
 echo "FSR 4 assets: ${#files[@]} files in $PWD/$dest ($fetched downloaded)"
-# Faster, bit-exact post passes (fsr4_shaders/opt), when spirv-cross and glslang are available.
-if command -v spirv-cross >/dev/null && command -v glslangValidator >/dev/null; then
-    bash tools/fsr4_optimize.sh
-fi
+# Windows keeps the original shader body and adds the required SPIR-V bounds guard.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) python tools/fsr4_prepare_windows.py "$dest" ;;
+    *)
+        if command -v spirv-cross >/dev/null && command -v glslangValidator >/dev/null; then
+            bash tools/fsr4_optimize.sh
+        fi
+        ;;
+esac

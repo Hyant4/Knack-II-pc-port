@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "video_core/amdgpu/tlg_amd_1d.h"
+#include <cstdio>
+#include <cstdlib>
 #include <boost/container/small_vector.hpp>
 #include "tlg_toggles.h"
 #include "video_core/buffer_cache/buffer.h"
@@ -12,6 +14,7 @@
 #include "video_core/renderer_vulkan/vk_scene_resolution.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/texture_cache/blit_helper.h"
+#include "video_core/texture_cache/barrier_merge.h"
 #include "video_core/texture_cache/image.h"
 
 #include <vulkan/vulkan_format_traits.hpp>
@@ -946,8 +949,21 @@ void Runtime::FlushBarriers() {
         return;
     }
 
+    static const bool trace = VideoCore::IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
+    static VideoCore::BarrierTraceBudget budget;
+    const auto trace_id = trace ? budget.Claim(image_barriers.size()) : 0;
+    if (trace_id) {
+        std::printf("GPU barriers: batch #%u images=%u memory=%u EndRendering start\n",
+                    trace_id, dep_info.imageMemoryBarrierCount, dep_info.memoryBarrierCount);
+        std::fflush(stdout);
+    }
     scheduler.EndRendering();
+    if (trace_id) {
+        std::printf("GPU barriers: batch #%u EndRendering done\n", trace_id);
+        std::fflush(stdout);
+    }
     scheduler.Record([memory = memory_barrier, has_memory = dep_info.memoryBarrierCount != 0,
+                      trace_id,
                       images = scheduler.RecordData(std::span<const vk::ImageMemoryBarrier2>(
                           image_barriers.data(), image_barriers.size()))](vk::CommandBuffer cmdbuf) {
         const vk::DependencyInfo info = {
@@ -956,7 +972,16 @@ void Runtime::FlushBarriers() {
             .imageMemoryBarrierCount = static_cast<u32>(images.size()),
             .pImageMemoryBarriers = images.data(),
         };
+        if (trace_id) {
+            std::printf("GPU barriers: batch #%u images=%u pipelineBarrier2 start\n",
+                        trace_id, info.imageMemoryBarrierCount);
+            std::fflush(stdout);
+        }
         cmdbuf.pipelineBarrier2(info);
+        if (trace_id) {
+            std::printf("GPU barriers: batch #%u pipelineBarrier2 done\n", trace_id);
+            std::fflush(stdout);
+        }
     });
 
     memory_barrier.srcStageMask = vk::PipelineStageFlagBits2::eNone;

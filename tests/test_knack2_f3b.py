@@ -20,7 +20,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from PySide6.QtCore import QObject, QTimer, qInstallMessageHandler
+from PySide6.QtCore import QObject, QPointF, QTimer, QMetaObject, Q_ARG, Qt, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
@@ -86,6 +86,23 @@ class FakeSession:
 
 
 class F3BTests(unittest.TestCase):
+    def test_launcher_language_persists_without_dump_or_game_language_change(self):
+        path = self.root / 'data' / 'launcher_settings.json'
+        config.save_launcher_settings({'language': 'fr-FR', 'custom': 'preserve'}, path=path)
+        self.backend.setUiLanguage('ru-RU')
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['ui_language'], 'ru-RU')
+        self.assertEqual(saved['language'], 'fr-FR')
+        self.assertEqual(saved['custom'], 'preserve')
+        restored = RealBackend(data_dir=path.parent)
+        try:
+            self.assertEqual(restored.uiLanguage, 'ru-RU')
+            self.assertEqual(restored._language, 'fr-FR')
+            restored.saveSettings()
+            self.assertEqual(config.load_launcher_settings(path)['ui_language'], 'ru-RU')
+        finally:
+            restored.shutdown()
+
     @classmethod
     def setUpClass(cls):
         QQuickStyle.setStyle('Basic')
@@ -95,6 +112,7 @@ class F3BTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='knack-f3b ')
         self.root = Path(self.temp.name)
+        (self.root / 'dump').mkdir()
         # A fresh checkout has no native runtime. The synthetic session never executes it.
         runtime = self.root / 'synthetic-runtime.exe'
         runtime.write_bytes(b'test fixture, never executed')
@@ -112,7 +130,8 @@ class F3BTests(unittest.TestCase):
             return session
         self.backend = RealBackend(data_dir=self.root / 'data', session_factory=factory,
                                    validate_dump=lambda path: {'app_title': 'Synthetic Knack II',
-                                   'title_id': 'CUSA08014', 'version': '01.01'})
+                                   'title_id': 'CUSA08014', 'version': '01.01',
+                                   'languages': ['pt-BR', 'en-US', 'es-419', 'fr-FR']})
         self.engine, self.window, _ = create_window(self.backend)
         self.pump()
 
@@ -162,8 +181,9 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: self.backend.state == 'FINISHED' and not self.backend._working())
 
     def test_english_session_details_and_copied_log_labels(self):
-        self.backend.setLanguage('en-US')
         self.validate()
+        self.backend.setLanguage('en-US')
+        self.backend.setUiLanguage('en-US')  # UI and game language are independent locally.
         self.launch()
         self.pump()
         self.assertIn('Exit code', self.backend.sessionDetails)
@@ -175,7 +195,7 @@ class F3BTests(unittest.TestCase):
         self.assertNotIn('Logs do jogo', copied)
         self.finish()
         self.backend._notice('Processo supervisor encerrou com código de saída 1', True)
-        self.assertEqual(self.backend.notification, 'Supervisor exited with code 1')
+        self.assertEqual(self.backend.notification, 'Supervisor process exited with code 1')
 
     def test_default_validation_gate_p1_command_settings_and_logs(self):
         self.assertEqual(self.backend.players, 1)
@@ -192,10 +212,14 @@ class F3BTests(unittest.TestCase):
         self.assertNotIn('--local-users', command)
         self.assertEqual(command[command.index('--timeout') + 1], '0')
         self.assertNotIn('--p2-user-id', command)
-        self.assertEqual(session.contract.user_data, self.root / 'data/profiles/single/user')
+        self.assertEqual(session.contract.user_data, self.root / 'data/profiles/shared/user')
         settings = config.load_knack2_ini(session.contract.config_file)
         self.assertEqual(settings['display_mode'], 'borderless')
         self.assertEqual(settings['rcas_strength'], '100')
+        self.assertEqual(settings['shader_preload'], '1')
+        # State callbacks and the timer that drains log batches are independent.
+        self.until(lambda: 'supervisor only' in self.backend.supervisor_model.lines
+                   and 'guest only' in self.backend.guest_model.lines)
         self.assertIn('supervisor only', self.backend.supervisor_model.lines)
         self.assertNotIn('guest only', self.backend.supervisor_model.lines)
         self.assertIn('guest only', self.backend.guest_model.lines)
@@ -203,6 +227,511 @@ class F3BTests(unittest.TestCase):
         self.assertFalse(self.backend.editable)
         self.finish()
         self.assertTrue(session.closed)
+
+    def test_gpu_precision_ui_persistence_and_child_environment(self):
+        self.window.setProperty('page', 1)
+        self.pump()
+        mode = self.window.findChild(QObject, 'gpuReadbacks')
+        eager = self.window.findChild(QObject, 'eagerReadback')
+        self.assertIsNotNone(mode)
+        self.assertIsNotNone(eager)
+        self.assertEqual(mode.property('currentIndex'), 2)
+        self.assertFalse(eager.property('checked'))
+        for value in (0, 1, 2):
+            mode.setProperty('currentIndex', value)
+            self.assertTrue(QMetaObject.invokeMethod(mode, 'activated', Q_ARG(int, value)))
+            self.pump()
+            self.assertEqual(self.backend.settings['gpu_readbacks'], str(value))
+            self.assertEqual(eager.property('enabled'), value == 2)
+        eager.setProperty('checked', True)
+        self.assertTrue(QMetaObject.invokeMethod(eager, 'toggled'))
+        self.pump()
+        self.assertEqual(self.backend.settings['eager_readback'], '1')
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.settings['gpu_readbacks'], '2')
+            self.assertEqual(restored.settings['eager_readback'], '1')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        env = supervisor.runtime_environment(self.root / 'supervisor', config_file=session.contract.config_file)
+        self.assertEqual(env['TLG_READBACKS'], '2')
+        self.assertEqual(env['TLG_EAGER_READBACK'], '1')
+        self.finish()
+
+    def test_gtx1060_old_saved_settings_are_preserved_until_preset_applied(self):
+        previous = {**self.backend.settings, 'gpu_readbacks': '2', 'eager_readback': '0',
+                    'upscaler': 'fsr3', 'internal_resolution': '2560x1440'}
+        path = self.backend.workspace / 'launcher_settings.json'
+        config.save_launcher_settings({'gpu_preset': 'gtx_1060_black_texture',
+                                       'gtx1060_diagnostic': 'capture_linear',
+                                       'settings': previous}, path=path)
+        before_bytes = path.read_bytes()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.settings, previous)
+            self.assertEqual(path.read_bytes(), before_bytes)
+            self.assertNotEqual(restored.gpuPresetId, 'gtx_1060_black_texture')
+            self.assertEqual(restored.gtx1060Diagnostic, 'off')
+            restored.applyGpuPreset('gtx_1060_black_texture')
+            self.assertEqual(restored.settings, {**previous, 'upscaler': 'off',
+                                                'internal_resolution': '1920x1080',
+                                                'gpu_readbacks': '0', 'eager_readback': '0'})
+            self.assertEqual(restored.gpuPresetId, 'gtx_1060_black_texture')
+        finally:
+            restored.shutdown()
+
+    def test_gtx1060_performance_applies_persists_and_disables_diagnostics(self):
+        from port.launcher.knack2.ui.i18n import translate
+        self.window.setProperty('width', 1380)
+        self.window.setProperty('height', 1120)
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('capture_linear')
+        for key, value in {'upscaler': 'fsr3', 'internal_resolution': '3840x2160',
+                           'preset': '1', 'antialiasing': 'off', 'window_resolution': '3440x1440',
+                           'shader_preload': '0', 'bp06': '1'}.items():
+            self.backend.setSetting(key, value)
+        before = dict(self.backend.settings)
+        self.pump()
+        pending = [self.window.contentItem()]
+        card = None
+        while pending:
+            item = pending.pop()
+            if item.objectName() == 'gpuPreset_gtx_1060_black_texture':
+                card = item
+                break
+            pending.extend(item.childItems())
+        self.assertIsNotNone(card)
+        self.assertTrue(QMetaObject.invokeMethod(card, 'clicked'))
+        self.pump()
+        expected = {**before, 'upscaler': 'off', 'internal_resolution': '1920x1080',
+                    'gpu_readbacks': '0', 'eager_readback': '0'}
+        self.assertEqual(self.backend.settings, expected)
+        self.assertEqual(self.backend.gpuPresetId, 'gtx_1060_black_texture')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.assertTrue(self.window.findChild(QObject, 'gtx1060DiagnosticSection').property('visible'))
+        self.backend.setGtx1060Diagnostic('capture_linear')
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.assertEqual(self.backend.settings, expected)
+        self.assertEqual(self.window.findChild(QObject, 'gpuReadbacks').property('currentIndex'), 0)
+        for locale, label in [('pt-BR', 'GTX 1060: desempenho'),
+                              ('en-US', 'GTX 1060: performance'),
+                              ('ru-RU', 'GTX 1060: производительность')]:
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertIn(label, self.window.findChild(QObject, 'gpuPresetCurrent').property('text'))
+            self.assertEqual(self.backend.settings, expected)
+        from port.launcher.knack2.gpu_presets import GPU_PRESETS
+        source = next(p for p in GPU_PRESETS if p['id'] == 'gtx_1060_black_texture')
+        for locale in ('en-US', 'es-419', 'fr-FR', 'ru-RU'):
+            for key in ('label', 'when', 'changes'):
+                self.assertNotEqual(translate(locale, source[key]), source[key])
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.settings, expected)
+            self.assertEqual(restored.gpuPresetId, 'gtx_1060_black_texture')
+            self.assertEqual(restored.gtx1060Diagnostic, 'off')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        self.assertNotIn('--gtx1060-diagnostic', session.contract.build_command())
+        env = supervisor.runtime_environment(self.root / 'supervisor', config_file=session.contract.config_file)
+        self.assertEqual(env['TLG_READBACKS'], '0')
+        self.assertEqual(env['TLG_UPSCALER'], 'off')
+        self.assertEqual(env['TLG_INTERNAL_RESOLUTION'], '1920x1080')
+        self.finish()
+        self.backend.setSetting('internal_resolution', '2560x1440')
+        self.assertNotEqual(self.backend.gpuPresetId, 'gtx_1060_black_texture')
+
+    def test_gtx1060_diagnostic_is_opt_in_scoped_and_persisted(self):
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        section = self.window.findChild(QObject, 'gtx1060DiagnosticSection')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        self.assertFalse(section.property('visible'))
+        self.backend.setGtx1060Diagnostic('cache_sync')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        before = dict(self.backend.settings)
+        self.pump()
+        self.assertTrue(section.property('visible'))
+        # Exercise the QML activation path, including keyboard selection.
+        control.forceActiveFocus()
+        QTest.keyClick(self.window, Qt.Key_Home)
+        QTest.keyClick(self.window, Qt.Key_Down)
+        QTest.keyClick(self.window, Qt.Key_Down)
+        QTest.keyClick(self.window, Qt.Key_Return)
+        self.pump()
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'cache_sync')
+        self.assertEqual(control.property('currentIndex'), 2)
+        self.assertEqual(self.backend.settings, before)
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['gtx1060_diagnostic'], 'cache_sync')
+        self.assertNotIn('gtx1060_diagnostic', config.load_knack2_ini(self.backend.workspace / 'knack2.ini'))
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gtx1060Diagnostic, 'cache_sync')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        cmd = session.contract.build_command()
+        self.assertEqual(cmd[cmd.index('--gtx1060-diagnostic') + 1], 'cache_sync')
+        self.assertFalse(control.property('enabled'))
+        self.backend.setGtx1060Diagnostic('off')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'cache_sync')
+        self.finish()
+        self.backend.applyGpuPreset('default')
+        self.pump()
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.assertFalse(section.property('visible'))
+        self.backend.saveSettings()
+        session = self.launch()
+        self.assertNotIn('--gtx1060-diagnostic', session.contract.build_command())
+        self.finish()
+
+    def test_gtx1060_diagnostic_rejects_invalid_or_unrelated_restored_selection(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('cache')
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        for override in ({'gtx1060_diagnostic': []}, {'gtx1060_diagnostic': 'invalid'},
+                         {'gpu_preset': 'default'}, {'gpu_preset': 'amd_compat'},
+                         {'settings': {**saved['settings'], 'gpu_readbacks': '2'}}):
+            with self.subTest(override=override):
+                config.save_launcher_settings({**saved, **override}, path=path)
+                restored = RealBackend(data_dir=self.backend.workspace)
+                try:
+                    self.assertEqual(restored.gtx1060Diagnostic, 'off')
+                finally:
+                    restored.shutdown()
+        self.backend.setGtx1060Diagnostic('invalid')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'cache')
+        self.backend.setSetting('gpu_readbacks', '2')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+        self.backend.setSetting('gpu_readbacks', '2')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+
+    def test_gtx1060_diagnostic_labels_follow_pt_en_ru(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('cache')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        for locale, expected in [('pt-BR', '1 — Cache novo por sessão'),
+                                 ('en-US', '1 — Fresh cache per session'),
+                                 ('ru-RU', '1 — Новый кэш для каждого запуска')]:
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertEqual(control.property('currentText'), expected)
+            self.assertEqual(self.backend.gtx1060Diagnostic, 'cache')
+
+    def test_gtx1060_capture_selection_keeps_graphics_and_survives_translation(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        before = dict(self.backend.settings)
+        self.backend.setGtx1060Diagnostic('capture')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        for locale, expected in [('pt-BR', '3 — Capturar um quadro (F11)'),
+                                 ('en-US', '3 — Capture one frame (F11)'),
+                                 ('ru-RU', '3 — Захватить один кадр (F11)')]:
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertEqual(control.property('currentText'), expected)
+            self.assertEqual(self.backend.settings, before)
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gtx1060Diagnostic, 'capture')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        command = session.contract.build_command()
+        self.assertEqual(command[command.index('--gtx1060-diagnostic') + 1], 'capture')
+        self.finish()
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+
+    def test_gtx1060_linear_capture_selection_keeps_graphics_and_survives_translation(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        before = dict(self.backend.settings)
+        self.backend.setGtx1060Diagnostic('capture_linear')
+        control = self.window.findChild(QObject, 'gtx1060Diagnostic')
+        for locale, expected in [('pt-BR', '4 — Captura + readback linear (F11)'),
+                                 ('en-US', '4 — Capture + linear readback (F11)'),
+                                 ('ru-RU', '4 — Захват + линейное считывание (F11)')]:
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertEqual(control.property('currentText'), expected)
+            self.assertEqual(self.backend.settings, before)
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gtx1060Diagnostic, 'capture_linear')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        command = session.contract.build_command()
+        self.assertEqual(command[command.index('--gtx1060-diagnostic') + 1], 'capture_linear')
+        self.finish()
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.gtx1060Diagnostic, 'off')
+
+    def test_capture_location_opens_session_with_logs_and_rejects_ambiguous_session(self):
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setGtx1060Diagnostic('capture')
+        self.assertEqual(self.backend.captureDirectory, '')
+        self.validate()
+        session = self.launch()
+        folder = session.session_info.session_dir
+        capture = folder / 'gtx1060-capture'
+        capture.mkdir(parents=True)
+        (capture / 'frame-test.txt').write_text('synthetic census', encoding='utf-8')
+        (folder / 'session.json').write_text('{}', encoding='utf-8')
+        self.backend.changed.emit()
+        self.window.setProperty('page', 2)
+        self.pump()
+        self.assertEqual(self.backend.captureDirectory, str(capture))
+        label = self.window.findChild(QObject, 'captureLocation')
+        self.assertIn(str(capture), label.property('text'))
+        button = self.window.findChild(QObject, 'openCaptureFolder')
+        self.assertTrue(button.property('enabled'))
+        with patch('port.launcher.knack2.ui.real.QDesktopServices.openUrl', return_value=True) as open_url:
+            point = button.mapToScene(QPointF(button.width()/2, button.height()/2)).toPoint()
+            QTest.mouseClick(self.window, Qt.LeftButton, Qt.NoModifier, point)
+            self.pump()
+            self.assertEqual(Path(open_url.call_args.args[0].toLocalFile()), folder)
+            session.session_info.is_ambiguous = True
+            self.backend.changed.emit()
+            self.pump()
+            self.assertEqual(self.backend.captureDirectory, '')
+            self.assertFalse(button.property('enabled'))
+            self.backend.openCaptureFolder()
+            self.assertEqual(open_url.call_count, 1)
+        session.session_info.is_ambiguous = False
+        self.finish()
+        self.assertEqual(self.backend.captureDirectory, str(capture))
+
+    def test_gtx1060_selection_metadata_is_validated_and_invalidated(self):
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+        self.backend.applyGpuPreset('gtx_1060_black_texture')
+        self.backend.setSetting('fps_limit', '30')
+        self.backend.setSetting('bp06', '1')
+        self.assertEqual(self.backend.gpuPresetId, 'gtx_1060_black_texture')
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['gpu_preset'], 'gtx_1060_black_texture')
+        self.assertNotIn('gpu_preset', config.load_knack2_ini(self.backend.workspace / 'knack2.ini'))
+        for selection in ('invalid', [], {'id': 'gtx_1060_black_texture'}):
+            with self.subTest(selection=selection):
+                config.save_launcher_settings({**saved, 'gpu_preset': selection}, path=path)
+                restored = RealBackend(data_dir=self.backend.workspace)
+                try:
+                    self.assertEqual(restored.gpuPresetId, 'custom')
+                finally:
+                    restored.shutdown()
+        inconsistent = {**saved, 'settings': {**saved['settings'], 'gpu_readbacks': '2'}}
+        config.save_launcher_settings(inconsistent, path=path)
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gpuPresetId, 'custom')
+        finally:
+            restored.shutdown()
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+        self.backend.setSetting('gpu_readbacks', '0')
+        self.backend.setSetting('eager_readback', '1')
+        self.backend.setSetting('gpu_readbacks', '2')
+        self.backend.setSetting('eager_readback', '0')
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+
+    def test_guided_gpu_presets_apply_restore_and_preserve_other_preferences(self):
+        def card(name):
+            pending = [self.window.contentItem()]
+            while pending:
+                item = pending.pop()
+                if item.objectName() == name:
+                    return item
+                pending.extend(item.childItems())
+            self.fail(f'Profile card missing: {name}')
+
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.pump()
+        self.assertFalse(self.window.property('gpuAdvanced'))
+        self.assertFalse(self.window.findChild(QObject, 'gpuDiagnosticBp06').property('visible'))
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+        self.backend.setSetting('window_resolution', '3440x1440')
+        self.backend.setSetting('internal_resolution', '2560x1440')
+        self.backend.setSetting('fps_limit', '30')
+        other = {key: value for key, value in self.backend.settings.items()
+                 if key not in config.GPU_DIAGNOSTIC_ENV}
+        self.assertTrue(QMetaObject.invokeMethod(card('gpuPreset_amd_compat'), 'clicked'))
+        self.pump()
+        self.assertEqual(self.backend.gpuPresetId, 'amd_compat')
+        self.assertIn('AMD: falha ao iniciar', self.window.findChild(QObject, 'gpuPresetCurrent').property('text'))
+        self.assertEqual(self.backend.settings['pipeline_binaries'], '0')
+        self.assertEqual(self.backend.settings['bp06'], '0')
+        self.assertEqual(self.backend.settings['compute_async_build'], 'auto')
+        toggle = self.window.findChild(QObject, 'gpuAdvancedToggle')
+        toggle.setProperty('checked', True)
+        self.assertTrue(QMetaObject.invokeMethod(toggle, 'toggled'))
+        self.pump()
+        self.assertTrue(self.window.findChild(QObject, 'gpuDiagnosticBp06').property('visible'))
+        self.backend.setSetting('compute_async_build', '1')
+        self.pump()
+        self.assertEqual(self.backend.gpuPresetId, 'custom')
+        self.assertIn('Personalizado', self.window.findChild(QObject, 'gpuPresetCurrent').property('text'))
+        self.assertTrue(QMetaObject.invokeMethod(card('gpuPreset_conservative'), 'clicked'))
+        self.pump()
+        self.assertEqual(self.backend.gpuPresetId, 'conservative')
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gpuPresetId, 'conservative')
+        finally:
+            restored.shutdown()
+        before_invalid = dict(self.backend.settings)
+        self.backend.applyGpuPreset('unknown')
+        self.assertEqual(self.backend.settings, before_invalid)
+        self.validate()
+        session = self.launch()
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.gpuPresetId, 'conservative')
+        for profile in ('default', 'amd_compat', 'conservative'):
+            self.assertFalse(card('gpuPreset_' + profile).property('enabled'))
+        env = supervisor.runtime_environment(self.root / 'supervisor', config_file=session.contract.config_file)
+        for variable in ('TLG_PIPELINE_BINARIES', 'TLG_BP06', 'TLG_COMPUTE_ASYNC_BUILD'):
+            self.assertEqual(env[variable], '0')
+        self.assertNotIn('TLG_BARRIER_MERGE', env)
+        self.assertNotIn('TLG_BARRIER_TRACE', env)
+        self.finish()
+        self.assertTrue(QMetaObject.invokeMethod(card('gpuPreset_default'), 'clicked'))
+        self.pump()
+        self.assertEqual(self.backend.gpuPresetId, 'default')
+        self.assertEqual({key: value for key, value in self.backend.settings.items()
+                          if key not in config.GPU_DIAGNOSTIC_ENV}, other)
+        self.backend.saveSettings()
+        stored = config.load_knack2_ini(self.backend.workspace / 'knack2.ini')
+        self.assertFalse(set(stored) & set(config.GPU_DIAGNOSTIC_ENV))
+
+    def test_gpu_diagnostic_widgets_persistence_and_session_snapshot(self):
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.window.setProperty('gpuAdvanced', True)
+        self.pump()
+        controls = {'pipeline_binaries': 'gpuDiagnosticPipelineBinaries',
+                    'bp06': 'gpuDiagnosticBp06', 'compute_async_build': 'gpuDiagnosticComputeAsync',
+                    'barrier_merge': 'gpuDiagnosticBarrierMerge',
+                    'barrier_trace': 'gpuDiagnosticBarrierTrace'}
+        for key, name in controls.items():
+            item = self.window.findChild(QObject, name)
+            self.assertIsNotNone(item)
+            self.assertEqual(item.property('currentIndex'), 0)
+            for index, value in enumerate(('auto', '0', '1')):
+                item.setProperty('currentIndex', index)
+                self.assertTrue(QMetaObject.invokeMethod(item, 'activated', Q_ARG(int, index)))
+                self.pump()
+                self.assertEqual(self.backend.settings[key], value)
+            self.backend.setSetting(key, '0')
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            for key in controls:
+                self.assertEqual(restored.settings[key], '0')
+        finally:
+            restored.shutdown()
+        self.validate()
+        session = self.launch()
+        for name in controls.values():
+            self.assertFalse(self.window.findChild(QObject, name).property('enabled'))
+        snapshot = session.contract.config_file.read_bytes()
+        env = supervisor.runtime_environment(self.root / 'supervisor', config_file=session.contract.config_file)
+        for key, variable in config.GPU_DIAGNOSTIC_ENV.items():
+            self.assertEqual(env[variable], '0')
+            self.backend.setSetting(key, 'auto')
+        self.assertEqual(session.contract.config_file.read_bytes(), snapshot)
+        self.finish()
+        next_session = self.launch()
+        env = supervisor.runtime_environment(self.root / 'supervisor', config_file=next_session.contract.config_file)
+        for key, variable in config.GPU_DIAGNOSTIC_ENV.items():
+            if variable == 'TLG_PIPELINE_BINARIES':
+                self.assertEqual(env[variable], '0')  # Normal shader-preload startup policy.
+            else:
+                self.assertNotIn(variable, env)
+            self.assertNotIn(key, config.load_knack2_ini(next_session.contract.config_file))
+        self.finish()
+
+    def test_rx580_preset_persistence_and_localized_controls(self):
+        from port.launcher.knack2.gpu_presets import GPU_PRESETS
+        from port.launcher.knack2.ui.i18n import translate
+        self.assertEqual(self.backend.settings['barrier_merge'], 'auto')
+        self.assertEqual(self.backend.settings['barrier_trace'], 'auto')
+        before = dict(self.backend.settings)
+        self.backend.applyGpuPreset('rx580_barriers')
+        self.assertEqual(self.backend.settings, {**before, 'barrier_merge': '1'})
+        self.assertEqual(self.backend.gpuPresetId, 'rx580_barriers')
+        self.backend.saveSettings()
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gpuPresetId, 'rx580_barriers')
+            self.assertEqual(restored.settings['barrier_merge'], '1')
+        finally:
+            restored.shutdown()
+        profile = next(p for p in GPU_PRESETS if p['id'] == 'rx580_barriers')
+        self.backend.setSetting('barrier_trace', '0')
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.window.setProperty('gpuAdvanced', True)
+        for locale in ('pt-BR', 'en-US', 'ru-RU'):
+            self.backend.setUiLanguage(locale)
+            self.pump()
+            self.assertIn(translate(locale, profile['label']),
+                          self.window.findChild(QObject, 'gpuPresetCurrent').property('text'))
+            for key in ('label', 'when', 'changes'):
+                if locale != 'pt-BR':
+                    self.assertNotEqual(translate(locale, profile[key]), profile[key])
+            for name, index in (('gpuDiagnosticBarrierMerge', 2), ('gpuDiagnosticBarrierTrace', 1)):
+                self.assertTrue(self.window.findChild(QObject, name).property('visible'))
+                self.assertEqual(self.window.findChild(QObject, name).property('currentIndex'), index)
+            self.assertEqual(self.backend.settings['barrier_merge'], '1')
+            self.assertEqual(self.backend.settings['barrier_trace'], '0')
+        self.backend.setSetting('barrier_merge', '0')
+        self.assertNotEqual(self.backend.gpuPresetId, 'rx580_barriers')
+        self.backend.applyGpuPreset('default')
+        self.assertEqual(self.backend.settings['barrier_merge'], 'auto')
+        for locale in ('es-419', 'fr-FR'):
+            for key in ('label', 'when', 'changes'):
+                self.assertNotEqual(translate(locale, profile[key]), profile[key])
+
+    def test_gpu_diagnostic_labels_follow_launcher_language(self):
+        from port.launcher.knack2.ui.i18n import translate
+        self.validate()
+        labels = {'en-US': 'Default', 'es-419': 'Predeterminado', 'fr-FR': 'Par défaut'}
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        for locale, expected in labels.items():
+            self.backend.setLanguage(locale)
+            self.pump()
+            self.assertEqual(self.window.findChild(QObject, 'gpuDiagnosticBp06').property('currentText'),
+                             expected)
+            for source in ('Diagnóstico da GPU', 'Cache binário de pipelines',
+                           'Reconvergência de shaders (BP06)', 'Compilação compute em segundo plano'):
+                self.assertNotEqual(translate(locale, source), source)
+            for profile in self.backend.gpuPresets:
+                self.assertNotIn(profile['label'], ('Padrão do port', 'AMD: falha ao iniciar',
+                                                    'Inicialização conservadora'))
 
     def test_p2_automatic_4099_and_fresh_out_each_launch(self):
         self.validate()
@@ -222,11 +751,61 @@ class F3BTests(unittest.TestCase):
         second = self.launch().contract
         self.assertEqual(second.second_user, 4099)
         self.assertEqual(first.user_data, second.user_data)
-        self.assertEqual(first.user_data, self.root / 'data/profiles/coop/user')
+        self.assertEqual(first.user_data, self.root / 'data/profiles/shared/user')
         self.assertNotEqual(first.out_dir, second.out_dir)
         self.assertEqual(sentinel.read_bytes(), b'preserve')
         self.assertFalse(second.out_dir.exists())
         self.finish()
+
+    def test_european_validation_updates_identity_languages_and_fallback(self):
+        languages = ['fr-FR', 'pt-PT', 'en-GB', 'es-ES', 'de-DE', 'it-IT', 'nl-NL',
+                     'ru-RU', 'fi-FI', 'sv-SE', 'da-DK', 'nb-NO', 'pl-PL', 'ar-SA']
+        self.backend._validate_dump = lambda path: {
+            'app_title': 'Synthetic European Knack II', 'title_id': 'CUSA07670',
+            'version': '01.01', 'languages': languages}
+        self.validate()
+        self.assertEqual(self.backend.installationId, 'CUSA07670')
+        self.assertEqual(self.backend.installationVersion, '01.01')
+        self.assertEqual(self.backend.uiLanguage, 'pt-PT')
+        self.assertEqual([entry['code'] for entry in self.backend.languageOptions], languages)
+        self.backend.setLanguage('en-GB')
+        self.pump()
+        self.assertEqual(self.window.findChild(QObject, 'playButton').property('text'), 'Play')
+        self.backend.setLanguage('de-DE')
+        self.pump()
+        self.assertEqual(self.window.findChild(QObject, 'playButton').property('text'), 'Play')
+        session = self.launch().contract
+        self.assertEqual(session.language, 'de-DE')
+        self.assertEqual(session.user_data, self.root / 'data/profiles/shared/user')
+        self.finish()
+        self.backend.selectFolder(str(self.root / 'another-dump'))
+        self.assertEqual(self.backend.installationId, '')
+        self.assertFalse(self.backend.canPlay)
+        self.assertEqual(self.sessions[-1].contract.language, 'de-DE')
+
+    def test_region_switch_replaces_language_choices_and_clears_validation(self):
+        from port.launcher.knack2.languages import REGION_LANGUAGES
+        self.assertEqual(self.backend.languageOptions,[])
+        combo=self.window.findChild(QObject,'languageSelect')
+        self.assertFalse(combo.property('enabled'))
+        for title in ('CUSA07670','CUSA08014','CUSA07670'):
+            codes=list(REGION_LANGUAGES[title])
+            self.backend._validate_dump=lambda path,t=title,c=codes: {
+                'app_title':'Synthetic Knack II','title_id':t,'version':'01.01','languages':c}
+            self.validate()
+            self.assertEqual(self.backend.installationId,title)
+            self.assertEqual([entry['code'] for entry in self.backend.languageOptions],codes)
+            for code in codes:
+                self.backend.setLanguage(code)
+                self.assertEqual(self.backend.uiLanguage,code)
+            self.backend.selectFolder(str(self.root/'changed-dump'))
+            self.assertEqual(self.backend.languageOptions,[])
+            self.assertFalse(self.backend.canPlay)
+        self.backend._validate_dump=lambda path: (_ for _ in ()).throw(ValueError('bad fixture'))
+        self.backend.validateFolder()
+        self.until(lambda:not self.backend.validating)
+        self.assertEqual(self.backend.languageOptions,[])
+        self.assertFalse(self.backend.canPlay)
 
     def test_language_selector_and_audio_profile_reach_official_command(self):
         self.validate()
@@ -308,8 +887,9 @@ class F3BTests(unittest.TestCase):
         session = self.launch()
         session.fail_stop = True
         self.assertFalse(self.backend.requestClose())
-        self.until(lambda: not self.backend._working())
-        self.pump()
+        # Worker completion precedes consumption of its result by the Qt timer.
+        self.until(lambda: not self.backend._working() and
+                   'controlled stop failed' in self.backend.notification)
         self.assertEqual(self.backend.state, 'STOPPING')
         self.assertFalse(self.backend.canPlay)
         self.assertTrue(self.backend.canStop)
@@ -342,15 +922,26 @@ class F3BTests(unittest.TestCase):
 
     def test_data_overlap_fails_before_writes(self):
         self.validate()
-        validation_path = self.backend.workspace / 'launcher_settings.json'
-        self.assertTrue(validation_path.is_file())
-        original_settings = validation_path.read_bytes()
+        self.assertTrue((self.backend.workspace / 'launcher_settings.json').is_file())
         self.backend.workspace = Path(self.backend.gameDir)
+        previous_files = list(self.backend.workspace.iterdir())
         self.backend.play()
         self.assertEqual(self.sessions, [])
-        self.assertFalse((self.backend.workspace / 'launcher_settings.json').exists())
-        self.assertEqual(validation_path.read_bytes(), original_settings)
+        self.assertEqual(list(self.backend.workspace.iterdir()), previous_files)
         self.assertIn('sobrepõe', self.backend.notification)
+
+    def test_selected_folder_is_remembered_without_saving_other_edits(self):
+        self.backend._settings['vsync'] = '0'  # Unsaved unrelated edit must stay unsaved.
+        self.backend.selectFolder(str(self.root / 'dump'))
+        restored = RealBackend(data_dir=self.backend.workspace)
+        try:
+            self.assertEqual(restored.gameDir, str(self.root / 'dump'))
+            self.assertEqual(restored.settings['vsync'], '1')
+            self.assertEqual(restored.players, 1)
+            self.assertFalse(restored.canPlay)
+            self.assertEqual(restored.validationState, 'empty')
+        finally:
+            restored.shutdown()
 
     def test_stale_callbacks_cannot_overwrite_new_session(self):
         self.validate()
@@ -396,11 +987,12 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: self.backend.state == 'FAILED' and not self.backend._working())
         self.assertEqual(self.backend._runner.exit_code, 7)
         self.assertIn('7', self.backend.notification)
-        # Process completion and the Qt log model's timer are independent.
+        # State delivery and batched log delivery use different Qt events.
         self.until(lambda: 'real supervisor error' in self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend.supervisor_model.lines)
         self.assertIn('real supervisor error', self.backend._log_path.read_text())
-        self.pump()
+        self.until(lambda: all('guest from ' + name in self.backend.guest_model.lines
+                              for name in ('00-eboot.bin.log', '01-game.elf.log')))
         self.assertIn('guest from 00-eboot.bin.log', self.backend.guest_model.lines)
         self.assertIn('guest from 01-game.elf.log', self.backend.guest_model.lines)
         self.assertEqual(self.backend._runner.session_info.current_executable, 'game.elf')
@@ -425,7 +1017,9 @@ class SupervisorConfigTests(unittest.TestCase):
             root = Path(temporary)
             port = root / 'port'
             (port / 'out').mkdir(parents=True)
-            (port / 'out' / ('tlg-probe.exe' if os.name == 'nt' else 'tlg-probe')).write_bytes(b'never executed')
+            runtime = port / 'out' / ('tlg-probe.exe' if os.name == 'nt' else 'tlg-probe')
+            runtime.write_bytes(b'never executed')
+            runtime.chmod(0o700)
             ini = root / 'settings.ini'
             config.update_knack2_ini(ini, {'vsync': '1', 'rcas_strength': 100})
             calls = []
@@ -440,7 +1034,9 @@ class SupervisorConfigTests(unittest.TestCase):
                     Path(env['KNACK2_EXEC_REQUEST']).write_bytes(b'K2EXEC01' + struct.pack('<I', len(target)) + target + struct.pack('<I', 0))
                     return 75
                 return 0
-            with patch.object(supervisor, 'PORT', port), patch.object(supervisor, 'validate_game'), \
+            with patch.object(supervisor, 'PORT', port), patch.object(supervisor, 'validate_game', return_value={
+                    'executable_layout': 'elf-80ccc228', 'game_elf_sha256': '0' * 64}), \
+                 patch.object(supervisor, 'load_profile', return_value=supervisor.load_profile()), \
                  patch.object(supervisor, 'prepare_image', side_effect=lambda g, p, name, out: out / name), \
                  patch.object(supervisor.subprocess, 'run'), patch.object(supervisor, 'run_child', side_effect=child), \
                  patch.dict(os.environ, {'TLG_CONFIG': 'foreign', 'TLG_LOCAL_P2_USER_ID': '99',
@@ -470,7 +1066,9 @@ class SupervisorConfigTests(unittest.TestCase):
             try:
                 runner.start()
                 deadline = time.monotonic() + 5
-                while not marker.exists() and time.monotonic() < deadline:
+                while time.monotonic() < deadline:
+                    if marker.exists() and marker.read_text().strip():
+                        break
                     time.sleep(.02)
                 self.assertTrue(marker.exists())
                 child_pid = int(marker.read_text())

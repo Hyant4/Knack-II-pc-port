@@ -108,6 +108,19 @@ Id EmitGetAttribute(EmitContext& ctx, IR::Attribute attr, u32 comp, u32 index) {
         }();
         return param.is_integer ? ctx.OpBitcast(ctx.F32[1], value) : value;
     }
+    if (ctx.sw_stage == SwStage::Fragment && ctx.runtime_info.hw.fs.emulated_barycentric &&
+        attr >= IR::Attribute::BaryCoordNoPersp && attr <= IR::Attribute::BaryCoordPullModel) {
+        const u32 slot = u32(attr) - u32(IR::Attribute::BaryCoordNoPersp);
+        if (attr == IR::Attribute::BaryCoordPullModel) {
+            const Id inv_w = ctx.OpLoad(ctx.F32[1], ctx.OpAccessChain(ctx.input_f32, ctx.frag_coord, ctx.ConstU32(3u)));
+            if (comp == 2) return inv_w;
+            const Id ij = ctx.OpCompositeExtract(ctx.F32[1],
+                ctx.OpLoad(ctx.F32[2], ctx.emulated_barycentric_weights[slot]), comp);
+            return ctx.OpFMul(ctx.F32[1], ij, inv_w);
+        }
+        return ctx.OpCompositeExtract(ctx.F32[1],
+            ctx.OpLoad(ctx.F32[2], ctx.emulated_barycentric_weights[slot]), comp);
+    }
     if (IR::IsBarycentricCoord(attr) && attr != IR::Attribute::BaryCoordPullModel &&
         ctx.profile.supports_fragment_shader_barycentric) {
         ++comp;

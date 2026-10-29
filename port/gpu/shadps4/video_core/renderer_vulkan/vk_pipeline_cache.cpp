@@ -259,6 +259,20 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(PipelineSelection& se
         info.hw.fs.en_flags = regs.ps_input_ena;
         info.hw.fs.addr_flags = regs.ps_input_addr;
         info.hw.fs.num_inputs = regs.num_interp;
+        // Knack's packed parameters need all three vertices. Limit the portable
+        // geometry path to ordinary triangle pipelines; native paths are unchanged.
+        const auto topology = LiverpoolToVK::PrimitiveType(regs.primitive_type);
+        const bool triangles = topology == vk::PrimitiveTopology::eTriangleList ||
+                               topology == vk::PrimitiveTopology::eTriangleStrip ||
+                               topology == vk::PrimitiveTopology::eTriangleFan;
+        const auto serial = Common::ElfInfo::Instance().GameSerial();
+        info.hw.fs.emulated_barycentric =
+            (serial == "CUSA08014" || serial == "CUSA07670") &&
+            !profile.supports_amd_shader_explicit_vertex_parameter &&
+            !profile.supports_fragment_shader_barycentric && instance.IsGeometryStageSupported() &&
+            regs.stage_enable.raw == AmdGpu::ShaderStageEnable::VgtStages::Vs && triangles &&
+            !sel.motion && !regs.vs_output_control.use_vtx_render_target_idx &&
+            !regs.vs_output_control.use_vtx_viewport_idx;
         info.hw.fs.front_face_all_bits = regs.barycentric_control.front_face_all_bits;
         // tlg: BP12 read once when the pipeline is built (the shader cache key has its salt).
         info.hw.fs.depth_before_shader =
@@ -605,6 +619,17 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         .block1d_as_2d = AmdGpu::Block1DAs2D(),
         .bc_tiny_decode = AmdGpu::BcTinyDecode(),
     };
+    // Diagnostic restriction of available shader capabilities. This never enables
+    // an unsupported extension, and normal launcher sessions do not set it.
+    if (const char* test = std::getenv("TLG_KNACK_BARYCENTRIC_TEST"); test && test[0] == '1') {
+        const auto serial = Common::ElfInfo::Instance().GameSerial();
+        if (serial == "CUSA08014" || serial == "CUSA07670") {
+            profile.supports_amd_shader_explicit_vertex_parameter = false;
+            profile.supports_fragment_shader_barycentric = false;
+            profile.needs_manual_interpolation = false;
+            std::printf("GPU: Knack barycentric fallback test, native shader capabilities restricted\n");
+        }
+    }
     // tlg: the recompiler switches (ISS_ names arrive as TLG_), one line each on stdout (the run
     // log keeps it; LOG_INFO is filtered out there), for A/B reports.
     Shader::Toggles::LogStates([](const char* name, bool on, const char* what) {

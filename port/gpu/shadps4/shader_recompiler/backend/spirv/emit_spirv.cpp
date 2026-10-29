@@ -335,6 +335,9 @@ void SetupCapabilities(const Info& info, const Profile& profile, const RuntimeIn
             ctx.AddCapability(spv::Capability::InterpolationFunction);
         }
         if (info.loads.Get(IR::Attribute::SampleIndex) ||
+            (runtime_info.hw.fs.emulated_barycentric &&
+             (info.loads.GetAny(IR::Attribute::BaryCoordSmoothSample) ||
+              info.loads.GetAny(IR::Attribute::BaryCoordNoPerspSample))) ||
             runtime_info.hw.fs.addr_flags.linear_sample_ena ||
             runtime_info.hw.fs.addr_flags.persp_sample_ena ||
             (!profile.supports_amd_shader_explicit_vertex_parameter &&

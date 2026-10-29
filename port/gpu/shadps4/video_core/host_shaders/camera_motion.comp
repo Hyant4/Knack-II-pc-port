@@ -33,6 +33,17 @@ void main() {
     if (pixel.x >= int(size.x) || pixel.y >= int(size.y)) {
         return;
     }
+#ifndef DEBUG_OVERLAY
+    if (mode == 2u) {
+        // Knack II already produces object/camera vectors. Native TAA removes current
+        // projection jitter and uses opposite horizontal/vertical signs for reprojection.
+        const vec2 native_motion = texelFetch(object_tex, pixel, 0).rg;
+        vec2 motion = vec2(jitter.x - native_motion.x, native_motion.y - jitter.y) * previous_jitter;
+        if (any(isnan(motion)) || any(isinf(motion))) motion = vec2(0.0);
+        imageStore(motion_img, pixel, vec4(motion, 0.0, 0.0));
+        return;
+    }
+#endif
     const float depth = texelFetch(depth_tex, pixel, 0).r;
     const vec2 uv = (vec2(pixel) + 0.5) / size;
     // Depth was rasterised through a shifted viewport. Reconstruct its unjittered

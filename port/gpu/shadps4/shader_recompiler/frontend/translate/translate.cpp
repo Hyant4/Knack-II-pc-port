@@ -201,7 +201,7 @@ void Translator::EmitPrologue(IR::Block* first_block) {
         dst_vreg =
             IterateBarycentrics(runtime_info, [this](u32 vreg, IR::Attribute attrib, u32 comp) {
                 if (profile.supports_amd_shader_explicit_vertex_parameter ||
-                    profile.supports_fragment_shader_barycentric) {
+                    profile.supports_fragment_shader_barycentric || runtime_info.hw.fs.emulated_barycentric) {
                     ir.SetVectorReg(IR::VectorReg(vreg), ir.GetAttribute(attrib, comp));
                 }
             });

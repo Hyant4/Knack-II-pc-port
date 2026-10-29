@@ -12,14 +12,18 @@ from ..validator import default_profile_path, validate_knack2_dump
 from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 
-from .. import config
+from .. import config, pkg_update
+from ..gpu_presets import matching_gpu_preset
+from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import KnackRunner, RunnerState
-from ..languages import BY_CODE
+from ..languages import BY_CODE, REGION_LANGUAGES
 from ..identity import runtime_path
 from ..storage import application_data_root, profile_user
+from ..paths import project_root
 from .backend import Backend, DEFAULTS, MAX_LINE
+from .update import UpdateController
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = project_root()
 P2_USER_ID = 4099
 VALIDATION_RECORD_SCHEMA = 1
 # Existing B2-F2C profile, already compiled into the verified COOP-05 artifact.
@@ -35,7 +39,9 @@ class RealBackend(Backend):
     closeReady = Signal()
     _stateTokenArrived = Signal(str, object, str, str)
 
-    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, experimental_build=False, **kwargs):
+    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, experimental_build=False, initial_language=None, **kwargs):
+        if initial_language is not None and initial_language not in BY_CODE:
+            raise ValueError('Idioma inicial inválido')
         self._experimental_build = bool(experimental_build)
         if self._experimental_build:
             kwargs['validate_dump'] = partial(validate_knack2_dump,
@@ -49,7 +55,7 @@ class RealBackend(Backend):
             self._installation += ' · Experimental'
         self._session_factory = session_factory
         self._players = 1
-        self._available_languages = None
+        self._available_languages = ()
         self._operation = None
         self._results = queue.Queue()
         self._closing = False
@@ -61,6 +67,8 @@ class RealBackend(Backend):
         self._log_error_reported = False
         self._stream_lock = threading.Lock()
         self._runner = None
+        self._dump_guard = None
+        self._updates = UpdateController(self)
         self._request_auto_play = bool(auto_play)
         self._auto_play_record = None
         self.changed.connect(self.sessionChanged.emit)
@@ -70,14 +78,25 @@ class RealBackend(Backend):
         saved = config.load_launcher_settings(self.workspace / 'launcher_settings.json')
         self._game_dir = str(saved.get('game_dir', ''))
         self._saved_validation = self._load_validation_record(saved.get('validation'))
-        self._language = saved.get('language', 'pt-BR')
+        self._language = initial_language if initial_language is not None else saved.get('language', 'pt-BR')
         if not isinstance(self._language, str) or self._language not in BY_CODE:
             self._language = 'pt-BR'
+        ui_language = saved.get('ui_language')
+        if isinstance(ui_language, str) and ui_language in ('pt-BR', 'en-US', 'ru-RU'):
+            self._ui_language = ui_language
         # P2 is deliberately never restored. Every opt-in is explicit for this UI session.
         for key, value in saved.get('settings', {}).items() if isinstance(saved.get('settings'), dict) else ():
             try:
                 if key in DEFAULTS:
                     self._settings[key] = config.sanitize_and_validate_key_value(key, value)[1]
+            except ValueError:
+                pass
+        selected = saved.get('gpu_preset')
+        if isinstance(selected, str) and selected != 'custom' and matching_gpu_preset(self._settings, selected) == selected:
+            self._selected_gpu_preset = selected
+        if self.gpuPresetId == GTX1060_PRESET:
+            try:
+                self._gtx1060_diagnostic = validate_gtx1060_mode(saved.get('gtx1060_diagnostic', 'off'))
             except ValueError:
                 pass
 
@@ -133,12 +152,15 @@ class RealBackend(Backend):
     players = Property(int, lambda self: self._players, notify=sessionChanged)
     outputText = Property(str, lambda self: str(self._out or self.workspace / 'single'), notify=sessionChanged)
     sessionDetails = Property(str, lambda self: self._metadata, notify=sessionChanged)
+    captureDirectory = Property(str, lambda self: str(self._capture_session() / 'gtx1060-capture')
+                                if self._capture_session() else '', notify=sessionChanged)
 
     def _state_label(self):
         return self._translate(LABELS[self._state])
 
     def _editable(self):
         return (not self._closed and not self._validating and not self._working() and
+                not (getattr(self, '_updates', None) and self._updates.busy) and
                 self._state in ('IDLE', 'FINISHED', 'FAILED'))
 
     def _can_play(self):
@@ -146,21 +168,50 @@ class RealBackend(Backend):
                 (self._runner is None or not self._runner.is_running))
 
     def _language_codes(self):
-        return self._available_languages if self._available_languages is not None else tuple(BY_CODE)
+        return self._available_languages
+
+    @Slot(str)
+    def setUiLanguage(self, code):
+        if self._closed or code not in ('pt-BR', 'en-US', 'ru-RU'):
+            return
+        super().setUiLanguage(code)
+        try:
+            self._check_data_root()
+            path = self._data_path('launcher_settings.json')
+            saved = config.load_launcher_settings(path)
+            saved['ui_language'] = self._ui_language
+            config.save_launcher_settings(saved, path=path)
+        except (OSError, ValueError) as error:
+            self._notice(str(error), True)
 
     def _on_validated(self, result):
+        try:
+            pkg_update.assert_playable(self._game_dir)
+        except (OSError, ValueError) as error:
+            self._validation_state = 'invalid'
+            self._validation = str(error)
+            self._notice(str(error), True)
+            return
         if self._experimental_build:
             self._installation += ' · Experimental'
             self._validation = 'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'
-        self._available_languages = tuple(result.get('languages', BY_CODE))
+        regional = REGION_LANGUAGES.get(result.get('title_id'), ())
+        self._available_languages = tuple(code for code in regional
+                                          if code in result.get('languages', regional))
         if not self._available_languages:
             self._validation_state = 'invalid'
             self._validation = 'Nenhum idioma compatível encontrado no dump.'
         elif self._language not in self._available_languages:
-            self.setLanguage('en-US' if 'en-US' in self._available_languages else self._available_languages[0])
+            regional = {'pt-BR': 'pt-PT', 'pt-PT': 'pt-BR', 'en-US': 'en-GB',
+                        'en-GB': 'en-US', 'es-419': 'es-ES', 'es-ES': 'es-419'}
+            fallback = next((code for code in (regional.get(self._language), 'en-US', 'en-GB')
+                             if code in self._available_languages), self._available_languages[0])
+            self.setLanguage(fallback)
         self.changed.emit()
 
     def _on_validation_finished(self, result, error, *, auto_play=False):
+        if not error and self._validation_state == 'invalid':
+            error = self._validation
         previous = self._auto_play_record
         self._auto_play_record = None
         self._save_validation_record(result, error)
@@ -193,7 +244,7 @@ class RealBackend(Backend):
     @Slot(str)
     def selectFolder(self, text):
         if self.editable:
-            self._available_languages = None
+            self._available_languages = ()
             super().selectFolder(text)
             try:
                 self._check_data_root()
@@ -209,16 +260,17 @@ class RealBackend(Backend):
     @Slot()
     def validateFolder(self):
         if self.editable:
+            self._available_languages = ()
             self._auto_play_record = None
             self._start_validation()
 
     @Slot()
     def autoValidateSavedDump(self):
-        if self._closed or self._validating or not self._game_dir:
+        if self._closed or self._validating or self._updates.busy or not self._game_dir:
             if self._request_auto_play and not self._game_dir:
                 self._notice('Não iniciou: nenhuma pasta de dump foi salva. Escolha uma pasta e valide-a primeiro.', True)
             return
-        self._available_languages = None
+        self._available_languages = ()
         auto_play = self._request_auto_play
         self._request_auto_play = False
         self._auto_play_record = dict(self._saved_validation) if auto_play and self._saved_validation else None
@@ -250,12 +302,14 @@ class RealBackend(Backend):
             path = self._data_path('launcher_settings.json')
             saved = config.load_launcher_settings(path)
             saved.update({'game_dir': self._game_dir, 'settings': self._settings,
-                          'language': self._language})
+                          'language': self._language, 'ui_language': self._ui_language,
+                          'gpu_preset': self.gpuPresetId,
+                          'gtx1060_diagnostic': self.gtx1060Diagnostic})
             config.save_launcher_settings(saved, path=path)
         except (OSError, ValueError) as error:
             self._notice(str(error), True)
         else:
-            self._notice('Configurações salvas na área isolada F3B. Aplicação na próxima sessão.')
+            self._notice('Configurações salvas. Aplicação na próxima partida.')
 
     def post_log(self, source, line):
         if source == 'supervisor':
@@ -322,6 +376,7 @@ class RealBackend(Backend):
             return
         try:
             self._check_data_root()
+            pkg_update.assert_playable(self._game_dir)
             if not runtime_path(ROOT / 'port').is_file():
                 raise ValueError('Runtime ausente: compile tlg-probe antes de jogar.')
             token = uuid.uuid4().hex
@@ -338,8 +393,10 @@ class RealBackend(Backend):
             log.parent.mkdir(parents=True, exist_ok=True)
             previous = self._runner
             build_options = {'experimental_build': True} if self._experimental_build else {}
+            diagnostic_options = ({'gtx1060_diagnostic': self.gtx1060Diagnostic}
+                                  if self.gtx1060Diagnostic != 'off' else {})
             runner = self._session_factory(self._game_dir, timeout=0, out_dir=out,
-                                          **build_options,
+                                          **diagnostic_options, **build_options,
                                           config_file=settings_file, local_users=self._players, language=self._language,
                                           second_user=second_user,
                                           user_data=user,
@@ -365,7 +422,16 @@ class RealBackend(Backend):
             self._supervisor_stream = log.open('w', encoding='utf-8')
             self._log_error_reported = False
             self._runner = runner
-            runner.start()  # Never pass inherited runtime overrides; run.py filters them.
+            guard = pkg_update.game_lock(self._game_dir)
+            guard.__enter__()
+            self._dump_guard = guard
+            try:
+                pkg_update.assert_playable(self._game_dir)
+                runner.start()  # Never pass inherited runtime overrides; run.py filters them.
+            except BaseException:
+                self._dump_guard.__exit__(None, None, None)
+                self._dump_guard = None
+                raise
         self._operate('start', launch)
 
     @Slot()
@@ -389,6 +455,9 @@ class RealBackend(Backend):
         if self._closed:
             return
         if not self._working():
+            if self._dump_guard is not None and (self._runner is None or not self._runner.is_running):
+                self._dump_guard.__exit__(None, None, None)
+                self._dump_guard = None
             while not self._results.empty():
                 kind, error = self._results.get_nowait()
                 if kind == 'log':
@@ -428,6 +497,26 @@ class RealBackend(Backend):
         if not directory.is_dir() or not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
             self._notice('Não foi possível abrir a pasta de logs.', True)
 
+    def _capture_session(self):
+        if self._runner is None or self._runner.session_info.is_ambiguous:
+            return None
+        session = self._runner.session_info.session_dir
+        if session is None or self._out is None:
+            return None
+        session = Path(session).resolve()
+        capture = (session / 'gtx1060-capture').resolve()
+        if (not session.is_relative_to(self.workspace) or not session.is_relative_to(self._out.resolve())
+                or capture.parent != session or not capture.is_dir()):
+            return None
+        return session
+
+    @Slot()
+    def openCaptureFolder(self):
+        # Open the session root so the ZIP includes its metadata/logs as well as the images.
+        directory = self._capture_session()
+        if directory is None or not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+            self._notice('Captura ainda indisponível. Inicie o modo de captura e pressione F11 na cena afetada.', True)
+
     @Slot()
     def copyLogs(self):
         QGuiApplication.clipboard().setText(f'Knack II / F3B / {self.sessionId}\n{self._metadata}\n\nSupervisor\n' +
@@ -437,6 +526,10 @@ class RealBackend(Backend):
 
     @Slot(result=bool)
     def requestClose(self):
+        if self._updates.busy:
+            self._closing = True
+            self._updates.cancel()
+            return False
         if self._working() or self._state in ('STARTING', 'RUNNING', 'STOPPING'):
             self._closing = True
             self.stop()
@@ -448,6 +541,9 @@ class RealBackend(Backend):
     def shutdown(self):
         if self._closed:
             return
+        if not self._updates.close():
+            self._closing = True
+            return
         # QML defers closing while an action runs. Never drop ownership of a live session.
         if self._working() or (self._runner is not None and self._runner.is_running):
             self._closing = True
@@ -455,6 +551,9 @@ class RealBackend(Backend):
             return
         if self._runner is not None:
             self._runner.close()
+        if self._dump_guard is not None:
+            self._dump_guard.__exit__(None, None, None)
+            self._dump_guard = None
         self._close_stream()
         self._closed = True
         self._validation_cancel.set()

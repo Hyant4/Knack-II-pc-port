@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "knack_temporal.h"
 #ifndef _WIN32
 #include <array>
 #include <atomic>
@@ -9,8 +10,13 @@
 #include <optional>
 #include <dlfcn.h>
 #endif
+#include <cerrno>
 #include <cmath>
+#include <cstring>
 #include <unordered_set>
+#include <fstream>
+#include <map>
+#include <mutex>
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
 #include "tlg_toggles.h"
@@ -42,9 +48,2052 @@
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_hle.h"
 #include "video_core/texture_cache/image_view.h"
+#include "video_core/texture_cache/image.h"
 #include "video_core/texture_cache/texture_cache.h"
+#include <vk_mem_alloc.h>
 
 namespace Vulkan {
+
+// A movie replaces this attachment's background. Later subtitles, logos, fades
+// and the game's own letterbox draws keep their original order and projection.
+static void ClearKnackVideoBackground(vk::CommandBuffer command, const RenderState& state) {
+    const vk::ClearAttachment black{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .colorAttachment = 0,
+        .clearValue = vk::ClearValue{vk::ClearColorValue{std::array<float, 4>{0, 0, 0, 1}}},
+    };
+    const vk::ClearRect rectangle{
+        .rect = {{0, 0}, {u32(state.width), u32(state.height)}},
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+    };
+    command.clearAttachments(black, rectangle);
+}
+
+// Capture state and bounded diagnostic metadata remain local to this translation unit.
+namespace GpuPhy03 {
+namespace {
+struct Snapshot {
+    std::string stage, file, format, hash;
+    u64 uid{}, address{}, alias{}, tick{}, bytes{};
+    u32 width{}, height{}, bpp{};
+    bool saved{};
+    std::string identity;
+    u64 event{}, submit{};
+};
+// is_written is merged by the shader recompiler across ImageWrite and atomic users.
+// No read bit exists for a merged writable descriptor: treat it as potentially read/write.
+enum class Access { ReadOnly, MayWrite, Atomic };
+Access ShaderAccess(bool is_written, bool is_atomic) {
+    return is_atomic ? Access::Atomic : is_written ? Access::MayWrite : Access::ReadOnly;
+}
+struct Identity {
+    u64 uid{};
+    vk::Image image{};
+    u64 alias{}, address{}, bytes{};
+    u32 width{}, height{}, format{};
+    bool operator==(const Identity&) const = default;
+    auto Key() const { return std::pair{uid, image}; }
+    bool SameStorage(const Identity& other) const {
+        auto copy = other; copy.alias = alias;
+        return *this == copy;
+    }
+    std::string Json() const {
+        return fmt::format("{{\"uid\":{},\"image\":\"{}\",\"alias\":{},\"address\":{},"
+            "\"bytes\":{},\"width\":{},\"height\":{},\"format\":{}}}",
+            uid, (void*)VkImage(image), alias, address, bytes, width, height, format);
+    }
+    bool KnownRange() const {
+        return uid && image && address && bytes && bytes <= ~0ull - address &&
+               width && height && format;
+    }
+    bool Overlaps(const Identity& other) const {
+        if (image == other.image) return true;
+        // Subtraction avoids overflow when describing an untrusted guest range.
+        return address <= other.address ? other.address - address < bytes
+                                        : address - other.address < other.bytes;
+    }
+};
+// Bounded metadata only: no guest dereference, readback, or per-draw heap allocation.
+struct DrawTraceRecord {
+    u32 kind{}, count{}, instances{}, first_instance{}, vertex_offset{}, index_offset{}, mrt_mask{};
+    bool indexed{};
+    u64 tick{}, pipeline{}, indirect_args{}, indirect_count{}, indirect_offset{}, max_count{}, stride{};
+    u32 depth{}, stencil{}, polygon{}, clipper{}, color_mask{};
+    std::array<u32, 6> viewport{};
+    std::array<u64, 2> scissor{};
+    struct Buffer { bool recorded{}; u64 handle{}, offset{}, range{}, push_adjust{}; };
+    std::array<Buffer, 2> buffers{};
+};
+// Aggregate every direct Draw entry, including calls rejected before pipeline selection.
+// Program addresses are register values only, not shader identities or guest reads.
+struct FrontTraceKey {
+    std::array<u64, 6> programs{}; // PS, VS, GS, ES, HS, LS, including inactive slots
+    u64 vs_hash{}, ps_hash{}; // known only after successful pipeline selection
+    u32 outcome{}, stages{}, primitive{}, color_control{}, color_mask{};
+    bool indexed{}, pipelined{};
+    bool operator==(const FrontTraceKey&) const = default;
+};
+struct FrontTraceRow {
+    FrontTraceKey key;
+    u64 calls{}, instances{}, indices{}, raw_zero_instances{};
+};
+struct Pm4TraceRecord {
+    u32 kind{}, opcode{}, packet_words{}, raw_words{}, skip_words{};
+    u32 before_indices{}, before_instances{}, after_indices{}, after_instances{};
+    u32 stages{}, primitive{}, color_control{}, color_mask{};
+    u64 command{}, buffer_base{}, buffer_words{}, remaining_words{}, submission{};
+    u64 producer_serial{}; // shared collector order; not a GPU fence or buffer generation
+    bool skipped{};
+    std::array<u32, 8> raw{};
+    std::array<u64, 6> programs{};
+};
+struct Pm4TraceWindow {
+    static constexpr u32 Capacity = 4096;
+    std::array<Pm4TraceRecord, Capacity> records{};
+    std::array<u64, 256> opcode_counts{};
+    u32 used{}, dropped{};
+    static constexpr u32 SubmissionCapacity = 128;
+    std::array<RelicSubmissionSample, SubmissionCapacity> submissions{};
+    u32 submission_used{}, submission_dropped{};
+    static constexpr u32 ProducerCapacity = 4096;
+    std::array<RelicProducerSample, ProducerCapacity> producers{};
+    u32 producer_used{}, producer_dropped{};
+    static constexpr u32 ListCountLimit = 4096, ListScanCapacity = 32;
+    static constexpr u64 ListByteBudget = 1024 * 1024;
+    std::array<std::array<u64, 3>, ListScanCapacity> list_keys{};
+    u32 list_key_used{}; u64 list_scan_bytes{};
+    u32 ReserveListScan(const RelicListSample& sample) {
+        if (sample.count > ListCountLimit) return 4;
+        const std::array<u64, 3> key{sample.list, sample.entries, sample.count};
+        for (u32 i = 0; i < list_key_used; ++i) if (list_keys[i] == key) return 2;
+        const u64 bytes = u64(sample.count) * (0x58 + sizeof(u64));
+        if (list_key_used == ListScanCapacity || bytes > ListByteBudget - list_scan_bytes) return 3;
+        list_keys[list_key_used++] = key; list_scan_bytes += bytes;
+        return 1;
+    }
+    void AddProducer(const RelicProducerSample& sample) {
+        if (producer_used < ProducerCapacity) producers[producer_used++] = sample;
+        else if (producer_dropped != ~0u) ++producer_dropped;
+    }
+    void AddSubmission(const RelicSubmissionSample& sample) {
+        if (submission_used < SubmissionCapacity) submissions[submission_used++] = sample;
+        else if (submission_dropped != ~0u) ++submission_dropped;
+    }
+    void Add(const Pm4TraceRecord& record, bool retain) {
+        if (record.kind == 1 && record.opcode < opcode_counts.size()) ++opcode_counts[record.opcode];
+        if (!retain) return;
+        if (used < Capacity) records[used++] = record;
+        else if (dropped != ~0u) ++dropped;
+    }
+};
+struct DrawTraceWindow {
+    explicit DrawTraceWindow(bool pm4_enabled = false) {
+        if (pm4_enabled) pm4 = std::make_unique<Pm4TraceWindow>();
+    }
+    std::unique_ptr<Pm4TraceWindow> pm4;
+    static constexpr u32 Capacity = 512;
+    std::array<DrawTraceRecord, Capacity> records{};
+    u32 used{}, dropped{};
+    static constexpr u32 FrontCapacity = 256;
+    std::array<FrontTraceRow, FrontCapacity> front{};
+    u32 front_used{}, front_dropped{};
+    void AddFront(const FrontTraceKey& key, u32 count, u32 instances, bool raw_zero) {
+        u32 i = 0;
+        for (; i < front_used; ++i) if (front[i].key == key) break;
+        if (i == front_used) {
+            if (front_used == FrontCapacity) {
+                if (front_dropped != ~0u) ++front_dropped;
+                return;
+            }
+            front[front_used++].key = key;
+        }
+        auto& row = front[i];
+        ++row.calls; row.instances += instances; row.indices += count;
+        row.raw_zero_instances += raw_zero;
+    }
+    void Add(const DrawTraceRecord& r) {
+        if (used < Capacity) records[used++] = r;
+        else if (dropped != ~0u) ++dropped;
+    }
+};
+struct Epoch {
+    u32 index{};
+    u64 present_index{}, display_uid{}, display_address{}, submit_sequence{};
+    bool gbuffer{}, composition{}, prepared{}, presented{};
+    u64 gbuffer_uid{};
+    vk::Image gbuffer_image{};
+    std::string attachments;
+    std::vector<Snapshot> snapshots;
+    std::vector<std::string> events;
+    bool observation_ambiguous{};
+    std::shared_ptr<DrawTraceWindow> draw_trace;
+};
+struct WritePreparation {
+    Identity before, after;
+    bool safe{};
+};
+struct Resource {
+    VideoCore::ImageId id;
+    Access access;
+    Identity binding;
+    bool full_image;
+    u64 shader{};
+    u32 base_mip{}, mip_count{}, base_layer{}, layer_count{};
+    u32 image_levels{}, image_layers{};
+};
+struct Provenance {
+    Identity version;
+    std::shared_ptr<Epoch> epoch;
+    bool from_composition{};
+};
+struct State {
+    std::mutex mutex;
+    std::atomic<bool> active{false};
+    const bool observe = [] { const char* v = std::getenv("TLG_GPU_PHY03_OBSERVE"); return v && std::string_view(v) == "1"; }();
+    const bool trace_enabled = observe && [] { const char* v = std::getenv("TLG_RELIC_TRACE"); return v && std::string_view(v) == "1"; }();
+    const bool pm4_enabled = trace_enabled && [] { const char* v = std::getenv("TLG_RELIC_PM4_TRACE"); return v && std::string_view(v) == "1"; }();
+    const bool submission_enabled = pm4_enabled && [] { const char* v = std::getenv("TLG_RELIC_SUBMIT_TRACE"); return v && std::string_view(v) == "1"; }();
+    const bool producer_enabled = pm4_enabled && [] { const char* v = std::getenv("TLG_RELIC_PRODUCER_TRACE"); return v && std::string_view(v) == "1"; }();
+    const bool list_enabled = producer_enabled && [] { const char* v = std::getenv("TLG_RELIC_LIST_TRACE"); return v && std::string_view(v) == "1"; }();
+    std::shared_ptr<DrawTraceWindow> trace_window;
+    const char* trigger = std::getenv("TLG_GPU_PHY03_TRIGGER");
+    std::filesystem::path dir;
+    std::string error;
+    u32 limit = 4;
+    u64 present_sequence{}, submit_sequence{}, outstanding{};
+    u64 event_sequence{};
+    u64 producer_sequence{}; // under mutex, spans all Prepare intervals in this capture
+    static constexpr u64 AssociationBudget = 8ull * 1024 * 1024;
+    u64 event_bytes{};
+    bool requested{}, completed{};
+    std::vector<std::shared_ptr<Epoch>> epochs;
+    std::shared_ptr<Epoch> current;
+    // Image identity, not a submission counter, carries the scene through composition.
+    std::map<std::pair<u64, vk::Image>, Provenance> lineage;
+    // Protect RT2 from its first producer, before it has a downstream lineage entry.
+    std::optional<Identity> root;
+    std::map<const void*, std::shared_ptr<Epoch>> prepared;
+    std::vector<Resource> resources; // draw-recording thread only, under mutex
+    std::vector<Identity> draw_targets;
+    std::vector<WritePreparation> write_preparations;
+    std::map<VideoCore::ImageId, std::pair<Identity, bool>> pending_writes;
+    std::vector<Identity> input_versions;
+    bool input_from_composition{};
+
+    State() {
+        if (trigger && *trigger) {
+            std::printf("GPU-PHY-03: Armed trigger=%s\n", trigger);
+        }
+    }
+    void Fail(const char* reason) {
+        if (error.empty()) {
+            error = reason;
+            active.store(false, std::memory_order_release);
+            std::printf("GPU-PHY-03: Failed reason=%s\n", reason);
+            Session();
+        }
+    }
+    void Session() {
+        if (dir.empty()) return;
+        std::ofstream f(dir / "session.json", std::ios::trunc);
+        const char* capture_id = std::getenv("TLG_FRAME_SEQUENCE_ID");
+        f << fmt::format("{{\"schema\":{},\"contract\":\"{}\",\"requested\":{},\"started\":{},"
+                         "\"status\":\"{}\",\"reason\":\"{}\",\"capture_id\":\"{}\"}}\n",
+                         observe ? 3 : 2, observe ? "stage_observations_v1" : "ordered_resource_versions_v2",
+                         limit, epochs.size(), !error.empty() ? "Failed" : completed ? "Completed" : "Capturing", error,
+                         capture_id ? capture_id : "");
+        if (!f && error.empty()) {
+            error = "session_write_failed";
+            active.store(false, std::memory_order_release);
+            std::printf("GPU-PHY-03: Failed reason=session_write_failed\n");
+        }
+    }
+    void Poll() {
+        if (requested || !trigger || !*trigger) return;
+        std::error_code ec;
+        if (!std::filesystem::exists(trigger, ec)) return;
+        requested = true; // one request per process; rearming cannot overwrite an earlier run
+        std::printf("GPU-PHY-03: Trigger detected\n");
+        const char* output = std::getenv("TLG_GPU_PHY03_DIR");
+        const char* count = std::getenv("TLG_GPU_PHY03_FRAMES");
+        if (count) {
+            char* end{};
+            const unsigned long n = std::strtoul(count, &end, 10);
+            if (!*count || *end || n < 1 || n > 16) { Fail("invalid_frame_count"); return; }
+            limit = u32(n);
+        }
+        if (!output || !*output) { Fail("missing_output_directory"); return; }
+        // The directory must not already exist, even if empty.
+        if (!std::filesystem::create_directory(output, ec)) { Fail("output_directory_not_new"); return; }
+        dir = output;
+        if (!std::filesystem::remove(trigger, ec)) { Fail("trigger_remove_failed"); return; }
+        if (trace_enabled) trace_window = std::make_shared<DrawTraceWindow>(pm4_enabled);
+        active.store(true, std::memory_order_release);
+        Session();
+        std::printf("GPU-PHY-03: Capture started frames=%u staging_budget_mib=128\n", limit);
+    }
+    void RecordDrawTrace(const DrawTraceRecord& r) {
+        if (active && trace_enabled && trace_window) trace_window->Add(r);
+    }
+    bool WriteDrawTrace(const std::shared_ptr<Epoch>& e) {
+        if (!e->draw_trace) return true;
+        std::ofstream f(dir / fmt::format("draw_trace_{:03}.json", e->index));
+        f << fmt::format("{{\"schema\":1,\"contract\":\"draw_emission_metadata_v1\",\"frame_index\":{},"
+            "\"present_index\":{},\"scope\":\"shader_pair_candidates\",\"coverage\":\"DrawRecord_and_DrawIndirectRecord\","
+            "\"before_record_coverage\":\"not_observed\",\"buffer_contents\":\"not_collected\","
+            "\"status\":\"{}\",\"dropped\":{},\"records\":[", e->index, e->present_index,
+            e->draw_trace->dropped ? "truncated" : "complete", e->draw_trace->dropped);
+        for (u32 i = 0; i < e->draw_trace->used; ++i) {
+            const auto& r = e->draw_trace->records[i]; if (i) f << ',';
+            f << fmt::format("{{\"order\":{},\"kind\":{},\"indexed\":{},\"count\":{},\"instances\":{},"
+                "\"first_instance\":{},\"vertex_offset_bits\":{},\"index_offset\":{},\"mrt_mask\":{},"
+                "\"tick\":{},\"pipeline\":{},\"indirect_args_buffer\":{},\"indirect_count_buffer\":{},"
+                "\"indirect_offset\":{},\"max_count\":{},\"stride\":{},"
+                "\"depth_control\":{},\"stencil_control\":{},\"polygon_control\":{},\"clipper_control\":{},"
+                "\"color_mask\":{},\"viewport_float_bits\":[{},{},{},{},{},{}],\"screen_scissor_words\":[{},{}],\"buffers\":[",
+                i, r.kind, r.indexed ? "true" : "false", r.count, r.instances, r.first_instance,
+                r.vertex_offset, r.index_offset, r.mrt_mask, r.tick, r.pipeline, r.indirect_args,
+                r.indirect_count, r.indirect_offset, r.max_count, r.stride,
+                r.depth, r.stencil, r.polygon, r.clipper, r.color_mask,
+                r.viewport[0], r.viewport[1], r.viewport[2], r.viewport[3], r.viewport[4], r.viewport[5],
+                r.scissor[0], r.scissor[1]);
+            for (u32 j = 0; j < 2; ++j) {
+                const auto& b = r.buffers[j]; if (j) f << ',';
+                f << fmt::format("{{\"slot\":{},\"recorded\":{},\"buffer\":{},\"offset\":{},\"range\":{},"
+                    "\"push_adjust\":{}}}", j * 2, b.recorded ? "true" : "false", b.handle, b.offset, b.range, b.push_adjust);
+            }
+            f << "]}";
+        }
+        f << "],\"front_census\":{";
+        f << fmt::format("\"contract\":\"direct_draw_front_census_v1\",\"coverage\":\"Rasterizer_Draw_only\","
+            "\"association\":\"prepare_interval_only\",\"program_identity\":\"register_addresses_not_code_identity\","
+            "\"status\":\"{}\",\"dropped\":{},\"rows\":[",
+            e->draw_trace->front_dropped ? "truncated" : "complete", e->draw_trace->front_dropped);
+        for (u32 i = 0; i < e->draw_trace->front_used; ++i) {
+            if (i) f << ',';
+            const auto& row = e->draw_trace->front[i]; const auto& k = row.key;
+            f << fmt::format("{{\"programs\":[{},{},{},{},{},{}],\"vs_hash\":{},\"ps_hash\":{},"
+                "\"outcome\":{},\"stages\":{},\"primitive\":{},\"color_control\":{},\"color_mask\":{},"
+                "\"indexed\":{},\"pipelined\":{},\"calls\":{},\"instance_sum\":{},\"index_sum\":{},\"raw_zero_instances\":{}}}",
+                k.programs[0], k.programs[1], k.programs[2], k.programs[3], k.programs[4], k.programs[5],
+                k.vs_hash, k.ps_hash, k.outcome, k.stages, k.primitive, k.color_control, k.color_mask,
+                k.indexed ? "true" : "false", k.pipelined ? "true" : "false", row.calls, row.instances,
+                row.indices, row.raw_zero_instances);
+        }
+        f << "]}}\n"; f.close(); return bool(f);
+    }
+    bool WritePm4Trace(const std::shared_ptr<Epoch>& e) {
+        if (!e->draw_trace || !e->draw_trace->pm4) return true;
+        const auto& window = *e->draw_trace->pm4;
+        std::ofstream f(dir / fmt::format("pm4_trace_{:03}.json", e->index));
+        f << fmt::format("{{\"schema\":1,\"contract\":\"pm4_execution_metadata_v1\",\"frame_index\":{},"
+            "\"present_index\":{},\"association\":\"prepare_interval_only\","
+            "\"coverage\":\"selected_executed_graphics_packets_and_all_type3_opcode_counts\","
+            "\"stream_completeness\":\"not_proven\",\"raw_sampling\":\"bounded_prefix_after_register_apply_not_atomic\","
+            "\"condition_source\":\"existing_skip_decision_no_second_condition_read\","
+            "\"status\":\"{}\",\"dropped\":{},\"opcode_counts\":[", e->index, e->present_index,
+            window.dropped ? "truncated" : "complete", window.dropped);
+        for (u32 i = 0; i < window.opcode_counts.size(); ++i) {
+            if (i) f << ',';
+            f << window.opcode_counts[i];
+        }
+        f << "],\"records\":[";
+        for (u32 i = 0; i < window.used; ++i) {
+            if (i) f << ',';
+            const auto& r = window.records[i];
+            f << fmt::format("{{\"order\":{},\"kind\":{},\"opcode\":{},\"packet_words\":{},"
+                "\"command\":{},\"buffer_base\":{},\"buffer_words\":{},\"remaining_words\":{},\"submission\":{},"
+                "\"before_indices\":{},\"before_instances\":{},\"after_indices\":{},\"after_instances\":{},"
+                "\"stages\":{},\"primitive\":{},\"color_control\":{},\"color_mask\":{},"
+                "\"skipped\":{},\"skip_words\":{},\"programs\":[{},{},{},{},{},{}],\"raw_prefix\":[",
+                i, r.kind, r.opcode, r.packet_words, r.command, r.buffer_base, r.buffer_words,
+                r.remaining_words, r.submission, r.before_indices, r.before_instances, r.after_indices,
+                r.after_instances, r.stages, r.primitive, r.color_control, r.color_mask,
+                r.skipped ? "true" : "false", r.skip_words,
+                r.programs[0], r.programs[1], r.programs[2], r.programs[3], r.programs[4], r.programs[5]);
+            for (u32 j = 0; j < r.raw_words; ++j) { if (j) f << ','; f << r.raw[j]; }
+            f << ']';
+            if (producer_enabled) f << fmt::format(",\"producer_serial\":{}", r.producer_serial);
+            f << '}';
+        }
+        f << "]";
+        if (submission_enabled) {
+            f << fmt::format(",\"submission_samples\":{{\"contract\":\"command_submission_samples_v1\","
+                "\"hash_algorithm\":\"xxh3_64\",\"sample_limit_words\":262144,"
+                "\"atomicity\":\"not_proven\",\"association\":\"submission_id_across_prepare_intervals\","
+                "\"status\":\"{}\",\"dropped\":{},\"records\":[",
+                window.submission_dropped ? "truncated" : "complete", window.submission_dropped);
+            for (u32 i = 0; i < window.submission_used; ++i) {
+                if (i) f << ',';
+                const auto& r = window.submissions[i];
+                f << fmt::format("{{\"order\":{},\"submission\":{},\"kind\":{},\"copy_mode\":{},\"samples\":[",
+                                 i, r.submission, r.kind, r.copy_mode);
+                for (u32 j = 0; j < r.samples.size(); ++j) {
+                    if (j) f << ',';
+                    const auto& s = r.samples[j];
+                    f << fmt::format("{{\"address\":{},\"words\":{},\"hash\":\"{:016x}\",\"status\":{}}}",
+                                     s.address, s.words, s.hash, s.status);
+                }
+                f << "]}";
+            }
+            f << "]}";
+        }
+        if (producer_enabled) {
+            f << fmt::format(",\"producer_samples\":{{\"contract\":\"gnm_index_offset_producers_v2\","
+                "\"coverage\":\"successful_sceGnmDrawIndexOffset_only\","
+                "\"association\":\"collector_serial_address_packet_candidate_only\","
+                "\"stack\":\"windows_metadata_to_import_caller_then_guest_frame_links\","
+                "\"status\":\"{}\",\"dropped\":{}",
+                window.producer_dropped ? "truncated" : "complete", window.producer_dropped);
+            if (list_enabled) f << fmt::format(",\"list_contract\":\"knack_render_list_point_samples_v1\","
+                "\"list_atomicity\":\"not_proven\",\"list_count_limit\":4096,\"list_byte_budget\":1048576,"
+                "\"list_scan_attempts\":{},\"list_reserved_bytes\":{}", window.list_key_used, window.list_scan_bytes);
+            f << ",\"records\":[";
+            for (u32 i = 0; i < window.producer_used; ++i) {
+                if (i) f << ',';
+                const auto& r = window.producers[i];
+                f << fmt::format("{{\"order\":{},\"serial\":{},\"command\":{},\"thread\":{},"
+                    "\"packet\":[{},{},{},{},{}],\"caller\":{},\"caller_allocation_base\":{},"
+                    "\"guest_frame\":{},\"guest_stack\":{},\"host_unwind\":{},\"host_steps\":{},"
+                    "\"stop\":{},\"frames\":[", i, r.serial, r.command,
+                    r.thread, r.packet[0], r.packet[1], r.packet[2], r.packet[3], r.packet[4],
+                    r.caller, r.caller_allocation_base, r.guest_frame, r.guest_stack,
+                    r.host_unwind, r.host_steps, r.stop);
+                for (u32 j = 0; j < r.frame_count; ++j) {
+                    if (j) f << ',';
+                    f << fmt::format("{{\"frame\":{},\"caller\":{},\"caller_allocation_base\":{}}}",
+                                     r.frames[j].frame, r.frames[j].caller, r.frames[j].caller_allocation_base);
+                }
+                f << ']';
+                if (list_enabled) {
+                    const auto& q = r.list;
+                    f << fmt::format(",\"list\":{{\"status\":{},\"scan_status\":{},\"owner_frame\":{},"
+                        "\"builder_frame\":{},\"list\":{},\"entries\":{},\"sort_keys\":{},\"cursor\":{},"
+                        "\"count\":{},\"capacity\":{},\"batch_count\":{},\"scanned\":{},"
+                        "\"null_records\":{},\"null_materials\":{},\"readable_materials\":{},\"unreadable_materials\":{}}}",
+                        q.status, q.scan_status, q.owner_frame, q.builder_frame, q.list, q.entries, q.sort_keys,
+                        q.cursor, q.count, q.capacity, q.batch_count, q.scanned, q.null_records,
+                        q.null_materials, q.readable_materials, q.unreadable_materials);
+                }
+                f << '}';
+            }
+            f << "]}";
+        }
+        f << "}\n"; f.close(); return bool(f);
+    }
+    void PublishObservation(const std::shared_ptr<Epoch>& e) {
+        if (!error.empty() || !e->presented || !e->prepared || e->snapshots.empty() ||
+            !std::ranges::all_of(e->snapshots, [](const auto& item) { return item.saved; })) return;
+        std::ofstream f(dir / fmt::format("frame_{:03}.json", e->index));
+        f << fmt::format("{{\"schema\":3,\"contract\":\"stage_observations_v1\",\"frame_index\":{},"
+            "\"present_index\":{},\"association\":\"prepare_interval_only\",\"content_path\":\"not_proven\","
+            "\"gbuffer_status\":\"{}\",\"attachments\":[{}],\"snapshots\":[",
+            e->index, e->present_index, e->observation_ambiguous ? "ambiguous" : e->gbuffer ? "observed" : "missing", e->attachments);
+        for (size_t i = 0; i < e->snapshots.size(); ++i) {
+            const auto& item = e->snapshots[i]; if (i) f << ',';
+            f << fmt::format("{{\"stage\":\"{}\",\"file\":\"{}\",\"format\":\"{}\",\"identity\":{},"
+                "\"width\":{},\"height\":{},\"bytes\":{},\"content_hash\":\"{}\",\"scheduler_tick\":{},"
+                "\"event_sequence\":{},\"submit_sequence\":{}}}", item.stage, item.file, item.format,
+                item.identity, item.width, item.height, item.bytes, item.hash, item.tick, item.event, item.submit);
+        }
+        f << "]";
+        if (e->draw_trace) f << fmt::format(",\"draw_trace\":\"draw_trace_{:03}.json\"", e->index);
+        if (e->draw_trace && e->draw_trace->pm4)
+            f << fmt::format(",\"pm4_trace\":\"pm4_trace_{:03}.json\"", e->index);
+        f << "}\n"; f.close();
+        if (!f) { Fail("observation_manifest_write_failed"); return; }
+        if (!WriteDrawTrace(e)) std::printf("RELIC-TRACE: write failed frame=%u; observations retained\n", e->index);
+        if (!WritePm4Trace(e)) std::printf("RELIC-PM4: write failed frame=%u; observations retained\n", e->index);
+        completed = epochs.size() == limit && std::ranges::all_of(epochs, [](const auto& item) {
+            return item->prepared && item->presented && !item->snapshots.empty() &&
+                std::ranges::all_of(item->snapshots, [](const auto& snapshot) { return snapshot.saved; });
+        });
+        if (completed) active.store(false, std::memory_order_release);
+        Session();
+    }
+    void Publish(const std::shared_ptr<Epoch>& e) {
+        if (observe) { PublishObservation(e); return; }
+        if (!error.empty()) return; // late callbacks cannot complete a failed capture
+        if (!e->presented || e->snapshots.size() != 3 ||
+            !std::ranges::all_of(e->snapshots, [](const auto& s) { return s.saved; })) return;
+        const auto path = dir / fmt::format("frame_{:03}.json", e->index);
+        std::ofstream f(path, std::ios::trunc);
+        f << fmt::format("{{\"schema\":2,\"contract\":\"ordered_resource_versions_v2\","
+                         "\"content_preservation\":\"not_asserted\",\"frame_index\":{},\"present_index\":{},"
+                         "\"submit_sequence\":{},\"display_uid\":{},\"display_address\":{},"
+                         "\"producer_vs\":\"6e383eb8\",\"producer_ps\":\"b1f064c3\","
+                         "\"first_consumer_ps\":\"836b20e6\",\"composition_cs\":\"4105cfbc\","
+                         "\"attachments\":[{}],\"snapshots\":[",
+                         e->index, e->present_index, e->submit_sequence, e->display_uid,
+                         e->display_address, e->attachments);
+        for (size_t i = 0; i < e->snapshots.size(); ++i) {
+            const auto& s = e->snapshots[i];
+            if (i) f << ',';
+            f << fmt::format("{{\"stage\":\"{}\",\"file\":\"{}\",\"format\":\"{}\","
+                             "\"image_uid\":{},\"guest_address\":{},\"alias_generation\":{},"
+                             "\"scheduler_tick\":{},\"width\":{},\"height\":{},\"bpp\":{},"
+                             "\"bytes\":{},\"samples\":1,\"mip\":0,\"layer\":0,"
+                             "\"hash_algorithm\":\"fnv1a64\",\"content_hash\":\"{}\","
+                             "\"identity\":{},\"event_sequence\":{},\"submit_sequence\":{}}}",
+                             s.stage, s.file, s.format, s.uid, s.address, s.alias, s.tick,
+                             s.width, s.height, s.bpp, s.bytes, s.hash, s.identity, s.event, s.submit);
+        }
+        f << "],\"resource_events\":[";
+        for (size_t i = 0; i < e->events.size(); ++i) {
+            if (i) f << ',';
+            f << e->events[i];
+        }
+        f << "]}\n";
+        f.close();
+        if (!f) { Fail("frame_manifest_write_failed"); return; }
+        std::printf("GPU-PHY-03: Frame %u saved present_index=%llu\n", e->index,
+                    static_cast<unsigned long long>(e->present_index));
+        completed = epochs.size() == limit && std::ranges::all_of(epochs, [](const auto& item) {
+            return item->presented && item->snapshots.size() == 3 &&
+                std::ranges::all_of(item->snapshots, [](const auto& s) { return s.saved; });
+        });
+        if (completed && error.empty()) {
+            active.store(false, std::memory_order_release);
+            std::printf("GPU-PHY-03: Completed frames=%u\n", limit);
+        }
+        Session();
+    }
+    static constexpr u64 StagingBudget = 128ull * 1024 * 1024;
+    bool Reserve(u64 size) {
+        if (!error.empty()) return false;
+        if (!size || size > StagingBudget || outstanding > StagingBudget - size) {
+            Fail("staging_budget_exceeded");
+            return false;
+        }
+        outstanding += size;
+        return true;
+    }
+    void Release(u64 size) {
+        if (size > outstanding) { Fail("staging_accounting_underflow"); return; }
+        outstanding -= size;
+    }
+    void BookSnapshot(const std::shared_ptr<Epoch>& e, Snapshot snapshot, const Identity& identity) {
+        snapshot.identity = identity.Json();
+        snapshot.event = ++event_sequence; snapshot.submit = submit_sequence;
+        e->snapshots.push_back(std::move(snapshot));
+    }
+    bool PreparedAdvance(const Identity& before, const Identity& after) const {
+        if (before == after) return true;
+        Identity cursor = before;
+        for (size_t step = 0; step < write_preparations.size(); ++step) {
+            bool found = false;
+            for (const auto& p : write_preparations) {
+                if (p.safe && p.before == cursor && p.before.SameStorage(p.after) && p.after != cursor) {
+                    cursor = p.after; found = true; break;
+                }
+            }
+            if (cursor == after) return true;
+            if (!found) break;
+        }
+        return false;
+    }
+    void NotePreparation(const Identity& before, const Identity& after, bool safe) {
+        if (write_preparations.size() >= 128) { Fail("write_preparation_budget_exceeded"); return; }
+        for (const auto& [key, proof] : lineage) {
+            if (!proof.epoch || !proof.version.Overlaps(before)) continue;
+            if (proof.version.Key() != before.Key() || !before.SameStorage(after) ||
+                !PreparedAdvance(proof.version, before) || !safe) {
+                std::printf("GPU-PHY-03: Unproven preparation safe=%u\n  tracked=%s\n  before=%s\n  after=%s\n",
+                            unsigned(safe), proof.version.Json().c_str(), before.Json().c_str(), after.Json().c_str());
+                Fail("unproven_image_write_preparation"); return;
+            }
+        }
+        write_preparations.push_back({before, after, safe && before.KnownRange() &&
+                                     after.KnownRange() && before.SameStorage(after)});
+    }
+    bool Independent(const Identity& binding) const {
+        // An unknown root/range cannot prove independence. Retain invalidated lineage entries
+        // too: their memory must not silently become a source again under a different version.
+        if (!root || !root->KnownRange() || !binding.KnownRange()) return false;
+        const auto conflicts = [&](const Identity& tracked) {
+            return !tracked.KnownRange() || tracked.uid == binding.uid ||
+                   tracked.Overlaps(binding);
+        };
+        if (conflicts(*root)) return false;
+        for (const auto& [key, proof] : lineage) {
+            if (conflicts(proof.version)) return false;
+        }
+        return true;
+    }
+    std::shared_ptr<Epoch> Read(const Identity& binding, bool full_image = true,
+                              const char* phase = "unknown", const Resource* resource = nullptr) {
+        const auto found = lineage.find(binding.Key());
+        if (found != lineage.end()) {
+            const auto& proof = found->second;
+            if (!full_image || !PreparedAdvance(proof.version, binding) || !proof.epoch) {
+                // Failure-only evidence. Do not rebase versions or change the rejection policy.
+                if (error.empty()) {
+                    std::string preparations;
+                    for (const auto& p : write_preparations) {
+                        if (!preparations.empty()) preparations += ',';
+                        preparations += fmt::format("{{\"before\":{},\"after\":{},\"safe\":{}}}",
+                            p.before.Json(), p.after.Json(), unsigned(p.safe));
+                    }
+                    const auto context = resource ? fmt::format(
+                        "{{\"shader\":\"{:08x}\",\"base_mip\":{},\"mip_count\":{},"
+                        "\"base_layer\":{},\"layer_count\":{},\"image_levels\":{},\"image_layers\":{}}}",
+                        resource->shader, resource->base_mip, resource->mip_count,
+                        resource->base_layer, resource->layer_count,
+                        resource->image_levels, resource->image_layers) : "null";
+                    const auto diagnostic = fmt::format(
+                        "{{\"phase\":\"{}\",\"full_image\":{},\"version_accepted\":{},"
+                        "\"epoch_missing\":{},\"tracked_epoch\":{},\"current_epoch\":{},"
+                        "\"same_storage\":{},\"from_composition\":{},\"event_sequence\":{},"
+                        "\"submit_sequence\":{},\"tracked\":{},\"incoming\":{},\"root\":{},"
+                        "\"resource\":{},\"preparations\":[{}]}}",
+                        phase, unsigned(full_image), unsigned(PreparedAdvance(proof.version, binding)),
+                        unsigned(!proof.epoch), proof.epoch ? int(proof.epoch->index) : -1,
+                        current ? int(current->index) : -1, unsigned(proof.version.SameStorage(binding)),
+                        unsigned(proof.from_composition), event_sequence, submit_sequence,
+                        proof.version.Json(), binding.Json(), root ? root->Json() : "null",
+                        context, preparations);
+                    std::printf("GPU-PHY-03: Read rejected %s\n", diagnostic.c_str());
+                }
+                Fail("stale_or_partial_lineage_binding");
+                return {};
+            }
+            if (!current || proof.epoch != current) {
+                Fail("cross_epoch_lineage");
+                return {};
+            }
+            return proof.epoch;
+        }
+        for (const auto& [key, proof] : lineage) {
+            if (proof.version.Overlaps(binding)) {
+                Fail("aliased_lineage_binding");
+                return {};
+            }
+        }
+        return {};
+    }
+    std::shared_ptr<Epoch> Source(const char* phase = "unknown") {
+        input_versions.clear(); input_from_composition = false;
+        std::shared_ptr<Epoch> source;
+        for (const auto& r : resources) {
+            if (r.access != Access::ReadOnly) continue;
+            const auto input = Read(r.binding, r.full_image, phase, &r);
+            if (!error.empty()) return {};
+            if (input && source && input != source) { Fail("mixed_epoch_inputs"); return {}; }
+            if (input) {
+                source = input;
+                if (input_versions.size() == 128) { Fail("association_input_budget_exceeded"); return {}; }
+                const auto& proof = lineage.at(r.binding.Key());
+                input_versions.push_back(proof.version);
+                input_from_composition |= proof.from_composition;
+            }
+        }
+        return source;
+    }
+    void Write(const Identity& binding, const std::shared_ptr<Epoch>& source, bool full_image = true,
+               const char* phase = "unknown", u64 shader = 0, u32 slot = ~0u,
+               const char* attachment_op = "none", u64 tick = 0, bool safe_storage = true) {
+        if (!error.empty()) return;
+        std::shared_ptr<Epoch> origin = source;
+        const auto previous = lineage.find(binding.Key());
+        const bool attachment = std::string_view(phase) == "draw_color" &&
+            (std::string_view(attachment_op) == "LOAD" || std::string_view(attachment_op) == "CLEAR");
+        const bool storage_write = std::string_view(phase) == "draw_storage" ||
+                                   std::string_view(phase) == "dispatch_storage";
+        const bool destination = previous != lineage.end() && previous->second.epoch == current &&
+            current && (attachment || storage_write) && full_image && safe_storage &&
+            PreparedAdvance(previous->second.version, binding);
+        if (!origin && destination) origin = current;
+        bool invalidated = false, touched = false;
+        Identity prior = binding;
+        bool prior_from_composition = false;
+        for (const auto& [key, proof] : lineage) {
+            if (!proof.version.Overlaps(binding)) continue;
+            touched = true;
+            if (key == binding.Key()) prior = proof.version;
+            const bool new_epoch = proof.epoch && proof.epoch != origin && proof.epoch->prepared &&
+                source == current && (std::string_view(phase) == "gbuffer_producer" ||
+                    (!input_versions.empty() && (std::string_view(phase) == "draw_color" ||
+                     std::string_view(phase) == "draw_storage" || std::string_view(phase) == "dispatch_storage")));
+            const bool retired = proof.epoch && proof.epoch->prepared && proof.epoch != current && !origin;
+            const bool conflict = proof.epoch && (!origin ||
+                (proof.epoch != origin && !new_epoch) || key != binding.Key() ||
+                !PreparedAdvance(proof.version, binding)) && !retired;
+            invalidated |= conflict;
+            if (proof.epoch == current && key == binding.Key())
+                prior_from_composition |= proof.from_composition;
+            if (conflict || !full_image || (origin && origin != current)) {
+                const auto& old = proof.version;
+                std::printf("GPU-PHY-03: Lineage overlap phase=%s shader=%08llx color_slot=%u\n"
+                    "  tracked: uid=%llu image=%p alias=%llu address=0x%llx bytes=%llu extent=%ux%u format=%u epoch=%lld\n",
+                    phase, static_cast<unsigned long long>(shader), slot,
+                    static_cast<unsigned long long>(old.uid), (void*)VkImage(old.image),
+                    static_cast<unsigned long long>(old.alias), static_cast<unsigned long long>(old.address),
+                    static_cast<unsigned long long>(old.bytes), old.width, old.height, old.format,
+                    proof.epoch ? static_cast<long long>(proof.epoch->index) : -1ll);
+            }
+        }
+        if (invalidated || (!full_image && (origin || touched)) || (origin && origin != current) ||
+            (origin && (!safe_storage || !binding.KnownRange()))) {
+            for (auto& [key, proof] : lineage) {
+                if (proof.version.Overlaps(binding)) proof.epoch.reset();
+            }
+            std::printf("GPU-PHY-03: Ambiguous write phase=%s shader=%08llx color_slot=%u attachment_op=%s\n"
+                "  incoming: uid=%llu image=%p alias=%llu address=0x%llx bytes=%llu extent=%ux%u format=%u\n"
+                "  origin: source_epoch=%lld current_epoch=%lld full_image=%u touched=%u invalidated=%u\n",
+                phase, static_cast<unsigned long long>(shader), slot, attachment_op,
+                static_cast<unsigned long long>(binding.uid), (void*)VkImage(binding.image),
+                static_cast<unsigned long long>(binding.alias), static_cast<unsigned long long>(binding.address),
+                static_cast<unsigned long long>(binding.bytes), binding.width, binding.height, binding.format,
+                source ? static_cast<long long>(source->index) : -1ll,
+                current ? static_cast<long long>(current->index) : -1ll,
+                unsigned(full_image), unsigned(touched), unsigned(invalidated));
+            Fail("ambiguous_lineage_write"); return;
+        }
+        if (!origin) {
+            // A prepared frame already owns its ordered staging copies and presenter token.
+            // A subsequent unassociated write cannot reuse that old frame's association.
+            for (auto it = lineage.begin(); it != lineage.end();) {
+                if (it->second.version.Overlaps(binding)) it = lineage.erase(it);
+                else ++it;
+            }
+            return;
+        }
+        if (origin->events.size() == 4096) { Fail("association_event_budget_exceeded"); return; }
+        std::string inputs;
+        if (source && std::string_view(phase) != "gbuffer_producer") {
+            for (const auto& input : input_versions) {
+                if (!inputs.empty()) inputs += ',';
+                inputs += input.Json();
+            }
+        }
+        const char* kind = std::string_view(phase) == "gbuffer_producer" ? "gbuffer_producer" :
+            !inputs.empty() ? "sampled_input" : destination ? "destination" : "explicit_source";
+        const bool from_composition = prior_from_composition || input_from_composition ||
+            (std::string_view(phase) == "dispatch_storage" && shader == 0x4105cfbc);
+        auto event = fmt::format("{{\"event_sequence\":{},\"submit_sequence\":{},"
+            "\"epoch_index\":{},\"tick\":{},\"phase\":\"{}\",\"shader\":\"{:08x}\","
+            "\"slot\":{},\"op\":\"{}\",\"kind\":\"{}\",\"before\":{},\"after\":{},"
+            "\"inputs\":[{}],\"after_composition\":{}}}", ++event_sequence, submit_sequence,
+            origin->index, tick, phase, shader, slot, attachment_op, kind, prior.Json(), binding.Json(),
+            inputs, origin->composition ? "true" : "false");
+        if (event.size() > AssociationBudget - event_bytes) {
+            Fail("association_metadata_budget_exceeded"); return;
+        }
+        event_bytes += event.size();
+        origin->events.push_back(std::move(event));
+        // This tag records an observed sequence of resource uses, never conservation of texels.
+        lineage[binding.Key()] = {binding, origin, from_composition};
+    }
+    bool Stage(const Instance& instance, Scheduler& scheduler, Runtime& runtime,
+               VideoCore::Image& image, const std::shared_ptr<Epoch>& e, const char* stage) {
+        const auto& ci = image.backing->image.image_ci;
+        u32 bpp{};
+        switch (ci.format) {
+        case vk::Format::eR8G8B8A8Unorm:
+        case vk::Format::eR8G8B8A8Srgb:
+        case vk::Format::eB8G8R8A8Unorm:
+        case vk::Format::eB8G8R8A8Srgb:
+        case vk::Format::eA2B10G10R10UnormPack32:
+        case vk::Format::eA2R10G10B10UnormPack32:
+        case vk::Format::eB10G11R11UfloatPack32: bpp = 4; break;
+        default: Fail("unsupported_snapshot_format"); return false;
+        }
+        if (ci.imageType != vk::ImageType::e2D || ci.samples != vk::SampleCountFlagBits::e1 ||
+            ci.mipLevels != 1 || ci.arrayLayers != 1 || ci.extent.depth != 1 ||
+            image.aspect_mask != vk::ImageAspectFlagBits::eColor || image.scene_proxy ||
+            !(ci.usage & vk::ImageUsageFlagBits::eTransferSrc) ||
+            !image.backing->subresource_states.empty() || !ci.extent.width || !ci.extent.height) {
+            Fail("unsupported_image_or_subresource"); return false;
+        }
+        const u64 size = u64(ci.extent.width) * ci.extent.height * bpp;
+        if (!Reserve(size)) return false;
+        // FlushBarriers may return immediately with no dependencies. EndRendering is therefore
+        // unconditional and ordered before both transitions and the copy, even for no-op Transit.
+        scheduler.EndRendering();
+        runtime.FlushBarriers();
+        const auto before = image.backing->state;
+        if (before.layout == vk::ImageLayout::eUndefined) {
+            Release(size); Fail("undefined_snapshot_layout"); return false;
+        }
+        const VkBufferCreateInfo buffer_ci{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size = size, .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+        const VmaAllocationCreateInfo allocation_ci{
+            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST};
+        VkBuffer buffer{};
+        VmaAllocation allocation{};
+        VmaAllocationInfo info{};
+        if (vmaCreateBuffer(instance.GetAllocator(), &buffer_ci, &allocation_ci, &buffer,
+                            &allocation, &info) != VK_SUCCESS) {
+            Release(size); Fail("staging_allocation_failed"); return false;
+        }
+        if (!info.pMappedData) {
+            vmaDestroyBuffer(instance.GetAllocator(), buffer, allocation);
+            Release(size);
+            Fail("staging_not_mapped"); return false;
+        }
+        // Called at a sampled-input transition or after a dispatch, never inside a draw.
+        // Rendering already ended explicitly above. No Finish/queue wait.
+        runtime.Transit(&image, vk::ImageLayout::eTransferSrcOptimal,
+                        vk::PipelineStageFlagBits2::eCopy, vk::AccessFlagBits2::eTransferRead);
+        runtime.FlushBarriers();
+        const auto handle = image.GetImage();
+        const vk::BufferImageCopy region{
+            .imageSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1}, .imageExtent = ci.extent};
+        scheduler.Record([handle, buffer, region](vk::CommandBuffer cmd) {
+            cmd.copyImageToBuffer(handle, vk::ImageLayout::eTransferSrcOptimal, buffer, region);
+            const vk::BufferMemoryBarrier2 host{
+                .srcStageMask = vk::PipelineStageFlagBits2::eCopy,
+                .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+                .dstStageMask = vk::PipelineStageFlagBits2::eHost,
+                .dstAccessMask = vk::AccessFlagBits2::eHostRead,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer = buffer, .offset = 0, .size = VK_WHOLE_SIZE};
+            cmd.pipelineBarrier2({.bufferMemoryBarrierCount = 1, .pBufferMemoryBarriers = &host});
+        });
+        runtime.Transit(&image, before.layout, before.pl_stage, before.access_mask);
+        runtime.FlushBarriers();
+        const size_t slot = e->snapshots.size();
+        const auto file = fmt::format("{}_{:03}.raw", stage, e->index);
+        BookSnapshot(e, {stage, file, vk::to_string(ci.format), {}, image.image_uid,
+            image.info.guest_address, image.alias_generation, scheduler.CurrentTick(), size,
+            ci.extent.width, ci.extent.height, bpp, false}, {image.image_uid, image.GetImage(),
+            image.alias_generation, image.info.guest_address, image.info.guest_size,
+            ci.extent.width, ci.extent.height, u32(ci.format)});
+        std::printf("GPU-PHY-03: Frame %u staged stage=%s bytes=%llu\n", e->index, stage,
+                    static_cast<unsigned long long>(size));
+        scheduler.DeferPriorityOperation([this, e, slot, allocator = instance.GetAllocator(),
+                                         buffer, allocation, info, size, path = dir / file] {
+            bool ok = vmaInvalidateAllocation(allocator, allocation, 0, VK_WHOLE_SIZE) == VK_SUCCESS;
+            u64 hash = 14695981039346656037ull;
+            if (ok) {
+                const auto* bytes = static_cast<const u8*>(info.pMappedData);
+                for (u64 i = 0; i < size; ++i) { hash ^= bytes[i]; hash *= 1099511628211ull; }
+                std::ofstream output(path, std::ios::binary);
+                output.write(reinterpret_cast<const char*>(bytes), size);
+                output.close();
+                ok = bool(output);
+            }
+            vmaDestroyBuffer(allocator, buffer, allocation);
+            std::scoped_lock lock{mutex};
+            Release(size);
+            if (!ok) { Fail("snapshot_invalidate_or_write_failed"); return; }
+            e->snapshots[slot].hash = fmt::format("{:016x}", hash);
+            e->snapshots[slot].saved = true;
+            Publish(e);
+        });
+        return true;
+    }
+};
+Identity Identify(const VideoCore::Image& image) {
+    const auto& ci = image.backing->image.image_ci;
+    return {image.image_uid, image.GetImage(), image.alias_generation, image.info.guest_address,
+            image.info.guest_size, ci.extent.width, ci.extent.height, u32(ci.format)};
+}
+bool StableBindings(State& s, VideoCore::TextureCache& cache,
+                    const char* phase = "binding_resolution") {
+    for (const auto& resource : s.resources) {
+        const auto current = Identify(cache.GetImage(resource.id));
+        if (!(resource.binding == current)) {
+            auto without_generation_change = current;
+            without_generation_change.alias = resource.binding.alias;
+            const bool independent_generation = resource.access == Access::ReadOnly &&
+                without_generation_change == resource.binding &&
+                s.Independent(resource.binding) && s.Independent(current);
+            if (resource.access == Access::ReadOnly &&
+                s.PreparedAdvance(resource.binding, current)) continue;
+            std::string changed;
+            const auto add_changed = [&](const char* name) {
+                if (!changed.empty()) {
+                    changed += ',';
+                }
+                changed += name;
+            };
+            if (resource.binding.uid != current.uid) add_changed("image_uid");
+            if (resource.binding.image != current.image) add_changed("vk_image");
+            if (resource.binding.alias != current.alias) add_changed("alias_generation");
+            if (resource.binding.address != current.address) add_changed("guest_address");
+            if (resource.binding.bytes != current.bytes) add_changed("guest_size");
+            if (resource.binding.width != current.width || resource.binding.height != current.height) add_changed("extent");
+            if (resource.binding.format != current.format) add_changed("format");
+
+            std::printf("GPU-PHY-03: Binding changed image_id=%u changed=[%s]\n"
+                        "  before: uid=%llu image=%p alias=%llu address=0x%llx bytes=%llu extent=%ux%u format=%s(%u)\n"
+                        "  after:  uid=%llu image=%p alias=%llu address=0x%llx bytes=%llu extent=%ux%u format=%s(%u)\n",
+                        resource.id.index, changed.c_str(),
+                        static_cast<unsigned long long>(resource.binding.uid),
+                        (void*)VkImage(resource.binding.image),
+                        static_cast<unsigned long long>(resource.binding.alias),
+                        static_cast<unsigned long long>(resource.binding.address),
+                        static_cast<unsigned long long>(resource.binding.bytes),
+                        resource.binding.width, resource.binding.height,
+                        vk::to_string(static_cast<vk::Format>(resource.binding.format)).c_str(),
+                        resource.binding.format,
+                        static_cast<unsigned long long>(current.uid),
+                        (void*)VkImage(current.image),
+                        static_cast<unsigned long long>(current.alias),
+                        static_cast<unsigned long long>(current.address),
+                        static_cast<unsigned long long>(current.bytes),
+                        current.width, current.height,
+                        vk::to_string(static_cast<vk::Format>(current.format)).c_str(),
+                        current.format);
+            std::printf("  context: phase=%s shader=%08llx access=%s subresource=m%u+%u/l%u+%u "
+                        "independent_before=%u independent_after=%u decision=%s\n",
+                        phase, static_cast<unsigned long long>(resource.shader),
+                        resource.access == Access::ReadOnly ? "read_only" :
+                        resource.access == Access::Atomic ? "atomic" : "may_write",
+                        resource.base_mip, resource.mip_count,
+                        resource.base_layer, resource.layer_count,
+                        unsigned(s.Independent(resource.binding)), unsigned(s.Independent(current)),
+                        independent_generation ? "independent_generation" : "fail");
+            for (size_t i = 0; i < s.draw_targets.size(); ++i) {
+                const auto& target = s.draw_targets[i];
+                std::printf("  target: slot=%u uid=%llu alias=%llu address=0x%llx bytes=%llu\n",
+                            unsigned(i), static_cast<unsigned long long>(target.uid),
+                            static_cast<unsigned long long>(target.alias),
+                            static_cast<unsigned long long>(target.address),
+                            static_cast<unsigned long long>(target.bytes));
+            }
+            // Preparing an unrelated read/target (e.g. a depth mip chain) can publish a new
+            // generation. Do not rebase its snapshot or manufacture any lineage for it.
+            // Root/derived overlaps and all structural changes still fail conservatively.
+            if (independent_generation) continue;
+            s.Fail("binding_changed_during_resolution");
+            return false;
+        }
+    }
+    return true;
+}
+State& Get() {
+    // Deferred scheduler callbacks can outlive other static objects during shutdown.
+    // Keep only this small metadata owner alive for the process; staging frees at its tick.
+    static State* const state = new State;
+    return *state;
+}
+} // namespace
+
+bool Enabled() { const auto& s = Get(); return s.trigger && *s.trigger; }
+bool Recording() { return Get().active.load(std::memory_order_acquire); }
+bool NeedsBoundary() {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    std::error_code ec;
+    return s.active || (!s.requested && s.trigger && *s.trigger &&
+                         std::filesystem::exists(s.trigger, ec));
+}
+
+void BeginBind() {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    s.resources.clear(); s.draw_targets.clear();
+    s.write_preparations.clear(); s.pending_writes.clear();
+    s.input_versions.clear(); s.input_from_composition = false;
+}
+void BeginImageWrite(VideoCore::TextureCache& cache, VideoCore::ImageId id) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (!s.active || s.observe) return;
+    const auto& image = cache.GetImage(id);
+    if (s.pending_writes.contains(id)) { s.Fail("duplicate_write_preparation"); return; }
+    s.pending_writes[id] = {Identify(image), False(image.flags & VideoCore::ImageFlagBits::Aliased)};
+}
+void EndImageWrite(VideoCore::TextureCache& cache, VideoCore::ImageId id) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (!s.active || s.observe) return;
+    const auto pending = s.pending_writes.find(id);
+    if (pending == s.pending_writes.end()) { s.Fail("missing_write_preparation"); return; }
+    const auto& image = cache.GetImage(id);
+    s.NotePreparation(pending->second.first, Identify(image), pending->second.second &&
+                      False(image.flags & VideoCore::ImageFlagBits::Aliased));
+    s.pending_writes.erase(pending);
+}
+void BufferWrites(const Pipeline* pipeline) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (!s.active || s.observe || s.lineage.empty()) return;
+    for (const auto* stage : pipeline->GetStages()) {
+        if (!stage) continue;
+        for (const auto& resource : stage->buffers) {
+            if (resource.IsSpecial() || !resource.is_written) continue;
+            const auto sharp = resource.GetSharp(*stage);
+            Identity write{};
+            write.address = sharp.base_address;
+            write.bytes = sharp.GetSize();
+            for (auto& [key, proof] : s.lineage) {
+                if (write.bytes && proof.version.Overlaps(write)) {
+                    proof.epoch.reset();
+                    s.Fail("unobserved_buffer_write_to_lineage");
+                }
+            }
+        }
+    }
+}
+void Sample(const Instance& instance, Scheduler& scheduler, Runtime& runtime,
+            VideoCore::TextureCache& cache, VideoCore::ImageId id, Access access,
+            const VideoCore::SubresourceRange& range, u64 shader) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (!s.active) return;
+    auto& image = cache.GetImage(id);
+    const bool full_image = range == VideoCore::SubresourceRange{} &&
+        image.info.resources.levels == 1 && image.info.resources.layers == 1;
+    s.resources.push_back({id, access, Identify(image), full_image, shader,
+        range.base.level, range.extent.levels, range.base.layer, range.extent.layers,
+        image.info.resources.levels, image.info.resources.layers});
+    const auto& e = s.current;
+    if (!e || e->gbuffer || image.image_uid != e->gbuffer_uid || access != Access::ReadOnly) return;
+    if (shader != 0x836b20e6 || range.base.level || range.base.layer ||
+        range.extent.levels != 1 || range.extent.layers != 1 || image.GetImage() != e->gbuffer_image) {
+        s.Fail("unexpected_gbuffer_consumer_or_backing"); return;
+    }
+    e->gbuffer = s.Stage(instance, scheduler, runtime, image, e, "gbuffer");
+}
+template <typename Targets>
+void DrawTargets(VideoCore::TextureCache& cache, const GraphicsPipeline* pipeline,
+             const RenderState& state,
+             const Targets& targets, u64 tick) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (!s.active) return;
+    const auto& key = pipeline->GetGraphicsKey();
+    s.draw_targets.clear();
+    for (u32 i = 0; i < state.num_color_attachments; ++i) {
+        s.draw_targets.push_back(targets[i].first ? Identify(cache.GetImage(targets[i].first))
+                                                : Identity{});
+    }
+    const bool target = pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash == 0x6e383eb8 &&
+        key.mrt_mask == 0x1f && key.prim_type == AmdGpu::PrimitiveType::TriangleList &&
+        pipeline->GetStage(Shader::SwStage::Fragment).pgm_hash == 0xb1f064c3;
+    if (target && s.current && s.current->gbuffer) {
+        if (s.observe) s.current->observation_ambiguous = true;
+        else { s.Fail("gbuffer_producer_after_snapshot"); return; }
+    }
+    if (target && !s.current) {
+        if (s.epochs.size() == s.limit) { s.Fail("more_scene_epochs_than_requested"); return; }
+        auto e = std::make_shared<Epoch>();
+        e->index = u32(s.epochs.size()); e->submit_sequence = s.submit_sequence;
+        for (u32 i = 0; i < 5; ++i) {
+            if (!targets[i].first) { s.Fail("missing_gbuffer_attachment"); return; }
+            const auto& image = cache.GetImage(targets[i].first);
+            if (state.color_attachments[i].image_layout != image.backing->state.layout ||
+                targets[i].second.view_info.range != VideoCore::SubresourceRange{} ||
+                image.scene_proxy || state.width != image.info.size.width ||
+                state.height != image.info.size.height) { s.Fail("redirected_gbuffer_attachment"); return; }
+            if (i) e->attachments += ',';
+            e->attachments += fmt::format("{{\"slot\":{},\"image_uid\":{},\"guest_address\":{},"
+                "\"format\":\"{}\",\"width\":{},\"height\":{},\"samples\":{}}}", i,
+                image.image_uid, image.info.guest_address, vk::to_string(image.info.pixel_format),
+                image.info.size.width, image.info.size.height, image.backing->num_samples);
+        }
+        auto& image = cache.GetImage(targets[2].first);
+        e->gbuffer_uid = image.image_uid; e->gbuffer_image = image.GetImage();
+        s.root = Identify(image);
+        s.epochs.push_back(e); s.current = e; s.Session();
+    }
+    if (s.observe) {
+        if (target && s.current && targets[2].first) {
+            const auto& image = cache.GetImage(targets[2].first);
+            if (image.image_uid != s.current->gbuffer_uid || image.GetImage() != s.current->gbuffer_image)
+                s.current->observation_ambiguous = true;
+        }
+        return;
+    }
+    if (!StableBindings(s, cache, "draw_targets")) return;
+    auto source = s.Source("draw_targets");
+    if (!s.error.empty()) return;
+    if (target) { source = s.current; s.input_versions.clear(); s.input_from_composition = false; }
+    for (u32 i = 0; i < state.num_color_attachments; ++i) {
+        if (!targets[i].first) continue;
+        // LOAD is not evidence of a fresh origin. Every writable attachment invalidates old
+        // provenance unless a current read-only input proves the source of this draw.
+        s.Write(Identify(cache.GetImage(targets[i].first)), source,
+                targets[i].second.view_info.range == VideoCore::SubresourceRange{},
+                target ? "gbuffer_producer" : "draw_color",
+                key.mrt_mask ? pipeline->GetStage(Shader::SwStage::Fragment).pgm_hash : 0,
+                i, state.color_attachments[i].is_clear ? "CLEAR" : "LOAD", tick,
+                False(cache.GetImage(targets[i].first).flags & VideoCore::ImageFlagBits::Aliased));
+        if (!s.error.empty()) return;
+    }
+    for (const auto& r : s.resources) {
+        if (r.access == Access::ReadOnly) continue;
+        s.Write(Identify(cache.GetImage(r.id)), source, r.full_image,
+                "draw_storage", r.shader, ~0u, "none", tick,
+                False(cache.GetImage(r.id).flags & VideoCore::ImageFlagBits::Aliased));
+        if (!s.error.empty()) return;
+    }
+}
+void Dispatch(const Instance& instance, Scheduler& scheduler, Runtime& runtime,
+              VideoCore::TextureCache& cache, u64 shader) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (!s.active || s.observe) return;
+    if (!StableBindings(s, cache, "dispatch")) return;
+    auto source = s.Source("dispatch");
+    if (!s.error.empty()) return;
+    if (shader == 0x4105cfbc) {
+        if (!s.current || !s.current->gbuffer || s.current->composition) {
+            s.Fail("unexpected_composition_epoch"); return;
+        }
+        const bool reads_gbuffer = std::ranges::any_of(s.resources, [&](const auto& r) {
+            const auto& image = cache.GetImage(r.id);
+            return r.access == Access::ReadOnly && image.image_uid == s.current->gbuffer_uid &&
+                   image.GetImage() == s.current->gbuffer_image;
+        });
+        if (!reads_gbuffer) { s.Fail("composition_gbuffer_identity_mismatch"); return; }
+        source = s.current;
+    }
+    u32 compositions{};
+    for (const auto& r : s.resources) {
+        if (r.access == Access::ReadOnly) continue;
+        auto& image = cache.GetImage(r.id);
+        s.Write(Identify(image), source, r.full_image, "dispatch_storage", shader, ~0u, "none",
+                scheduler.CurrentTick(), False(image.flags & VideoCore::ImageFlagBits::Aliased));
+        if (!s.error.empty()) return;
+        if (shader == 0x4105cfbc) {
+            if (image.info.pixel_format != vk::Format::eB10G11R11UfloatPack32 || ++compositions != 1) {
+                s.Fail("unexpected_composition_output"); return;
+            }
+            source->composition = s.Stage(instance, scheduler, runtime, image, source, "composition");
+        }
+    }
+    if (shader == 0x4105cfbc && compositions != 1) s.Fail("missing_composition_output");
+}
+void OnSubmit() {
+    auto& s = Get(); std::scoped_lock lock{s.mutex}; ++s.submit_sequence;
+}
+
+// Presenter calls these on its existing preparation/presentation paths. The actual successful
+// swapchain present assigns present_index, after matching the exact display image at preparation.
+void Prepare(const Instance& instance, Scheduler& scheduler, Runtime& runtime,
+             VideoCore::Image* image, const void* frame) {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (s.active) {
+        if (!image) { s.Fail("upscaled_display_unsupported"); return; }
+        if (s.observe) {
+            // A real Frame token binds this interval's observations to an actual presentation.
+            // It does not prove that the display's pixels came from the observed G-buffer.
+            if (s.prepared.contains(frame)) { s.Fail("frame_token_already_prepared"); return; }
+            auto e = s.current;
+            if (!e) {
+                if (s.epochs.size() >= s.limit) { s.Fail("more_scene_epochs_than_requested"); return; }
+                e = std::make_shared<Epoch>(); e->index = u32(s.epochs.size()); s.epochs.push_back(e);
+            }
+            e->display_uid = image->image_uid; e->display_address = image->info.guest_address;
+            if (s.Stage(instance, scheduler, runtime, *image, e, "display")) {
+                e->draw_trace = std::move(s.trace_window);
+                if (s.trace_enabled && e->index + 1 < s.limit) s.trace_window = std::make_shared<DrawTraceWindow>(s.pm4_enabled);
+                e->prepared = true; s.prepared[frame] = e; s.current.reset(); s.root.reset();
+                if (e->index + 1 == s.limit) s.active.store(false, std::memory_order_release);
+            }
+            return;
+        }
+        const auto e = s.Read(Identify(*image), true, "prepare_display");
+        if (!s.error.empty()) return;
+        if (!e || !e->composition || e->prepared || !s.lineage.at(Identify(*image).Key()).from_composition) {
+            s.Fail("display_lineage_missing_or_reused"); return;
+        }
+        if (s.prepared.contains(frame)) { s.Fail("frame_token_already_prepared"); return; }
+        if (e->index != s.prepared.size() + std::ranges::count_if(s.epochs, [](const auto& x) { return x->presented; })) {
+            s.Fail("display_epoch_out_of_order"); return;
+        }
+        e->display_uid = image->image_uid; e->display_address = image->info.guest_address;
+        if (s.Stage(instance, scheduler, runtime, *image, e, "display")) {
+            e->prepared = true; s.prepared[frame] = e;
+            s.current.reset(); s.root.reset();
+            if (e->index + 1 == s.limit) s.active.store(false, std::memory_order_release);
+        }
+    }
+    // Trigger starts after this frame: a mid-G-buffer request never yields a partial first frame.
+    s.Poll();
+}
+void Present(const void* frame, bool success, bool reused,
+             const char* failure_reason = "prepared_frame_not_presented") {
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (success) ++s.present_sequence;
+    if (reused) return;
+    const auto found = s.prepared.find(frame);
+    if (found == s.prepared.end()) return;
+    const auto e = found->second; s.prepared.erase(found);
+    if (!success) { s.Fail(failure_reason); return; }
+    e->presented = true; e->present_index = s.present_sequence;
+    if (e->index && e->present_index != s.epochs[e->index - 1]->present_index + 1) {
+        s.Fail("nonconsecutive_presents"); return;
+    }
+    s.Publish(e);
+}
+// kind: 1/2=direct entry/rejection, 3/4=direct/indirect emission, 5/6=indirect entry/rejection.
+bool TraceEnabled() { const auto& s = Get(); return s.trace_enabled && s.active.load(std::memory_order_acquire); }
+// Outcomes: 1=entry, 2=FilterDraw rejection, 3=no pipeline, 4=adjacency skip,
+// 5=forwarded to recording/queue, 6=special operation queued instead of a normal draw.
+void TraceFront(const AmdGpu::Regs& regs, u32 outcome, bool indexed, bool pipelined,
+                const GraphicsPipeline* pipeline = nullptr) {
+    if (!TraceEnabled()) return;
+    FrontTraceKey key;
+    for (u32 i = 0; i < key.programs.size(); ++i)
+        key.programs[i] = regs.ProgramForStage(i)->Address<u64>();
+    key.outcome = outcome; key.indexed = indexed; key.pipelined = pipelined;
+    key.stages = std::bit_cast<u32>(regs.stage_enable);
+    key.primitive = u32(regs.primitive_type);
+    key.color_control = std::bit_cast<u32>(regs.color_control);
+    key.color_mask = std::bit_cast<u32>(regs.color_target_mask);
+    if (pipeline) {
+        const auto& stages = pipeline->GetStages();
+        if (const auto* vs = stages[u32(Shader::SwStage::Vertex)]) key.vs_hash = vs->pgm_hash;
+        if (const auto* ps = stages[u32(Shader::SwStage::Fragment)]) key.ps_hash = ps->pgm_hash;
+    }
+    auto& s = Get(); std::scoped_lock lock{s.mutex};
+    if (s.active && s.trace_enabled && s.trace_window)
+        s.trace_window->AddFront(key, regs.num_indices, regs.num_instances.NumInstances(),
+                                regs.num_instances.num_instances == 0);
+}
+void TraceDraw(const GraphicsPipeline* pipeline, const AmdGpu::Regs& regs,
+               std::span<const vk::DescriptorBufferInfo> buffers, const Shader::PushData& push,
+               u32 kind, bool indexed, u32 count, u32 instances, u32 first_instance,
+               u32 vertex_offset, u32 index_offset, u64 tick, vk::Buffer args = {},
+               u64 args_offset = 0, vk::Buffer counts = {}, u32 max_count = 0, u32 stride = 0) {
+    auto& s = Get();
+    if (!TraceEnabled() || !pipeline || pipeline->GetGraphicsKey().mrt_mask != 0x1f ||
+        pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash != 0x6e383eb8 ||
+        pipeline->GetStage(Shader::SwStage::Fragment).pgm_hash != 0xb1f064c3) return;
+    DrawTraceRecord r; r.kind = kind; r.indexed = indexed; r.count = count; r.instances = instances;
+    r.first_instance = first_instance; r.vertex_offset = vertex_offset; r.index_offset = index_offset;
+    r.mrt_mask = pipeline->GetGraphicsKey().mrt_mask; r.tick = tick;
+    r.pipeline = XXH3_64bits(&pipeline->GetGraphicsKey(), sizeof(pipeline->GetGraphicsKey()));
+    r.indirect_args = (u64)VkBuffer(args); r.indirect_offset = args_offset;
+    r.indirect_count = (u64)VkBuffer(counts); r.max_count = max_count; r.stride = stride;
+    r.depth = std::bit_cast<u32>(regs.depth_control); r.stencil = std::bit_cast<u32>(regs.stencil_control);
+    r.polygon = std::bit_cast<u32>(regs.polygon_control); r.clipper = std::bit_cast<u32>(regs.clipper_control);
+    r.color_mask = std::bit_cast<u32>(regs.color_target_mask);
+    const auto& vp = regs.viewports[0]; r.viewport = {std::bit_cast<u32>(vp.xscale), std::bit_cast<u32>(vp.xoffset), std::bit_cast<u32>(vp.yscale),
+        std::bit_cast<u32>(vp.yoffset), std::bit_cast<u32>(vp.zscale), std::bit_cast<u32>(vp.zoffset)};
+    static_assert(sizeof(regs.screen_scissor) == 8);
+    std::array<u32, 2> scissor; std::memcpy(scissor.data(), &regs.screen_scissor, sizeof(scissor));
+    r.scissor = {scissor[0], scissor[1]};
+    if (kind == 3 || kind == 4) {
+        size_t binding = 0;
+        for (const auto* stage : pipeline->GetStages()) {
+            if (!stage) continue;
+            for (u32 slot = 0; slot < stage->buffers.size(); ++slot, ++binding) {
+                if (stage->sw_stage != Shader::SwStage::Vertex || (slot != 0 && slot != 2) ||
+                    stage->buffers[slot].IsSpecial() || binding >= buffers.size() || binding >= push.buf_offsets.size()) continue;
+                const auto& b = buffers[binding];
+                r.buffers[slot / 2] = {true, (u64)VkBuffer(b.buffer), b.offset, b.range, push.buf_offsets[binding]};
+            }
+        }
+    }
+    std::scoped_lock lock{s.mutex}; s.RecordDrawTrace(r);
+}
+} // namespace GpuPhy03
+
+bool Rasterizer::RelicProducerTraceActive() const {
+    const auto& s = GpuPhy03::Get();
+    return s.producer_enabled && s.active.load(std::memory_order_acquire);
+}
+
+#ifdef _WIN32
+static u64 RelicExecutableAllocation(u64 address) {
+    MEMORY_BASIC_INFORMATION region{};
+    if (!address || !VirtualQuery(reinterpret_cast<const void*>(address), &region, sizeof(region)) ||
+        region.State != MEM_COMMIT || (region.Protect & (PAGE_GUARD | PAGE_NOACCESS)) ||
+        !(region.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)))
+        return 0;
+    return reinterpret_cast<uintptr_t>(region.AllocationBase);
+}
+
+static bool ReadRelicListBytes(u64 address, void* output, size_t bytes) {
+    if (!address || !bytes || address > ~0ull - bytes) return false;
+    SIZE_T got{};
+    return ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address), output,
+                             bytes, &got) && got == bytes;
+}
+
+static void SampleRelicListHeader(RelicProducerSample& r) {
+    const u64 base = r.caller_allocation_base;
+    constexpr std::array<u64, 4> returns{0xbf5834, 0xbe5989, 0xc348c5, 0x9bc831};
+    if (r.host_unwind != 1 || !base || r.caller - base != 0xbb05f1 || r.frame_count < returns.size()) return;
+    for (u32 i = 0; i < returns.size(); ++i)
+        if (r.frames[i].caller_allocation_base != base || r.frames[i].caller - base != returns[i]) return;
+    auto& q = r.list;
+    q.builder_frame = r.frames[2].frame; q.owner_frame = r.frames[3].frame;
+    // Read-only layout guards for the supported guest image. These are not code patches.
+    constexpr std::array<u8, 7> owner_store{0x4c,0x89,0x85,0x40,0xfe,0xff,0xff};
+    constexpr std::array<u8, 7> builder_store{0x48,0x89,0x9d,0x68,0xfe,0xff,0xff};
+    constexpr std::array<u8, 3> count_load{0x8b,0x43,0x40};
+    constexpr std::array<u8, 5> material_load{0x4a,0x8b,0x44,0x36,0xcc};
+    std::array<u8, 7> a{}, b{}; std::array<u8, 3> c{}; std::array<u8, 5> e{};
+    if (base > ~0ull - 0xc33bc2 ||
+        !ReadRelicListBytes(base + 0xc33bbb, a.data(), a.size()) || a != owner_store ||
+        !ReadRelicListBytes(base + 0xbe56f5, b.data(), b.size()) || b != builder_store ||
+        !ReadRelicListBytes(base + 0xbe5684, c.data(), c.size()) || c != count_load ||
+        !ReadRelicListBytes(base + 0xbe579a, e.data(), e.size()) || e != material_load) {
+        q.status = 2; return;
+    }
+    u64 builder_list{};
+    if (q.owner_frame < 0x1c0 || q.builder_frame < 0x1b0 ||
+        !ReadRelicListBytes(q.owner_frame - 0x1c0, &q.list, sizeof(q.list)) ||
+        !ReadRelicListBytes(q.builder_frame - 0x198, &builder_list, sizeof(builder_list)) ||
+        !ReadRelicListBytes(q.builder_frame - 0x164, &q.batch_count, sizeof(q.batch_count)) ||
+        !ReadRelicListBytes(q.builder_frame - 0x1b0, &q.cursor, sizeof(q.cursor))) {
+        q.status = 3; return;
+    }
+    if (q.list != builder_list) { q.status = 6; return; }
+    std::array<u8, 0x48> header{};
+    if (!ReadRelicListBytes(q.list, header.data(), header.size())) { q.status = 3; return; }
+    std::memcpy(&q.entries, header.data(), 8); std::memcpy(&q.sort_keys, header.data() + 8, 8);
+    std::memcpy(&q.count, header.data() + 0x40, 4); std::memcpy(&q.capacity, header.data() + 0x44, 4);
+    if ((q.list & 7) || q.count > q.capacity || q.capacity > 0x7fffffffu ||
+        (q.count && !q.entries) || !q.batch_count || q.batch_count > 64 ||
+        q.cursor < 0x54 || (q.cursor - 0x54) % 0x58) { q.status = 4; return; }
+    q.status = 1;
+}
+
+static void ScanRelicListMaterials(RelicListSample& q) {
+    // The caller reserves a bounded payload budget before reaching this function.
+    if (q.count > GpuPhy03::Pm4TraceWindow::ListCountLimit) { q.scan_status = 4; return; }
+    std::vector<u8> entries(size_t(q.count) * 0x58);
+    if (!entries.empty() && !ReadRelicListBytes(q.entries, entries.data(), entries.size())) {
+        q.scan_status = 5; return;
+    }
+    for (u32 i = 0; i < q.count; ++i) {
+        u64 record{}, material{};
+        std::memcpy(&record, entries.data() + size_t(i) * 0x58 + 0x20, 8);
+        ++q.scanned;
+        if (!record) ++q.null_records;
+        else if (!ReadRelicListBytes(record, &material, sizeof(material))) ++q.unreadable_materials;
+        else if (!material) ++q.null_materials;
+        else ++q.readable_materials;
+    }
+    std::array<u8, 0x48> after{};
+    if (!ReadRelicListBytes(q.list, after.data(), after.size())) { q.scan_status = 8; return; }
+    u64 pointer{}; u32 count{}, capacity{};
+    std::memcpy(&pointer, after.data(), 8); std::memcpy(&count, after.data() + 0x40, 4);
+    std::memcpy(&capacity, after.data() + 0x44, 4);
+    if (pointer != q.entries || count != q.count || capacity != q.capacity) { q.scan_status = 7; return; }
+    q.scan_status = q.unreadable_materials ? 6 : 1;
+}
+
+static void WalkRelicGuestFrames(RelicProducerSample& r) {
+    u64 frame = r.guest_frame;
+    while (frame && r.frame_count < r.frames.size()) {
+        if ((frame & 7) || frame < r.guest_stack || frame - r.guest_stack > (1ull << 20) || frame > ~0ull - 16) {
+            r.stop = 3; break;
+        }
+        u64 pair[2]{}; SIZE_T got{};
+        if (!ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(frame),
+                               pair, sizeof(pair), &got) || got != sizeof(pair)) {
+            r.stop = 2; break;
+        }
+        if (!pair[1]) { r.stop = 1; break; }
+        const u64 allocation = RelicExecutableAllocation(pair[1]);
+        if (!allocation) { r.stop = 7; break; }
+        auto& link = r.frames[r.frame_count++];
+        link = {frame, pair[1], allocation};
+        if (!pair[0]) { frame = 0; break; }
+        if (pair[0] <= frame) { r.stop = 3; break; }
+        frame = pair[0];
+    }
+    if (!r.stop) r.stop = frame ? 5 : 1;
+}
+#endif
+
+[[gnu::noinline]] void Rasterizer::TraceRelicProducer(const u32* command, u64 expected_caller) {
+    if (!RelicProducerTraceActive()) return;
+    RelicProducerSample r;
+    r.command = reinterpret_cast<uintptr_t>(command);
+    r.caller = expected_caller; // compiler-provided return PC in the ABI entry
+    // The ABI writer just wrote these five words. Nothing beyond that packet is sampled.
+    std::copy_n(command, r.packet.size(), r.packet.begin());
+#ifdef _WIN32
+    r.thread = GetCurrentThreadId();
+    r.caller_allocation_base = RelicExecutableAllocation(expected_caller);
+    if (!r.caller_allocation_base) {
+        r.host_unwind = 6;
+    } else {
+        CONTEXT context{};
+        RtlCaptureContext(&context);
+        const u64 origin = context.Rsp;
+        // Only unwind registered host frames, stopping at the exact import caller.
+        // The context is a local copy. No exception handler or guest unwind is invoked.
+        for (u32 i = 0; i < 4; ++i) {
+            DWORD64 image_base{};
+            auto* entry = RtlLookupFunctionEntry(context.Rip, &image_base, nullptr);
+            if (!entry) { r.host_unwind = 2; break; }
+            const u64 previous_sp = context.Rsp;
+            const u64 previous_pc = context.Rip;
+            void* handler_data{}; DWORD64 establisher{};
+            RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, entry, &context,
+                             &handler_data, &establisher, nullptr);
+            ++r.host_steps;
+            if (context.Rsp <= previous_sp || context.Rsp < origin ||
+                context.Rsp - origin > (1ull << 20) || !context.Rip || context.Rip == previous_pc) {
+                r.host_unwind = 3; break;
+            }
+            if (context.Rip == expected_caller) {
+                r.host_unwind = 1;
+                r.guest_frame = context.Rbp; r.guest_stack = context.Rsp;
+                WalkRelicGuestFrames(r);
+                break;
+            }
+        }
+        if (!r.host_unwind) r.host_unwind = 4;
+    }
+    if (r.host_unwind != 1) r.stop = 6;
+#else
+    r.host_unwind = 5; r.stop = 4;
+#endif
+    auto& s = GpuPhy03::Get();
+    if (s.list_enabled) {
+#ifdef _WIN32
+        SampleRelicListHeader(r);
+        if (r.list.status == 1) {
+            {
+                std::scoped_lock reservation{s.mutex};
+                if (s.active && s.trace_window && s.trace_window->pm4)
+                    r.list.scan_status = s.trace_window->pm4->ReserveListScan(r.list);
+            }
+            if (r.list.scan_status == 1) ScanRelicListMaterials(r.list);
+        }
+#else
+        r.list.status = 5;
+#endif
+    }
+    // Safe stack reads happen before taking the capture lock. No guest writes or waits.
+    std::scoped_lock lock{s.mutex};
+    if (s.active && s.trace_window && s.trace_window->pm4) {
+        r.serial = ++s.producer_sequence;
+        s.trace_window->pm4->AddProducer(r);
+    }
+}
+
+bool Rasterizer::RelicPm4TraceActive() const {
+    const auto& s = GpuPhy03::Get();
+    return s.pm4_enabled && s.active.load(std::memory_order_acquire);
+}
+
+bool Rasterizer::RelicSubmissionTraceActive() const {
+    const auto& s = GpuPhy03::Get();
+    return s.submission_enabled && s.active.load(std::memory_order_acquire);
+}
+
+RelicCommandSample Rasterizer::SampleRelicCommands(std::span<const u32> commands) {
+    RelicCommandSample sample;
+    sample.address = reinterpret_cast<uintptr_t>(commands.data()); sample.words = commands.size();
+    if (commands.size() > 262144) { sample.status = 2; return sample; }
+    sample.status = 1;
+    sample.hash = XXH3_64bits(commands.data(), commands.size_bytes());
+    return sample;
+}
+
+void Rasterizer::RecordRelicSubmission(const RelicSubmissionSample& sample) {
+    if (!RelicSubmissionTraceActive()) return;
+    auto& s = GpuPhy03::Get(); std::scoped_lock lock{s.mutex};
+    if (s.active && s.trace_window && s.trace_window->pm4)
+        s.trace_window->pm4->AddSubmission(sample);
+}
+
+void Rasterizer::TraceRelicConsumption(u32 kind, std::span<const u32> dcb,
+                                      std::span<const u32> ccb, u64 submission) {
+    if (!RelicSubmissionTraceActive()) return;
+    RelicSubmissionSample sample; sample.kind = kind; sample.submission = submission;
+    sample.samples[0] = SampleRelicCommands(dcb); sample.samples[1] = SampleRelicCommands(ccb);
+    RecordRelicSubmission(sample);
+}
+
+void Rasterizer::TraceRelicPm4(u32 kind, u32 opcode, std::span<const u32> remaining,
+                              u32 packet_words, u64 buffer_base, u64 buffer_words,
+                              u64 submission, u32 before_indices, u32 before_instances,
+                              bool skipped, u32 skip_words) {
+    if (!RelicPm4TraceActive()) return;
+    const auto& regs = Regs();
+    GpuPhy03::Pm4TraceRecord r;
+    r.kind = kind; r.opcode = opcode; r.packet_words = packet_words;
+    r.command = reinterpret_cast<uintptr_t>(remaining.data());
+    r.buffer_base = buffer_base; r.buffer_words = buffer_words;
+    r.remaining_words = remaining.size(); r.submission = submission;
+    r.before_indices = before_indices; r.before_instances = before_instances;
+    r.after_indices = regs.num_indices; r.after_instances = regs.num_instances.num_instances;
+    r.skipped = skipped; r.skip_words = skip_words;
+    bool retain = kind != 1 || r.before_indices != r.after_indices || r.before_instances != r.after_instances;
+    using Op = AmdGpu::PM4ItOpcode;
+    switch (Op(opcode)) {
+    case Op::NumInstances: case Op::DrawIndex2: case Op::DrawIndexOffset2: case Op::DrawIndexAuto:
+    case Op::DrawIndirect: case Op::DrawIndirectMulti: case Op::DrawIndexIndirect:
+    case Op::DrawIndexIndirectMulti: case Op::DrawIndexIndirectCountMulti:
+    case Op::CondExec: case Op::IndirectBuffer: case Op::ClearState:
+        retain = true; break;
+    default: break;
+    }
+    if (retain) {
+        r.stages = std::bit_cast<u32>(regs.stage_enable); r.primitive = u32(regs.primitive_type);
+        r.color_control = std::bit_cast<u32>(regs.color_control);
+        r.color_mask = std::bit_cast<u32>(regs.color_target_mask);
+        for (u32 i = 0; i < r.programs.size(); ++i) r.programs[i] = regs.ProgramForStage(i)->Address<u64>();
+        if (kind == 1 || kind == 2) {
+            r.raw_words = u32(std::min({remaining.size(), size_t(packet_words), r.raw.size()}));
+            std::copy_n(remaining.begin(), r.raw_words, r.raw.begin());
+        }
+    }
+    auto& s = GpuPhy03::Get(); std::scoped_lock lock{s.mutex};
+    if (s.active && s.trace_window && s.trace_window->pm4) {
+        if (s.producer_enabled && retain) r.producer_serial = ++s.producer_sequence;
+        s.trace_window->pm4->Add(r, retain);
+    }
+}
+
+namespace {
+
+constexpr u64 KnackDetachedGeometryShader = 0x8943ac2c;
+constexpr u64 KnackSmallGeometryVertexShader = 0x6e383eb8;
+
+// Opt-in occlusion probe for Knack's detached/dynamic geometry. A trigger records a short
+// window only. The original query says whether the real draw produced samples after fragment,
+// depth and stencil tests. The relaxed query repeats the draw with color writes disabled and
+// depth, stencil, culling and rasterizer-discard disabled; it changes no pixels and separates
+// visibility tests from geometry/clip output.
+class KnackContributionProbe {
+public:
+    struct Token {
+        u32 original;
+        u32 relaxed;
+        bool has_relaxed;
+    };
+
+    static std::unique_ptr<KnackContributionProbe> Create(const Instance& instance) {
+        const char* trigger = std::getenv("TLG_KNACK_CONTRIB_TRIGGER");
+        if (!trigger || !trigger[0]) {
+            return {};
+        }
+        return std::unique_ptr<KnackContributionProbe>(
+            new KnackContributionProbe(instance, trigger));
+    }
+
+    KnackContributionProbe(const Instance& instance, const char* trigger_)
+        : device{instance.GetDevice()}, trigger{trigger_},
+          relaxed_supported{instance.IsDynamicColorWriteMaskSupported()} {
+        const char* shader = std::getenv("TLG_KNACK_CONTRIB_GS");
+        if (shader && std::strcmp(shader, "any") == 0) {
+            target_shader = 0;
+        } else if (shader && shader[0]) {
+            target_shader = std::strtoull(shader, nullptr, 0);
+        }
+        if (const char* frames = std::getenv("TLG_KNACK_CONTRIB_FRAMES")) {
+            capture_frames = std::clamp<u32>(std::strtoul(frames, nullptr, 10), 1, 64);
+        }
+        if (const char* draws = std::getenv("TLG_KNACK_CONTRIB_MAX_DRAWS")) {
+            max_draws = std::clamp<u32>(std::strtoul(draws, nullptr, 10), 1,
+                                        QueriesPerSlice / (relaxed_supported ? 2 : 1));
+        }
+        const vk::QueryPoolCreateInfo info = {
+            .queryType = vk::QueryType::eOcclusion,
+            .queryCount = NumSlices * QueriesPerSlice,
+        };
+        pool = Check<"create Knack contribution query pool">(device.createQueryPoolUnique(info));
+        device.resetQueryPool(*pool, 0, NumSlices * QueriesPerSlice);
+        for (auto& slice_entries : entries) {
+            slice_entries.reserve(QueriesPerSlice);
+        }
+        std::printf("KNACK-PX: Armed relaxed=%u target=%s trigger=%s\n", u32(relaxed_supported),
+                    target_shader ? fmt::format("{:08x}", target_shader).c_str() : "any", trigger);
+    }
+
+    bool Matches(u64 shader) const {
+        return target_shader == 0 || shader == target_shader;
+    }
+
+    std::optional<Token> Allocate(u64 ps, u32 instances) {
+        if (!recording || draw_index >= max_draws) {
+            return std::nullopt;
+        }
+        const u32 need = relaxed_supported ? 2 : 1;
+        if (used[slice] + need > QueriesPerSlice) {
+            Fail("query_capacity");
+            return std::nullopt;
+        }
+        const u32 draw = draw_index++;
+        const u32 original = slice * QueriesPerSlice + used[slice]++;
+        entries[slice].push_back({ps, instances, draw, false});
+        u32 relaxed = 0;
+        if (relaxed_supported) {
+            relaxed = slice * QueriesPerSlice + used[slice]++;
+            entries[slice].push_back({ps, instances, draw, true});
+        }
+        ++matching_draws;
+        submitted_queries += need;
+        if (!matching_reported) {
+            matching_reported = true;
+            std::printf("KNACK-PX: Matching draws found frame=%llu target=%s\n",
+                        static_cast<unsigned long long>(frame),
+                        target_shader ? fmt::format("{:08x}", target_shader).c_str() : "any");
+        }
+        return Token{original, relaxed, relaxed_supported};
+    }
+
+    vk::QueryPool Pool() const {
+        return *pool;
+    }
+
+    void BeginFrame() {
+        const u64 next_frame = frame + 1;
+        if (recording) {
+            if (used[slice]) {
+                pending[slice] = true;
+                frame_ids[slice] = frame;
+                std::printf("KNACK-PX: Queries submitted frame=%llu queries=%u\n",
+                            static_cast<unsigned long long>(frame), used[slice]);
+            }
+            if (remaining) {
+                --remaining;
+            }
+            recording = remaining != 0;
+            if (!recording) {
+                completing = true;
+            }
+        }
+
+        slice = (slice + 1) % NumSlices;
+        if (pending[slice]) {
+            Collect(slice);
+        }
+        if (used[slice]) {
+            device.resetQueryPool(*pool, slice * QueriesPerSlice, used[slice]);
+        }
+        used[slice] = 0;
+        entries[slice].clear();
+        pending[slice] = false;
+
+        CompleteIfReady();
+        if (!recording && !completing) {
+            CheckTrigger(next_frame);
+        }
+        frame = next_frame;
+        draw_index = 0;
+    }
+
+private:
+    struct Entry {
+        u64 ps;
+        u32 instances;
+        u32 draw;
+        bool relaxed;
+    };
+
+    KnackContributionProbe(const KnackContributionProbe&) = delete;
+    KnackContributionProbe& operator=(const KnackContributionProbe&) = delete;
+
+    void CheckTrigger(u64 next_frame) {
+        std::error_code error;
+        if (!std::filesystem::exists(trigger, error)) {
+            if (error) {
+                Fail(fmt::format("trigger_stat:{}", error.message()));
+            }
+            return;
+        }
+        std::printf("KNACK-PX: Trigger detected frame=%llu path=%s\n",
+                    static_cast<unsigned long long>(next_frame), trigger);
+        if (std::remove(trigger) != 0) {
+            Fail(fmt::format("trigger_remove:{}", std::strerror(errno)));
+            return;
+        }
+        remaining = capture_frames;
+        recording = true;
+        failed = false;
+        matching_reported = false;
+        matching_draws = submitted_queries = collected_queries = collected_frames = 0;
+        std::printf("KNACK-PX: Capture started frame=%llu frames=%u target=%s\n",
+                    static_cast<unsigned long long>(next_frame), capture_frames,
+                    target_shader ? fmt::format("{:08x}", target_shader).c_str() : "any");
+    }
+
+    void Fail(const std::string& reason) {
+        if (!failed) {
+            failed = true;
+            failure_reason = reason;
+            std::printf("KNACK-PX: Capture failed reason=%s\n", reason.c_str());
+        }
+    }
+
+    void CompleteIfReady() {
+        if (!completing || std::ranges::any_of(pending, [](bool value) { return value; })) {
+            return;
+        }
+        completing = false;
+        if (matching_draws == 0) {
+            Fail("no_matching_draws");
+            return;
+        }
+        if (collected_queries != submitted_queries) {
+            Fail(fmt::format("incomplete_results:{}/{}", collected_queries, submitted_queries));
+            return;
+        }
+        if (failed) {
+            return;
+        }
+        std::printf("KNACK-PX: Capture completed frames=%llu matching_draws=%llu queries=%llu\n",
+                    static_cast<unsigned long long>(collected_frames),
+                    static_cast<unsigned long long>(matching_draws),
+                    static_cast<unsigned long long>(collected_queries));
+        std::fflush(stdout);
+    }
+
+    void Collect(u32 which) {
+        const u32 count = used[which];
+        std::vector<u64> samples(count);
+        const auto result = device.getQueryPoolResults(
+            *pool, which * QueriesPerSlice, count, count * sizeof(u64), samples.data(), sizeof(u64),
+            vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+        if (result != vk::Result::eSuccess) {
+            Fail(fmt::format("query_results:{}", vk::to_string(result)));
+            return;
+        }
+        collected_queries += count;
+        ++collected_frames;
+        std::printf("KNACK-PX: Results collected frame=%llu queries=%u\n",
+                    static_cast<unsigned long long>(frame_ids[which]), count);
+        for (u32 i = 0; i < count; ++i) {
+            const auto& entry = entries[which][i];
+            std::printf("KNACK-PX: draw=%u mode=%c ps=%08llx inst=%u samples=%llu\n", entry.draw,
+                        entry.relaxed ? 'R' : 'O', static_cast<unsigned long long>(entry.ps),
+                        entry.instances, static_cast<unsigned long long>(samples[i]));
+        }
+        std::fflush(stdout);
+    }
+
+    static constexpr u32 NumSlices = 4;
+    static constexpr u32 QueriesPerSlice = 512;
+
+    vk::Device device;
+    const char* trigger;
+    bool relaxed_supported = false;
+    u64 target_shader = KnackDetachedGeometryShader;
+    u32 capture_frames = 16;
+    u32 max_draws = 256;
+    vk::UniqueQueryPool pool;
+    u32 slice = 0;
+    u32 remaining = 0;
+    u32 draw_index = 0;
+    bool recording = false;
+    bool completing = false;
+    bool failed = false;
+    bool matching_reported = false;
+    u64 frame = 0;
+    u64 matching_draws = 0;
+    u64 submitted_queries = 0;
+    u64 collected_queries = 0;
+    u64 collected_frames = 0;
+    std::string failure_reason;
+    std::array<std::vector<Entry>, NumSlices> entries;
+    std::array<u32, NumSlices> used{};
+    std::array<bool, NumSlices> pending{};
+    std::array<u64, NumSlices> frame_ids{};
+};
+
+std::unique_ptr<KnackContributionProbe> knack_contribution_probe;
+
+bool KnackSmallSyncEnabled() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_KNACK_SMALL_SYNC");
+        return value && value[0] == '1';
+    }();
+    return enabled;
+}
+
+std::atomic<bool> knack_small_sync_pending{true};
+
+// Opt-in visual locator for deferred/G-buffer draws. It repeats matching draws inside a small
+// scissor with all color, depth and stencil writes disabled, then uses an occlusion query to say
+// which exact pipelines rasterized visible samples in that screen region. Original draws and all
+// five G-buffer attachments stay untouched.
+class KnackVisualProbe {
+public:
+    struct Token {
+        u32 query;
+    };
+
+    static std::unique_ptr<KnackVisualProbe> Create(const Instance& instance) {
+        const char* trigger = std::getenv("TLG_KNACK_VIS_TRIGGER");
+        if (!trigger || !trigger[0]) {
+            return {};
+        }
+        const char* roi_text = std::getenv("TLG_KNACK_VIS_ROI");
+        s32 x = 0;
+        s32 y = 0;
+        u32 width = 0;
+        u32 height = 0;
+        if (!roi_text || std::sscanf(roi_text, "%d,%d,%u,%u", &x, &y, &width, &height) != 4 ||
+            width == 0 || height == 0) {
+            std::printf("KNACK-VIS: Capture failed reason=invalid_roi expected=x,y,width,height\n");
+            return {};
+        }
+        if (!instance.IsDynamicColorWriteMaskSupported()) {
+            std::printf("KNACK-VIS: Capture failed reason=dynamic_color_write_mask_unsupported\n");
+            return {};
+        }
+        return std::unique_ptr<KnackVisualProbe>(
+            new KnackVisualProbe(instance, trigger, vk::Rect2D{{x, y}, {width, height}}));
+    }
+
+    bool Matches(AmdGpu::PrimitiveType primitive, u32 render_targets) const {
+        return u32(primitive) == target_primitive && render_targets == target_render_targets;
+    }
+
+    std::optional<Token> Allocate(u64 pipeline, u64 vs, u64 gs, u64 ps,
+                                  AmdGpu::PrimitiveType primitive, u32 render_targets,
+                                  u32 indices, u32 instances) {
+        if (!recording) {
+            return std::nullopt;
+        }
+        const u32 candidate = candidate_index++;
+        if (candidate < first_draw || candidate - first_draw >= max_draws) {
+            return std::nullopt;
+        }
+        if (used[slice] == QueriesPerSlice) {
+            Fail("query_capacity");
+            return std::nullopt;
+        }
+        const u32 query = slice * QueriesPerSlice + used[slice]++;
+        entries[slice].push_back({pipeline, vs, gs, ps, u32(primitive), render_targets, indices,
+                                  instances, candidate});
+        ++matching_draws;
+        ++submitted_queries;
+        if (!matching_reported) {
+            matching_reported = true;
+            std::printf("KNACK-VIS: Matching draws found frame=%llu prim=%u rts=%u\n",
+                        static_cast<unsigned long long>(frame), target_primitive,
+                        target_render_targets);
+        }
+        return Token{query};
+    }
+
+    vk::QueryPool Pool() const {
+        return *pool;
+    }
+
+    Scissors ClipScissors(const Scissors& original) const {
+        Scissors clipped = original;
+        const s64 roi_x0 = roi.offset.x;
+        const s64 roi_y0 = roi.offset.y;
+        const s64 roi_x1 = roi_x0 + roi.extent.width;
+        const s64 roi_y1 = roi_y0 + roi.extent.height;
+        for (auto& scissor : clipped) {
+            const s64 x0 = std::max<s64>(scissor.offset.x, roi_x0);
+            const s64 y0 = std::max<s64>(scissor.offset.y, roi_y0);
+            const s64 x1 = std::min<s64>(s64(scissor.offset.x) + scissor.extent.width, roi_x1);
+            const s64 y1 = std::min<s64>(s64(scissor.offset.y) + scissor.extent.height, roi_y1);
+            scissor.offset = vk::Offset2D{s32(x0), s32(y0)};
+            scissor.extent = vk::Extent2D{u32(std::max<s64>(x1 - x0, 0)),
+                                         u32(std::max<s64>(y1 - y0, 0))};
+        }
+        return clipped;
+    }
+
+    void BeginFrame() {
+        const u64 next_frame = frame + 1;
+        if (recording) {
+            if (used[slice]) {
+                pending[slice] = true;
+                frame_ids[slice] = frame;
+                std::printf("KNACK-VIS: Queries submitted frame=%llu queries=%u\n",
+                            static_cast<unsigned long long>(frame), used[slice]);
+            }
+            if (remaining) {
+                --remaining;
+            }
+            recording = remaining != 0;
+            if (!recording) {
+                completing = true;
+            }
+        }
+
+        slice = (slice + 1) % NumSlices;
+        if (pending[slice]) {
+            Collect(slice);
+        }
+        if (used[slice]) {
+            device.resetQueryPool(*pool, slice * QueriesPerSlice, used[slice]);
+        }
+        used[slice] = 0;
+        entries[slice].clear();
+        pending[slice] = false;
+
+        CompleteIfReady();
+        if (!recording && !completing) {
+            CheckTrigger(next_frame);
+        }
+        frame = next_frame;
+        candidate_index = 0;
+    }
+
+private:
+    struct Entry {
+        u64 pipeline;
+        u64 vs;
+        u64 gs;
+        u64 ps;
+        u32 primitive;
+        u32 render_targets;
+        u32 indices;
+        u32 instances;
+        u32 draw;
+    };
+
+    KnackVisualProbe(const Instance& instance, const char* trigger_, vk::Rect2D roi_)
+        : device{instance.GetDevice()}, trigger{trigger_}, roi{roi_} {
+        if (const char* primitive = std::getenv("TLG_KNACK_VIS_PRIM")) {
+            target_primitive = std::strtoul(primitive, nullptr, 0);
+        }
+        if (const char* targets = std::getenv("TLG_KNACK_VIS_RTS")) {
+            target_render_targets = std::strtoul(targets, nullptr, 0);
+        }
+        if (const char* frames = std::getenv("TLG_KNACK_VIS_FRAMES")) {
+            capture_frames = std::clamp<u32>(std::strtoul(frames, nullptr, 10), 1, 4);
+        }
+        if (const char* first = std::getenv("TLG_KNACK_VIS_FIRST_DRAW")) {
+            first_draw = std::strtoul(first, nullptr, 10);
+        }
+        if (const char* draws = std::getenv("TLG_KNACK_VIS_MAX_DRAWS")) {
+            max_draws = std::clamp<u32>(std::strtoul(draws, nullptr, 10), 1, QueriesPerSlice);
+        }
+        const vk::QueryPoolCreateInfo info = {
+            .queryType = vk::QueryType::eOcclusion,
+            .queryCount = NumSlices * QueriesPerSlice,
+        };
+        pool = Check<"create Knack visual query pool">(device.createQueryPoolUnique(info));
+        device.resetQueryPool(*pool, 0, NumSlices * QueriesPerSlice);
+        for (auto& slice_entries : entries) {
+            slice_entries.reserve(QueriesPerSlice);
+        }
+        std::printf("KNACK-VIS: Armed prim=%u rts=%u roi=%d,%d,%u,%u first=%u max=%u trigger=%s\n",
+                    target_primitive, target_render_targets, roi.offset.x, roi.offset.y,
+                    roi.extent.width, roi.extent.height, first_draw, max_draws, trigger);
+    }
+
+    void CheckTrigger(u64 next_frame) {
+        std::error_code error;
+        if (!std::filesystem::exists(trigger, error)) {
+            if (error) {
+                Fail(fmt::format("trigger_stat:{}", error.message()));
+            }
+            return;
+        }
+        // Optional request contents replace the ROI for this capture. Plain "visual" keeps the
+        // armed ROI. This permits several object probes in one gameplay session.
+        if (FILE* request = std::fopen(trigger, "r")) {
+            s32 x = 0;
+            s32 y = 0;
+            u32 width = 0;
+            u32 height = 0;
+            if (std::fscanf(request, "%d,%d,%u,%u", &x, &y, &width, &height) == 4 && width &&
+                height) {
+                roi = vk::Rect2D{{x, y}, {width, height}};
+            }
+            std::fclose(request);
+        }
+        std::printf("KNACK-VIS: Trigger detected frame=%llu path=%s\n",
+                    static_cast<unsigned long long>(next_frame), trigger);
+        if (std::remove(trigger) != 0) {
+            Fail(fmt::format("trigger_remove:{}", std::strerror(errno)));
+            return;
+        }
+        remaining = capture_frames;
+        recording = true;
+        failed = false;
+        matching_reported = false;
+        matching_draws = submitted_queries = collected_queries = collected_frames = visible_draws =
+            0;
+        std::printf("KNACK-VIS: Capture started frame=%llu frames=%u prim=%u rts=%u roi=%d,%d,%u,%u\n",
+                    static_cast<unsigned long long>(next_frame), capture_frames, target_primitive,
+                    target_render_targets, roi.offset.x, roi.offset.y, roi.extent.width,
+                    roi.extent.height);
+    }
+
+    void Fail(const std::string& reason) {
+        if (!failed) {
+            failed = true;
+            std::printf("KNACK-VIS: Capture failed reason=%s\n", reason.c_str());
+        }
+    }
+
+    void CompleteIfReady() {
+        if (!completing || std::ranges::any_of(pending, [](bool value) { return value; })) {
+            return;
+        }
+        completing = false;
+        if (matching_draws == 0) {
+            Fail("no_matching_draws");
+            return;
+        }
+        if (collected_queries != submitted_queries) {
+            Fail(fmt::format("incomplete_results:{}/{}", collected_queries, submitted_queries));
+            return;
+        }
+        if (failed) {
+            return;
+        }
+        std::printf("KNACK-VIS: Capture completed frames=%llu matching_draws=%llu visible_draws=%llu queries=%llu\n",
+                    static_cast<unsigned long long>(collected_frames),
+                    static_cast<unsigned long long>(matching_draws),
+                    static_cast<unsigned long long>(visible_draws),
+                    static_cast<unsigned long long>(collected_queries));
+        std::fflush(stdout);
+    }
+
+    void Collect(u32 which) {
+        const u32 count = used[which];
+        std::vector<u64> samples(count);
+        const auto result = device.getQueryPoolResults(
+            *pool, which * QueriesPerSlice, count, count * sizeof(u64), samples.data(), sizeof(u64),
+            vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+        if (result != vk::Result::eSuccess) {
+            Fail(fmt::format("query_results:{}", vk::to_string(result)));
+            return;
+        }
+        collected_queries += count;
+        ++collected_frames;
+        std::printf("KNACK-VIS: Results collected frame=%llu queries=%u\n",
+                    static_cast<unsigned long long>(frame_ids[which]), count);
+        for (u32 i = 0; i < count; ++i) {
+            const auto& entry = entries[which][i];
+            visible_draws += samples[i] != 0;
+            std::printf("KNACK-VIS: draw=%u pipe=%016llx vs=%08llx gs=%08llx ps=%08llx prim=%u rts=%u idx=%u inst=%u samples=%llu\n",
+                        entry.draw, static_cast<unsigned long long>(entry.pipeline),
+                        static_cast<unsigned long long>(entry.vs),
+                        static_cast<unsigned long long>(entry.gs),
+                        static_cast<unsigned long long>(entry.ps), entry.primitive,
+                        entry.render_targets, entry.indices, entry.instances,
+                        static_cast<unsigned long long>(samples[i]));
+        }
+        std::fflush(stdout);
+    }
+
+    static constexpr u32 NumSlices = 4;
+    static constexpr u32 QueriesPerSlice = 2048;
+
+    vk::Device device;
+    const char* trigger;
+    vk::Rect2D roi;
+    u32 target_primitive = u32(AmdGpu::PrimitiveType::TriangleList);
+    u32 target_render_targets = 5;
+    u32 capture_frames = 1;
+    u32 first_draw = 0;
+    u32 max_draws = 1024;
+    vk::UniqueQueryPool pool;
+    u32 slice = 0;
+    u32 remaining = 0;
+    u32 candidate_index = 0;
+    bool recording = false;
+    bool completing = false;
+    bool failed = false;
+    bool matching_reported = false;
+    u64 frame = 0;
+    u64 matching_draws = 0;
+    u64 submitted_queries = 0;
+    u64 collected_queries = 0;
+    u64 collected_frames = 0;
+    u64 visible_draws = 0;
+    std::array<std::vector<Entry>, NumSlices> entries;
+    std::array<u32, NumSlices> used{};
+    std::array<bool, NumSlices> pending{};
+    std::array<u64, NumSlices> frame_ids{};
+};
+
+std::unique_ptr<KnackVisualProbe> knack_visual_probe;
+
+} // namespace
 
 static Shader::PushData MakeUserData(const AmdGpu::Regs& regs) {
     // TODO(roamic): Add support for multiple viewports and geometry shaders when ViewportIndex
@@ -81,6 +2130,8 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
     memory->SetRasterizer(this);
 
     GpuProfiler::Init(instance, scheduler);
+    knack_contribution_probe = KnackContributionProbe::Create(instance);
+    knack_visual_probe = KnackVisualProbe::Create(instance);
     FrameRecord::Attach(instance, scheduler);
     if (DrawPipeWanted()) {
         constant_ring = std::make_unique<ConstantRing>(instance, scheduler);
@@ -95,7 +2146,10 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
     });
 }
 
-Rasterizer::~Rasterizer() = default;
+Rasterizer::~Rasterizer() {
+    knack_contribution_probe.reset();
+    knack_visual_probe.reset();
+}
 
 inline const AmdGpu::Regs& Rasterizer::Regs() const {
     return stage_regs ? *stage_regs : liverpool->regs;
@@ -994,8 +3048,10 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* pre
     // tlg: with the draw pipeline this thread only selects the pipeline and hands the draw
     // to the recording thread (DrawRecord there); draws FilterDraw handles itself run here.
     const bool pipelined = UseDrawPipe();
+    if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceFront(Regs(), 1, is_indexed, pipelined);
     if (pipelined && !FilterDrawPasses() &&
         !TlgToggle::Disabled(TlgToggle::PipelinedMemoryWrites)) {
+        if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceFront(Regs(), 6, is_indexed, pipelined);
         PostDraw(nullptr, nullptr, false, 0);
         return;
     }
@@ -1004,6 +3060,7 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* pre
         FrameCapture::Poll();
         scheduler.PopPendingOperations();
         if (!FilterDraw()) {
+            if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceFront(Regs(), 2, is_indexed, pipelined);
             return;
         }
     }
@@ -1015,6 +3072,7 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* pre
                          prepared->reg_checksum == liverpool->gfx_reg_checksum);
     }
     if (!pipeline) {
+        if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceFront(Regs(), 3, is_indexed, pipelined);
         return;
     }
     // tlg: TLG_SKIP_ADJACENCY=1 drops draws with adjacency topology (geometry-shader outlines),
@@ -1024,9 +3082,11 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* pre
         const auto prim = pipeline->GetGraphicsKey().prim_type;
         if (prim == AmdGpu::PrimitiveType::AdjTriangleList ||
             prim == AmdGpu::PrimitiveType::AdjTriangleStrip) {
+            if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceFront(Regs(), 4, is_indexed, pipelined, pipeline);
             return;
         }
     }
+    if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceFront(Regs(), 5, is_indexed, pipelined, pipeline);
     if (pipelined && FilterDrawPasses()) {
         PostDraw(pipeline, used_prepared, is_indexed, index_offset);
         return;
@@ -1039,8 +3099,15 @@ void Rasterizer::DiagPassBoundary(bool force) {
         const char* env = std::getenv("TLG_DIAG_IMAGES");
         return env && *env == '1';
     }();
-    if (!enabled) {
+    const bool bounded = FrameCapture::BoundedImages();
+    if (!enabled && !bounded) {
         return;
+    }
+    if (bounded && diag_capture_epoch != FrameCapture::ImageEpoch()) {
+        diag_capture_epoch = FrameCapture::ImageEpoch();
+        diag_targets.clear();
+        diag_addresses = {};
+        diag_pass = 0;
     }
     const auto& regs = Regs();
     std::array<VAddr, 8> addresses{};
@@ -1056,8 +3123,12 @@ void Rasterizer::DiagPassBoundary(bool force) {
         char tag[16];
         std::snprintf(tag, sizeof(tag), "p%03u", diag_pass++);
         const auto targets = diag_targets;
+        using KnackCapture::Role;
+        const bool gbuffer = bounded && targets.size() >= 5 &&
+            texture_cache.GetImage(targets.front()).info.size.width >= 640 &&
+            FrameCapture::BeginGBuffer();
         for (const auto image_id : targets) {
-            texture_cache.DiagDumpImage(image_id, tag);
+            texture_cache.DiagDumpImage(image_id, tag, gbuffer ? Role::GBuffer : Role::Intermediate);
         }
     }
     diag_targets.clear();
@@ -1072,10 +3143,25 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     }
     DiagPassBoundary(false);
     const auto& regs = Regs();
+    if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceDraw(pipeline, regs, {}, push_data, 1, is_indexed,
+        regs.num_indices, regs.num_instances.NumInstances(), 0, 0, index_offset, scheduler.CurrentTick());
+    // Controlled A/B only: wait before recording this draw's Vulkan resource bindings.
+    // Scheduler::Finish() submits the current command buffer; placing it after BindResources
+    // would separate descriptors/vertex/index state from the draw on the new command buffer.
+    // Diagnostic only: a positive result does not identify a missing upload dependency.
+    const bool knack_small_draw =
+        pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash == KnackSmallGeometryVertexShader;
+    if (knack_small_draw && KnackSmallSyncEnabled() &&
+        knack_small_sync_pending.exchange(false, std::memory_order_relaxed)) [[unlikely]] {
+        scheduler.Finish();
+        std::printf("KNACK-SYNC: target wait completed vs=%08llx\n",
+                    static_cast<unsigned long long>(KnackSmallGeometryVertexShader));
+    }
     // tlg: the pass copying a finished frame to a display buffer; the previous draw's
     // target is that frame.
-    if (camera_motion->Enabled() && regs.color_buffers[0] &&
-        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
+    const bool display_pass = regs.color_buffers[0] &&
+                              FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address());
+    if (camera_motion->Enabled() && display_pass) {
         scene_started = false;
         camera_motion->OnDisplayPass(cb_descs[0].first);
         if (upscaler->OnFrameStart()) {
@@ -1085,9 +3171,6 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         camera_motion->SetJitter(upscaler->Jitter());
         object_motion->OnFrameStart();
         NoteFrameStart();
-        static const char* scene_debug = std::getenv("TLG_SCENE_DEBUG");
-        scene_debug_frame = scene_debug && std::remove(scene_debug) == 0;
-        scene_targets->debug = scene_debug_frame;
     }
     bind_prepared = used_prepared;
     motion_draw = pipeline->GetGraphicsKey().motion_vectors;
@@ -1109,9 +3192,14 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     const bool inputs_resolved = draw_inputs.resolved;
     draw_inputs.pending = false;
     if (!bound) {
+        if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceDraw(pipeline, regs, {}, push_data, 2, is_indexed,
+            regs.num_indices, regs.num_instances.NumInstances(), 0, 0, index_offset, scheduler.CurrentTick());
         return;
     }
     const auto state = BeginRendering(pipeline);
+    if (GpuPhy03::Recording()) [[unlikely]] {
+        GpuPhy03::DrawTargets(texture_cache, pipeline, state, cb_descs, scheduler.CurrentTick());
+    }
     // tlg: before anything of the draw itself is recorded, which has to go with it.
     SubmitIfWorkPiledUp(state);
     scheduler.CountWork();
@@ -1227,6 +3315,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         draw_jitter = upscaler->Jitter();
     }
     UpdateDynamicState(pipeline, is_indexed);
+    const bool video_background = PrepareKnackVideo(pipeline, state, false);
     MarkPass(pipeline, state);
     if (FrameRecord::IsRecording()) [[unlikely]] {
         RecordFrameInputs(pipeline, draw_prepared, &state, is_indexed, index_offset, nullptr);
@@ -1243,7 +3332,49 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     const u32 num_instances = regs.num_instances.NumInstances();
     const u32 first_vertex = vertex_offset;
     const u32 first_instance = instance_offset;
+    if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceDraw(pipeline, regs, buffer_infos, push_data, 3, is_indexed,
+        num_indices, num_instances, first_instance, first_vertex, index_offset, scheduler.CurrentTick());
+    const auto* gs_info = pipeline->GetStages()[u32(Shader::SwStage::Geometry)];
+    const auto* ps_info = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+    const auto& graphics_key = pipeline->GetGraphicsKey();
+    const u32 num_colors = graphics_key.num_color_attachments;
+    const auto contribution = knack_contribution_probe &&
+                                      knack_contribution_probe->Matches(gs_info ? gs_info->pgm_hash
+                                                                                : 0)
+                                  ? knack_contribution_probe->Allocate(
+                                        ps_info ? ps_info->pgm_hash : 0, num_instances)
+                                  : std::nullopt;
+    const vk::QueryPool contribution_pool =
+        contribution ? knack_contribution_probe->Pool() : vk::QueryPool{};
+    const bool ps_side_effects =
+        ps_info &&
+        (std::ranges::any_of(ps_info->buffers, [](const auto& desc) { return desc.is_written; }) ||
+         std::ranges::any_of(ps_info->images, [](const auto& desc) { return desc.is_written; }));
+    const u64 pipeline_hash = XXH3_64bits(&graphics_key, sizeof(graphics_key));
+    const auto visual = knack_visual_probe && !ps_side_effects &&
+                                knack_visual_probe->Matches(regs.primitive_type, num_colors)
+                            ? knack_visual_probe->Allocate(
+                                  pipeline_hash, vs_info.pgm_hash,
+                                  gs_info ? gs_info->pgm_hash : 0,
+                                  ps_info ? ps_info->pgm_hash : 0, regs.primitive_type, num_colors,
+                                  num_indices, num_instances)
+                            : std::nullopt;
+    const vk::QueryPool visual_pool = visual ? knack_visual_probe->Pool() : vk::QueryPool{};
+    const auto& dynamic_state = scheduler.GetDynamicState();
+    const Scissors original_scissors = dynamic_state.scissors;
+    const Scissors visual_scissors =
+        visual ? knack_visual_probe->ClipScissors(original_scissors) : Scissors{};
+    const bool depth_write = dynamic_state.depth_write_enabled;
+    const u32 stencil_front_write_mask = dynamic_state.stencil_front_write_mask;
+    const u32 stencil_back_write_mask = dynamic_state.stencil_back_write_mask;
+    const auto depth_stencil = GetEffectiveDepthStencilState(regs);
+    const auto cull_mode = LiverpoolToVK::IsPrimitiveCulled(regs.primitive_type)
+                               ? LiverpoolToVK::CullMode(regs.polygon_control.CullingMode())
+                               : vk::CullModeFlagBits::eNone;
+    const bool rasterizer_discard = regs.clipper_control.dx_rasterization_kill;
+    const auto write_masks = graphics_key.write_masks;
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
+        if (video_background) ClearKnackVideoBackground(cmdbuf, state);
         const auto draw = [&] {
             if (is_indexed) {
                 cmdbuf.drawIndexed(num_indices, num_instances, 0, s32(first_vertex),
@@ -1253,19 +3384,65 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
             }
         };
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
+        if (contribution) {
+            cmdbuf.beginQuery(contribution_pool, contribution->original, {});
+        }
         draw();
+        if (contribution) {
+            cmdbuf.endQuery(contribution_pool, contribution->original);
+        }
         if (square) [[unlikely]] {
             cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, square);
             draw();
         }
+        if (contribution && contribution->has_relaxed) [[unlikely]] {
+            const std::array<vk::ColorComponentFlags, AmdGpu::NUM_COLOR_BUFFERS> no_writes{};
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{no_writes.data(), num_colors});
+            cmdbuf.setDepthTestEnable(false);
+            cmdbuf.setStencilTestEnable(false);
+            cmdbuf.setCullMode(vk::CullModeFlagBits::eNone);
+            cmdbuf.setRasterizerDiscardEnable(false);
+            cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
+            cmdbuf.beginQuery(contribution_pool, contribution->relaxed, {});
+            draw();
+            cmdbuf.endQuery(contribution_pool, contribution->relaxed);
+            cmdbuf.setDepthTestEnable(depth_stencil.depth_test_enable);
+            cmdbuf.setStencilTestEnable(depth_stencil.stencil_test_enable);
+            cmdbuf.setCullMode(cull_mode);
+            cmdbuf.setRasterizerDiscardEnable(rasterizer_discard);
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{write_masks.data(), num_colors});
+        }
+        if (visual) [[unlikely]] {
+            const std::array<vk::ColorComponentFlags, AmdGpu::NUM_COLOR_BUFFERS> no_writes{};
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{no_writes.data(), num_colors});
+            cmdbuf.setDepthWriteEnable(false);
+            cmdbuf.setStencilWriteMask(vk::StencilFaceFlagBits::eFrontAndBack, 0);
+            cmdbuf.setScissorWithCount(visual_scissors);
+            cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, handle);
+            cmdbuf.beginQuery(visual_pool, visual->query, {});
+            draw();
+            cmdbuf.endQuery(visual_pool, visual->query);
+            cmdbuf.setScissorWithCount(original_scissors);
+            cmdbuf.setStencilWriteMask(vk::StencilFaceFlagBits::eFront,
+                                       stencil_front_write_mask);
+            cmdbuf.setStencilWriteMask(vk::StencilFaceFlagBits::eBack,
+                                       stencil_back_write_mask);
+            cmdbuf.setDepthWriteEnable(depth_write);
+            cmdbuf.setColorWriteMaskEXT(
+                0, std::span<const vk::ColorComponentFlags>{write_masks.data(), num_colors});
+        }
     });
     if (FrameCapture::Active()) {
-        const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
-        FrameCapture::Draw(vs_info.pgm_hash, ps ? ps->pgm_hash : 0, num_indices, num_instances);
+        FrameCapture::Draw(vs_info.pgm_hash, ps_info ? ps_info->pgm_hash : 0, num_indices,
+                           num_instances);
         if (const auto& bc = regs.blend_control[0]; bc.enable && regs.color_buffers[0]) {
             char note[128];
             std::snprintf(note, sizeof(note), "\n  blend ps %08x idx %u: src %u dst %u func %u z %u%u",
-                          u32(ps ? ps->pgm_hash : 0), num_indices, u32(bc.color_src_factor),
+                          u32(ps_info ? ps_info->pgm_hash : 0), num_indices,
+                          u32(bc.color_src_factor),
                           u32(bc.color_dst_factor), u32(bc.color_func),
                           u32(regs.depth_control.depth_enable),
                           u32(regs.depth_control.depth_write_enable));
@@ -1348,6 +3525,8 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
         FrameCapture::Poll();
         scheduler.PopPendingOperations();
     }
+    if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceDraw(pipeline, Regs(), {}, push_data, 5, is_indexed,
+        0, 0, 0, 0, 0, scheduler.CurrentTick());
     const VAddr count_address = indirect.count;
     const u32 stride = indirect.stride;
     const u32 max_count = indirect.max_count;
@@ -1363,9 +3542,14 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
                          UiComposition::NativeViewport(viewport.xscale * 2, viewport.yscale * 2));
     }
     if (!BindResources(pipeline)) {
+        if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceDraw(pipeline, Regs(), {}, push_data, 6, is_indexed,
+            0, 0, 0, 0, 0, scheduler.CurrentTick());
         return;
     }
     const auto state = BeginRendering(pipeline);
+    if (GpuPhy03::Recording()) [[unlikely]] {
+        GpuPhy03::DrawTargets(texture_cache, pipeline, state, cb_descs, scheduler.CurrentTick());
+    }
     // tlg: before anything of the draw itself is recorded, which has to go with it.
     SubmitIfWorkPiledUp(state);
     scheduler.CountWork();
@@ -1411,6 +3595,7 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
         draw_jitter = upscaler->Jitter();
     }
     UpdateDynamicState(pipeline, is_indexed);
+    const bool video_background = PrepareKnackVideo(pipeline, state, true);
     MarkPass(pipeline, state);
     if (FrameRecord::IsRecording()) [[unlikely]] {
         RecordFrameInputs(pipeline, nullptr, &state, is_indexed, 0, &indirect);
@@ -1425,7 +3610,10 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     const u64 args_offset = base;
     const vk::Buffer counts = count_address != 0 ? count_buffer->Handle() : vk::Buffer{};
     const u64 counts_offset = count_address != 0 ? count_offset : 0;
+    if (GpuPhy03::TraceEnabled()) GpuPhy03::TraceDraw(pipeline, Regs(), buffer_infos, push_data, 4, is_indexed,
+        0, 0, 0, 0, 0, scheduler.CurrentTick(), args, args_offset, counts, max_count, stride);
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
+        if (video_background) ClearKnackVideoBackground(cmdbuf, state);
         for (const vk::Pipeline bound : {handle, square}) {
             if (!bound) {
                 break;
@@ -1521,6 +3709,7 @@ void Rasterizer::ComputeBinder::operator()(vk::CommandBuffer cmdbuf) const {
 }
 
 void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
+    if (GpuPhy03::Recording()) [[unlikely]] GpuPhy03::BufferWrites(pipeline);
     FrameCapture::Poll();
     gbuffer_draw = false;
 
@@ -1540,6 +3729,16 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
         }
     };
     if (upscaler->Enabled()) {
+        if (upscaler->KnackProfile() && cs.pgm_hash == KnackTemporal::PresentShader) {
+            scene_started = false;
+            camera_motion->OnDisplayPass({});
+            if (upscaler->OnFrameStart()) {
+                camera_motion->InvalidateHistory();
+                object_motion->InvalidateHistory();
+            }
+            object_motion->OnFrameStart();
+            NoteFrameStart();
+        }
         upscaler->OnDispatch(cs.pgm_hash);
     }
     if (FrameRecord::IsRecording()) [[unlikely]] {
@@ -1560,6 +3759,8 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
         runtime.FlushBarriers();
     }
 
+    if (upscaler->ReplaceKnackDispatch(cs.pgm_hash)) return;
+
     scheduler.EndRendering();
     mark();
     pipeline->BindResources(set_writes, push_data);
@@ -1579,6 +3780,19 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
             Scheduler::RecordFullBarrier(cmdbuf);
         }
     });
+    if (upscaler->KnackProfile() && cs.pgm_hash==KnackTemporal::PresentShader) {
+        const bool previous_framing = knack_video_framing.active;
+        if (knack_video_framing.Advance(knack_video_composed,knack_video_scene_seen)) ClearKnackVideoBars();
+        if (knack_video_framing.active!=previous_framing) {
+            LOG_INFO(Render_Vulkan,"Knack video: framing={}, scene_camera={}, video_composed={}",
+                knack_video_framing.active?"16:9":"ultrawide",knack_video_scene_seen,knack_video_composed);
+        }
+        knack_video_composed = false;
+        knack_video_scene_seen = false;
+    }
+    if (GpuPhy03::Recording()) [[unlikely]] {
+        GpuPhy03::Dispatch(instance, scheduler, runtime, texture_cache, cs.pgm_hash);
+    }
     DebugState.IncDispatch();
     scheduler.CountWork();
 
@@ -1615,12 +3829,22 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
         const char* env = std::getenv("TLG_DIAG_IMAGES");
         return env && *env == '1';
     }();
-    if (diag_images && FrameCapture::IsRecording()) {
+    if ((diag_images || FrameCapture::BoundedImages()) && FrameCapture::IsRecording()) {
         char tag[32];
         std::snprintf(tag, sizeof(tag), "cs%08x", static_cast<u32>(cs.pgm_hash));
         const auto images = bound_images;
         for (const auto image_id : images) {
-            texture_cache.DiagDumpImage(image_id, tag);
+            if (FrameCapture::BoundedImages()) {
+                const auto address = texture_cache.GetImage(image_id).info.guest_address;
+                const bool written = std::ranges::any_of(cs.images, [&](const auto& resource) {
+                    return resource.is_written && resource.GetSharp(cs).Address() == address;
+                });
+                if (!written) continue;
+            }
+            const auto role = cs.pgm_hash == KnackTemporal::TemporalShader ||
+                              cs.pgm_hash == KnackTemporal::PresentShader
+                                  ? KnackCapture::Role::Final : KnackCapture::Role::Intermediate;
+            texture_cache.DiagDumpImage(image_id, tag, role);
         }
     }
 
@@ -1688,6 +3912,10 @@ void Rasterizer::DispatchIndirectRecord(const ComputePipeline* pipeline, VAddr a
             Scheduler::RecordFullBarrier(cmdbuf);
         }
     });
+    if (GpuPhy03::Recording()) [[unlikely]] {
+        GpuPhy03::Dispatch(instance, scheduler, runtime, texture_cache,
+                           pipeline->GetStage(Shader::SwStage::Compute).pgm_hash);
+    }
     DebugState.IncDispatch();
     scheduler.CountWork();
 
@@ -1711,6 +3939,13 @@ std::string RecordWords(const T& value) {
 // Indexed by Shader::SwStage.
 constexpr std::array<const char*, Shader::MaxStageTypes> RecordStageNames = {"ps", "hs", "ds",
                                                                             "vs", "gs", "cs"};
+bool RecordVerifyDetachedUploads() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("TLG_FRAME_RECORD_VERIFY_UPLOAD");
+        return value && value[0] == '1';
+    }();
+    return enabled;
+}
 } // namespace
 
 void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw* prepared,
@@ -1720,6 +3955,13 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
         return;
     }
     const auto add = [](const std::string& text) { FrameRecord::Append(text); };
+    const auto stages = pipeline->GetStages();
+    const bool verify_uploads =
+        RecordVerifyDetachedUploads() &&
+        std::ranges::any_of(stages, [](const Shader::Info* info) {
+            return info && (info->pgm_hash == KnackDetachedGeometryShader ||
+                            info->pgm_hash == KnackSmallGeometryVertexShader);
+        });
     // The copies end the render pass; a draw that clears its targets and continues the pass
     // in progress would clear them again when it begins a new one.
     bool gpu_ok = FrameRecord::GpuCopiesAvailable();
@@ -1736,26 +3978,46 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
     }
     // Memory the GPU wrote is read from the GPU's copy (the guest copy may be stale or
     // read-protected); anything else from guest memory, which the cache mirrors.
-    const auto memory_input = [&](const std::string& key, VAddr address, u64 size) {
+    const auto memory_input = [&](const std::string& key, VAddr address, u64 size,
+                                  const vk::DescriptorBufferInfo* bound = nullptr,
+                                  u64 bound_adjust = 0) {
         add(fmt::format(" {}={:#x}+{}:", key, address, size));
         if (address == 0 || size == 0) {
             add("null");
             return;
         }
         size = memory->ClampRangeSize(address, size);
-        if (gpu_ok && size && size <= std::numeric_limits<u32>::max() &&
-            buffer_cache.IsRegionGpuModified(address, size)) {
-            const auto [buffer, offset] = buffer_cache.ObtainBuffer(address, u32(size), false);
-            FrameRecord::GpuHash("", buffer->Handle(), offset, size);
+        const bool gpu_modified = buffer_cache.IsRegionGpuModified(address, size);
+        if (gpu_ok && size && size <= std::numeric_limits<u32>::max() && gpu_modified) {
+            if (bound && bound->buffer) {
+                FrameRecord::GpuHash("", bound->buffer, bound->offset + bound_adjust, size);
+            } else {
+                const auto [buffer, offset] = buffer_cache.ObtainBuffer(address, u32(size), false);
+                FrameRecord::GpuHash("", buffer->Handle(), offset, size);
+            }
         } else {
             add(FrameRecord::GuestHash(address, size));
+        }
+        // For Knack's detached/dynamic geometry, compare guest bytes with the exact Vulkan
+        // descriptor already bound for this draw. Re-obtaining a small buffer would verify a
+        // new stream-buffer copy instead of the one consumed by the draw.
+        if (verify_uploads && gpu_ok && !gpu_modified && bound && bound->buffer && size) {
+            if (size <= 1_KB) {
+                add(fmt::format(" {}.cw={}", key, FrameRecord::GuestWords(address, size)));
+                FrameRecord::GpuWords(fmt::format(" {}.gw=", key), bound->buffer,
+                                      bound->offset + bound_adjust, size);
+            } else {
+                FrameRecord::GpuHash(fmt::format(" {}.gpu=", key), bound->buffer,
+                                     bound->offset + bound_adjust, size);
+            }
         }
     };
 
     const auto* saved_prepared = bind_prepared;
     bind_prepared = prepared;
     const auto& regs = Regs();
-    for (const Shader::Info* info : pipeline->GetStages()) {
+    u32 buffer_info_index = 0;
+    for (const Shader::Info* info : stages) {
         if (!info) {
             continue;
         }
@@ -1779,12 +4041,20 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
         const PreparedStage* ps = FindPreparedStage(*info);
         for (u32 i = 0; i < info->buffers.size(); ++i) {
             const auto& desc = info->buffers[i];
+            const vk::DescriptorBufferInfo* bound =
+                buffer_info_index < buffer_infos.size() ? &buffer_infos[buffer_info_index] : nullptr;
+            ++buffer_info_index;
             if (desc.IsSpecial()) {
                 continue;
             }
             const auto sharp = ps ? ps->buffer_sharps[i] : desc.GetSharp(*info);
+            u64 bound_adjust = 0;
+            if (bound && bound->buffer && bound->buffer != buffer_cache.GetStreamBuffer().Handle() &&
+                (!constant_ring || bound->buffer != constant_ring->Handle())) {
+                bound_adjust = sharp.base_address % instance.StorageMinAlignment();
+            }
             memory_input(fmt::format("{}.b{}{}", name, i, desc.is_written ? "w" : ""),
-                         sharp.base_address, sharp.GetSize());
+                         sharp.base_address, sharp.GetSize(), bound, bound_adjust);
         }
         for (u32 i = 0; i < info->images.size(); ++i) {
             const auto& desc = info->images[i];
@@ -1800,6 +4070,19 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
                             u32(t.height) + 1, u32(t.depth) + 1,
                             magic_enum::enum_name(t.GetType()), u32(t.base_level),
                             u32(t.last_level)));
+            if (verify_uploads && !desc.is_written) {
+                const VideoCore::ImageInfo texture_info{t, desc};
+                const auto image_id = texture_cache.FindImageFromRange(
+                    texture_info.guest_address, texture_info.guest_size, false);
+                if (image_id) {
+                    const auto& image = texture_cache.GetImage(image_id);
+                    add(fmt::format(":ih={:016x}:uid={}:alias={}:flags={:x}:size={}", image.hash,
+                                    image.image_uid, image.alias_generation, u32(image.flags),
+                                    image.info.guest_size));
+                } else {
+                    add(":ih=missing");
+                }
+            }
         }
         for (u32 i = 0; i < info->samplers.size(); ++i) {
             const auto ss = ps ? ps->sampler_sharps[i] : info->samplers[i].GetSharp(*info);
@@ -1814,6 +4097,8 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
         }
     } else {
         const auto* graphics = static_cast<const GraphicsPipeline*>(pipeline);
+        const auto& key = graphics->GetGraphicsKey();
+        add(fmt::format(" rs={} ds={}", u32(key.num_samples), u32(key.depth_samples)));
         const auto& vs = graphics->GetStage(Shader::SwStage::Vertex);
         if (const auto& fetch = graphics->GetFetchShader()) {
             for (u32 i = 0; i < fetch->attributes.size(); ++i) {
@@ -1841,18 +4126,22 @@ void Rasterizer::RecordFrameInputs(const Pipeline* pipeline, const PreparedDraw*
             if (!cb_descs[cb].first) {
                 add("null");
             } else {
-                const auto& image = texture_cache.GetImage(cb_descs[cb].first).info;
-                add(fmt::format("{:#x}:{}:{}x{}", image.guest_address,
-                                vk::to_string(image.pixel_format), image.size.width,
-                                image.size.height));
+                const auto& image = texture_cache.GetImage(cb_descs[cb].first);
+                add(fmt::format("{:#x}:{}:{}x{}", image.info.guest_address,
+                                vk::to_string(image.info.pixel_format), image.info.size.width,
+                                image.info.size.height));
+                add(fmt::format(" rt{}s={}.{}.{}.{}", cb, u32(key.color_samples[cb]),
+                                image.info.num_samples, image.info.guest_samples,
+                                image.backing->num_samples));
             }
             add(fmt::format(" bl{}={}", cb, RecordWords(regs.blend_control[cb])));
         }
         if (db_desc.first) {
-            const auto& image = texture_cache.GetImage(db_desc.first).info;
-            add(fmt::format(" z={:#x}:{}:{}x{}", image.guest_address,
-                            vk::to_string(image.pixel_format), image.size.width,
-                            image.size.height));
+            const auto& image = texture_cache.GetImage(db_desc.first);
+            add(fmt::format(" z={:#x}:{}:{}x{} zs={}.{}.{}.{}", image.info.guest_address,
+                            vk::to_string(image.info.pixel_format), image.info.size.width,
+                            image.info.size.height, u32(key.depth_samples), image.info.num_samples,
+                            image.info.guest_samples, image.backing->num_samples));
         }
         add(fmt::format(" cm={} csm={} cc={} dc={} st={} sref={}.{} drc={} pc={} bc={}",
                         RecordWords(regs.color_target_mask), RecordWords(regs.color_shader_mask),
@@ -1983,6 +4272,19 @@ void NoteHugeBind(VAddr base, u64 size) {
 
 void Rasterizer::OnSubmit() {
     DrainDrawPipe();
+    if (FrameCapture::BoundedImages()) DiagPassBoundary(true);
+    FrameCapture::OnSubmit();
+    if (GpuPhy03::Enabled()) [[unlikely]] GpuPhy03::OnSubmit();
+    knack_small_sync_pending.store(true, std::memory_order_relaxed);
+    // SubmitDone is the reliable renderer boundary even with camera motion and the upscaler off.
+    // Polling here also guarantees prior query commands reached the scheduler before their slice
+    // is marked pending. The normal path pays only this opt-in null check.
+    if (knack_contribution_probe) {
+        knack_contribution_probe->BeginFrame();
+    }
+    if (knack_visual_probe) {
+        knack_visual_probe->BeginFrame();
+    }
     if (fault_process_pending) {
         fault_process_pending = false;
         buffer_cache.ProcessFaultBuffer();
@@ -2042,6 +4344,7 @@ bool Rasterizer::BindHelperWanted() {
 }
 
 bool Rasterizer::HelperEligible(const Pipeline* pipeline) const {
+    if (GpuPhy03::Recording()) [[unlikely]] return false;
     if (pipeline->IsCompute() || !bind_helper.Available() || FrameCapture::Active() ||
         TlgToggle::Disabled(TlgToggle::TextureBindHelper) ||
         TlgToggle::Disabled(TlgToggle::TextureBindingMemo) ||
@@ -2128,6 +4431,10 @@ void Rasterizer::JoinBindHelper(void* context) {
 }
 
 bool Rasterizer::BindResources(const Pipeline* pipeline) {
+    if (GpuPhy03::Recording()) [[unlikely]] {
+        GpuPhy03::BeginBind();
+        GpuPhy03::BufferWrites(pipeline);
+    }
     if (IsComputeImageCopy(pipeline) || IsComputeMetaClear(pipeline) ||
         IsComputeImageClear(pipeline)) {
         return false;
@@ -2661,6 +4968,11 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                                      constant_ring->Data(ring->offset), ring->size);
             }
             if (!desc.IsSpecial()) {
+                if (upscaler->KnackProfile() && gbuffer_draw && ring->size == 432) {
+                    if (camera_motion->OnKnackConstants(
+                        reinterpret_cast<const float*>(constant_ring->Data(ring->offset)), ring->size))
+                        knack_video_scene_seen = true;
+                }
                 if (ring->size == 864 && gbuffer_draw &&
                     memory->IsValidGpuMapping(ring->address, 0)) {
                     camera_motion->OnConstants(reinterpret_cast<const float*>(ring->address));
@@ -2722,6 +5034,11 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
         } else {
             const auto vsharp =
                 prepared ? prepared->buffer_sharps[buffer_index] : desc.GetSharp(stage);
+            if (upscaler->KnackProfile() && vsharp.GetSize() == 432 && gbuffer_draw &&
+                memory->IsValidGpuMapping(vsharp.base_address, 0)) {
+                if (camera_motion->OnKnackConstants(reinterpret_cast<const float*>(vsharp.base_address), 432))
+                    knack_video_scene_seen = true;
+            }
             if (vsharp.GetSize() == 864 && gbuffer_draw &&
                 memory->IsValidGpuMapping(vsharp.base_address, 0)) {
                 camera_motion->OnConstants(reinterpret_cast<const float*>(vsharp.base_address));
@@ -2863,6 +5180,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
     // SampleSceneProxies: bindings that may read a reduced scene proxy instead of the native
     // image (normalized sampling only; see Shader::ImageResource::needs_native).
     boost::container::small_vector<bool, 16> binding_proxy_ok;
+    const bool phy03_tracking = GpuPhy03::Recording();
+    boost::container::small_vector<GpuPhy03::Access, 16> binding_access;
     const bool sample_proxies = !TlgToggle::Disabled(TlgToggle::SampleSceneProxies) &&
                                 !on_helper && scene_targets->Reduced();
 
@@ -2879,6 +5198,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         const auto data_fmt = tsharp.GetDataFmt();
         const auto num_fmt = tsharp.GetNumberFmt();
         if (tsharp.Address() == 0 || data_fmt == AmdGpu::DataFormat::FormatInvalid) {
+            if (phy03_tracking) binding_access.push_back(
+                GpuPhy03::ShaderAccess(image_desc.is_written, image_desc.is_atomic));
             image_bindings.emplace_back(VideoCore::ImageId{}, &image_desc_storage.emplace_back());
             image_binding_entries.push_back(nullptr);
             binding_proxy_ok.push_back(false);
@@ -2888,6 +5209,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
 
         if (!memory->IsValidGpuMapping(tsharp.Address(), 0) ||
             !IsKnownFormat(data_fmt, num_fmt)) {
+            if (phy03_tracking) binding_access.push_back(
+                GpuPhy03::ShaderAccess(image_desc.is_written, image_desc.is_atomic));
             LOG_WARNING(Render_Vulkan,
                         "Rejecting invalid T# address={:#x}, pitch={}, width={}, "
                         "data_format={}, num_format={}",
@@ -2925,6 +5248,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                         int(image_desc.is_written), num_bindings, int(mip_fallback_mode));
         };
         for (auto i = 0; i < num_bindings; i++) {
+            if (phy03_tracking) binding_access.push_back(
+                GpuPhy03::ShaderAccess(image_desc.is_written, image_desc.is_atomic));
             // tlg: a plain binding (no mip override) of the same T# resolves to the same image
             // while no image was registered or unregistered.
             if (mip_fallback_mode == Shader::MipStorageFallbackMode::None &&
@@ -3013,8 +5338,12 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             bound_images.emplace_back(image_id);
 
             auto& image = texture_cache.GetImage(image_id);
+            if (phy03_tracking && is_storage && GpuPhy03::Recording()) [[unlikely]]
+                GpuPhy03::BeginImageWrite(texture_cache, image_id);
             auto& image_view = texture_cache.FindTexture(
                 image_id, desc, memo_entry ? &memo_entry->view_memo : nullptr, !on_helper);
+            if (phy03_tracking && is_storage && GpuPhy03::Recording()) [[unlikely]]
+                GpuPhy03::EndImageWrite(texture_cache, image_id);
             const auto binding = image.binding;
 
             // tlg: a proxied scene image sampled with normalized coordinates reads the proxy:
@@ -3063,9 +5392,15 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             }
             image.usage.storage |= is_storage;
             image.usage.texture |= !is_storage;
+            if (phy03_tracking && GpuPhy03::Recording()) [[unlikely]] {
+                GpuPhy03::Sample(instance, scheduler, runtime, texture_cache, image_id,
+                                 binding_access[binding_index],
+                                 desc.view_info.range, stage.pgm_hash);
+            }
             if (FrameCapture::Active()) {
                 FrameCapture::Sampled(image.info, is_storage);
             }
+            upscaler->ObserveKnackImage(stage.pgm_hash, binding_index, image_id, is_storage);
 
             vk::ImageView view = *image_view.image_view;
             vk::ImageLayout layout = image.backing->state.layout;
@@ -3163,6 +5498,7 @@ Rasterizer::BeginSignature Rasterizer::MakeBeginSignature(const GraphicsPipeline
 
 bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedStage* prepared,
                                      u32 first_image_idx, bool& barrier, TextureSet*& slot) {
+    if (GpuPhy03::Recording()) [[unlikely]] return false;
     const u32 count = static_cast<u32>(stage.images.size());
     if (!prepared || count == 0 || count > TextureSet::MaxImages ||
         TlgToggle::Disabled(TlgToggle::TextureSetMemo) || FrameCapture::Active()) {
@@ -3327,7 +5663,8 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
     bool reduced = scene_started && upscaler->RasterScaling() && key.num_samples == 1;
     // TLG_SCENE_DEBUG=<file>: once the file exists, why the passes of one frame keep the
     // native size (see NoteFrameStart).
-    const bool debug_pass = scene_debug_frame && scene_started;
+    const bool debug_pass = scene_debug_frame && (scene_started ||
+        (upscaler->KnackProfile() && TlgSettings::Get().native_resolution_active));
     std::string why;
     if (debug_pass) {
         why = fmt::format("pass vs {:08x} ps {:08x} mrt {:#x} samples {} raster_scaling {}:",
@@ -3401,9 +5738,11 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
             image_id = bound_images.emplace_back(texture_cache.FindImage(desc));
             image = &texture_cache.GetImage(image_id);
         }
+        if (GpuPhy03::Recording()) [[unlikely]] GpuPhy03::BeginImageWrite(texture_cache, image_id);
         texture_cache.UpdateImage(image_id);
         runtime.SetBackingSamples(image, key.color_samples[cb]);
         const auto& image_view = texture_cache.FindRenderTarget(image_id, desc);
+        if (GpuPhy03::Recording()) [[unlikely]] GpuPhy03::EndImageWrite(texture_cache, image_id);
         const auto slice = image_view.info.range.base.layer;
         const auto mip = image_view.info.range.base.level;
 
@@ -3859,6 +6198,118 @@ void Rasterizer::UnmapMemory(VAddr addr, u64 size) {
     {
         std::scoped_lock lock{mapped_ranges_mutex};
         mapped_ranges -= decltype(mapped_ranges)::interval_type::right_open(addr, addr + size);
+    }
+}
+
+bool Rasterizer::PrepareKnackVideo(const GraphicsPipeline* pipeline, const RenderState& state,
+                                  bool indirect) {
+    const float aspect = TlgSettings::Get().active_aspect.load();
+    const float scale = TlgGraphics::KnackVideoConversionScale(aspect);
+    if (scale==1.0f || !upscaler->KnackProfile() || state.num_color_attachments!=1 ||
+        !cb_descs[0].first || target_scale[0]!=1.0f || target_scale[1]!=1.0f ||
+        state.width<=0 || state.height<=0 || state.width>8192 || state.height>8192) return false;
+    const auto* fragment = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+    if (!fragment) return false;
+    const auto vertex = pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash;
+    if (vertex!=UINT64_C(0xa4d9b6a0) ||
+        (fragment->pgm_hash!=UINT64_C(0x6e46c324) && fragment->pgm_hash!=UINT64_C(0xc437421c))) return false;
+    bool sampled = false;
+    for (const auto id : bound_images) {
+        const auto& image = texture_cache.GetImage(id);
+        for (const auto& video : knack_video_images) {
+            sampled |= video.Matches(image.image_uid, image.info.guest_address,
+                                      image.alias_generation, image.info.size.width, image.info.size.height);
+        }
+    }
+    const auto& regs = Regs();
+    const auto pass = TlgGraphics::KnackVideoDraw(true, vertex, fragment->pgm_hash,
+        regs.depth_control.depth_enable, regs.IsClipDisabled(), indirect,
+        regs.num_indices, regs.num_instances.NumInstances(), sampled);
+    if (pass==TlgGraphics::KnackVideoPass::None) return false;
+    const auto& target = texture_cache.GetImage(cb_descs[0].first);
+    if (pass==TlgGraphics::KnackVideoPass::Conversion) {
+        auto viewports = scheduler.GetDynamicState().viewports;
+        for (auto& viewport : viewports) {
+            if (viewport.width*scale>float(instance.GetMaxViewportWidth())) return false;
+            const float center = float(state.width)*0.5f;
+            viewport.x = center+(viewport.x-center)*scale;
+            viewport.width *= scale;
+        }
+        auto& dynamic = scheduler.GetDynamicState();
+        dynamic.SetViewports(viewports);
+        // The ordinary state has already been committed. Emit the correction in
+        // this same command stream before BeginRendering and the conversion draw.
+        dynamic.CommitWith(instance.IsDepthBoundsSupported(), instance.IsDynamicColorWriteMaskSupported(),
+            instance.IsAttachmentFeedbackLoopLayoutSupported(),
+            [&](auto&& command) { scheduler.Record(std::move(command)); });
+        auto* slot = &knack_video_images[knack_video_next%knack_video_images.size()];
+        for (auto& entry : knack_video_images) {
+            if (entry.uid==target.image_uid) { slot=&entry; break; }
+        }
+        if (slot->uid!=target.image_uid) ++knack_video_next;
+        *slot={target.image_uid,target.info.guest_address,target.alias_generation,
+               target.info.size.width,target.info.size.height};
+        static std::atomic<bool> reported{false};
+        if (!reported.exchange(true, std::memory_order_relaxed)) {
+            LOG_INFO(Render_Vulkan, "Knack video: native conversion projection, scale {}, target {}x{}",
+                     scale, state.width, state.height);
+        }
+        return true;
+    }
+    const auto& settings = TlgSettings::Get();
+    if (state.width!=settings.native_width.load() || state.height!=settings.native_height.load()) return false;
+    knack_video_composed = true;
+    return false;
+}
+
+void Rasterizer::ClearKnackVideoBars() {
+    // Stay in the draw-recording stream: identify the display image actually
+    // written by this present dispatch, not a global flag read by another thread.
+    for (const auto id : bound_images) {
+        auto& image = texture_cache.GetImage(id);
+        if (!FrameCapture::IsDisplayBuffer(image.info.guest_address) || image.info.num_samples!=1 ||
+            image.info.resources.layers!=1 || image.info.resources.levels!=1) continue;
+        const auto format = image.info.pixel_format;
+        if (format!=vk::Format::eA2B10G10R10UnormPack32 &&
+            format!=vk::Format::eA2R10G10B10UnormPack32 &&
+            format!=vk::Format::eR8G8B8A8Unorm && format!=vk::Format::eB8G8R8A8Unorm) continue;
+        const auto width = image.info.size.width, height = image.info.size.height;
+        const auto bounds = TlgGraphics::KnackVideoContentBounds(int(width),TlgSettings::Get().active_aspect);
+        if (bounds[0]<=0 || bounds[1]>=int(width)) continue;
+        scheduler.EndRendering();
+        VideoCore::ImageViewInfo view;
+        view.format = format;
+        const auto handle = *image.FindView(view).image_view;
+        runtime.Transit(&image,vk::ImageLayout::eColorAttachmentOptimal,
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::AccessFlagBits2::eColorAttachmentRead|vk::AccessFlagBits2::eColorAttachmentWrite);
+        runtime.FlushBarriers();
+        scheduler.Record([=](vk::CommandBuffer command) {
+            const vk::RenderingAttachmentInfo attachment{
+                .imageView=handle,.imageLayout=vk::ImageLayout::eColorAttachmentOptimal,
+                .loadOp=vk::AttachmentLoadOp::eLoad,.storeOp=vk::AttachmentStoreOp::eStore};
+            const vk::RenderingInfo rendering{
+                .renderArea={{0,0},{width,height}},.layerCount=1,
+                .colorAttachmentCount=1,.pColorAttachments=&attachment};
+            const vk::ClearAttachment black{
+                .aspectMask=vk::ImageAspectFlagBits::eColor,.colorAttachment=0,
+                .clearValue=vk::ClearValue{vk::ClearColorValue{std::array<float,4>{0,0,0,1}}}};
+            const std::array<vk::ClearRect,2> bars{{
+                {.rect={{0,0},{u32(bounds[0]),height}},.baseArrayLayer=0,.layerCount=1},
+                {.rect={{bounds[1],0},{width-u32(bounds[1]),height}},.baseArrayLayer=0,.layerCount=1}}};
+            command.beginRendering(rendering);
+            command.clearAttachments(black,bars);
+            command.endRendering();
+        });
+        runtime.Transit(&image,vk::ImageLayout::eGeneral,vk::PipelineStageFlagBits2::eAllCommands,
+            vk::AccessFlagBits2::eShaderRead|vk::AccessFlagBits2::eShaderWrite);
+        runtime.FlushBarriers();
+        static std::atomic<bool> reported{false};
+        if (!reported.exchange(true,std::memory_order_relaxed)) {
+            LOG_INFO(Render_Vulkan,"Knack video: final 16:9 frame, black sides {}+{} pixels",
+                bounds[0],int(width)-bounds[1]);
+        }
+        return;
     }
 }
 
@@ -4387,6 +6838,10 @@ void Rasterizer::MarkPass(const GraphicsPipeline* pipeline, const RenderState& s
 }
 
 void Rasterizer::NoteFrameStart() {
+    // Both graphics and Knack's compute presentation reach this frame boundary.
+    static const char* scene_debug = std::getenv("TLG_SCENE_DEBUG");
+    scene_debug_frame = scene_debug && std::remove(scene_debug) == 0;
+    scene_targets->debug = scene_debug_frame;
     if (auto* profiler = GpuProfiler::Get()) {
         profiler->BeginFrame();
     }

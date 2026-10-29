@@ -83,3 +83,11 @@ service-account*.json
 /captures/
 /logs
 /firmware/
+
+# Artwork supplied locally for packaging; not part of the source distribution.
+/port/launcher/knack2/ui/art/
+/Play Knack II.exe
+
+# Local editor preferences and runtime-generated user data.
+/.vscode/
+/user/

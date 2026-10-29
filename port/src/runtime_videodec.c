@@ -72,16 +72,15 @@ static ABI int32_t videodec_query(const ConfigInfo *config, ResourceInfo *out) {
 static ABI int32_t videodec_create(const ConfigInfo *config, const ResourceInfo *resource, Ctrl *out) {
     if (!config || !resource || !out) return ERR_ARGUMENT_POINTER;
     if (config->this_size!=sizeof(*config) || resource->this_size!=sizeof(*resource)) return ERR_STRUCT_SIZE;
-    /* Some distro builds substitute libopenh264, whose reordered pictures do
-     * not preserve the access unit's opaque data. Require the native decoder
-     * so guest timestamps and attached data stay associated with the picture. */
+    /* Native H.264 preserves each access unit's timestamps and opaque data
+     * through B-frame reordering. Some distro builds select libopenh264 by ID. */
     const AVCodec *codec=avcodec_find_decoder_by_name("h264");
     if (!codec) {
-        fprintf(stderr,"Runtime: FFmpeg native h264 decoder unavailable; install a codec-enabled FFmpeg (see docs/LINUX.md)\n");
+        fprintf(stderr,"Runtime: FFmpeg native h264 decoder unavailable; install a codec-enabled FFmpeg\n");
         return ERR_API_FAIL;
     }
     Decoder *d=calloc(1,sizeof(*d));
-    if (!codec || !d) { free(d); return ERR_API_FAIL; }
+    if (!d) return ERR_API_FAIL;
     d->codec=avcodec_alloc_context3(codec);
     d->packet=av_packet_alloc();
     d->frame=av_frame_alloc();

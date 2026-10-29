@@ -232,6 +232,8 @@ struct HwFragmentRuntimeInfo {
     bool motion_vectors{false};
     /// tlg: BP12 (shadPS4 7d28d279, #5264) DEPTH_BEFORE_SHADER asks for early Z tests.
     bool depth_before_shader{false};
+    /// Triangle geometry provides explicit parameters on devices without barycentrics.
+    bool emulated_barycentric{false};
 
     bool operator==(const HwFragmentRuntimeInfo& other) const noexcept {
         return std::ranges::equal(color_buffers, other.color_buffers) &&
@@ -243,6 +245,7 @@ struct HwFragmentRuntimeInfo {
                clip_distance_emulation == other.clip_distance_emulation &&
                motion_vectors == other.motion_vectors &&
                depth_before_shader == other.depth_before_shader &&
+               emulated_barycentric == other.emulated_barycentric &&
                std::ranges::equal(inputs.begin(), inputs.begin() + num_inputs, other.inputs.begin(),
                                   other.inputs.begin() + num_inputs);
     }

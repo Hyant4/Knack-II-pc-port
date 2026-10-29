@@ -368,7 +368,7 @@ static int split_at(uintptr_t a) {
     if (i==vma_count || vmas[i].start>=a) return 0;
     Vma right=vmas[i];
     right.start=a;
-    if (right.kind==KIND_DIRECT) right.phys+=a-vmas[i].start;
+    if (right.kind!=KIND_RESERVED) right.phys+=a-vmas[i].start;
     vmas[i].end=a;
     return vma_insert(i+1,right);
 }
@@ -818,6 +818,44 @@ int runtime_memory_read_backing(uintptr_t address, void *data, uint64_t size) {
     }
     read_unlock();
     return ok;
+}
+#ifndef RUNTIME_MEMORY_SNAPSHOT_TEST_HOOK
+#define RUNTIME_MEMORY_SNAPSHOT_TEST_HOOK() ((void)0)
+#endif
+/* Copies from the pool's independent backing view. GPU page tracking changes protection only on
+ * guest-address views, so it cannot fault this copy. The VMA read lock excludes every runtime
+ * map, unmap, guest-protection change, physical release and backing discard until memcpy ends. */
+int runtime_memory_copy_snapshot(void *dst, uintptr_t address, uint64_t size) {
+    if (!dst || !address || !size || size>SIZE_MAX || address>UINTPTR_MAX-(uintptr_t)size) return 0;
+    const uintptr_t end=address+(uintptr_t)size;
+    const uint64_t backing_size=POOL_SIZE+FLEX_SPAN;
+    read_lock();
+    if (!backing_base) { read_unlock(); return 0; }
+    /* Validate the whole range first. A rejected range leaves dst unchanged. */
+    for (uintptr_t at=address; at<end;) {
+        size_t i=vma_index(at);
+        if (i==vma_count || vmas[i].start>at || vmas[i].kind==KIND_RESERVED ||
+            !(host_prot(vmas[i].prot)&PROT_READ)) {
+            read_unlock(); return 0;
+        }
+        const uint64_t offset=(uint64_t)(at-vmas[i].start);
+        const uint64_t available=(uint64_t)((vmas[i].end<end ? vmas[i].end : end)-at);
+        if (vmas[i].phys>backing_size || offset>backing_size-vmas[i].phys ||
+            available>backing_size-vmas[i].phys-offset) {
+            read_unlock(); return 0;
+        }
+        at+=(uintptr_t)available;
+    }
+    RUNTIME_MEMORY_SNAPSHOT_TEST_HOOK();
+    for (uintptr_t at=address; at<end;) {
+        size_t i=vma_index(at);
+        const uint64_t available=(uint64_t)((vmas[i].end<end ? vmas[i].end : end)-at);
+        memcpy((unsigned char *)dst+(at-address),
+               backing_base+vmas[i].phys+(at-vmas[i].start),(size_t)available);
+        at+=(uintptr_t)available;
+    }
+    read_unlock();
+    return 1;
 }
 /* Per-thread cache of recently found regions for the GPU's per-draw queries:
  * entries hold for as long as the table generation they were read at. */

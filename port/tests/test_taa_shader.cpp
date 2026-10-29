@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Run the production TAA shader on synthetic inputs, including undefined/invalid history.
+#ifdef _WIN32
+#include "tlg_win_compat.h"
+#endif
 #include <cassert>
 #include <algorithm>
 #include <array>
@@ -15,14 +18,12 @@
 #include "video_core/host_shaders/taa_comp.h"
 #include "video_core/host_shaders/taa_sharpen_comp.h"
 #include <vk_mem_alloc.h>
+#include "vulkan_test_dispatch.h"
 
 int main(int argc, char** argv) {
     using namespace Vulkan;
     Instance instance(0, false);
-    static vk::detail::DynamicLoader loader;
-    vk::detail::DispatchLoaderDynamic d;
-    d.init(loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
-    d.init(instance.GetInstance()); d.init(instance.GetDevice());
+    auto d = VulkanTestDispatch(instance);
     const auto device = instance.GetDevice();
     Scheduler scheduler(instance);
     // Odd dimensions and a pixel beyond 2000 exercise bounds and subpixel precision.

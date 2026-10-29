@@ -223,34 +223,76 @@ else()
     target_link_libraries(tlggpu PUBLIC PkgConfig::X11)
 endif()
 
-# tlg (Windows): tlggpu is a static library there, so the loader and the HLE runtime are
-# linked here, where CMake knows its dependencies (build.sh builds them with ninja).
+# The loader shares the same runtime sources on both hosts. CMake also supports
+# Linux out-of-tree builds without build.sh's dependency patching or shared out/.
+file(GLOB TLG_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
+file(GLOB TLG_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
+add_library(atrac9 STATIC ${TLG_ATRAC9})
+target_compile_options(atrac9 PRIVATE -w)
+set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
+add_executable(tlg-probe ../src/probe.c ${TLG_RUNTIME} ../src/cpu_check.c ../src/vulkan_smoke.c
+    ../src/isa_rewrite.c ../src/isa_emulate.c)
+set_source_files_properties(../src/isa_emulate.c PROPERTIES COMPILE_OPTIONS "-mgeneral-regs-only")
+set_target_properties(tlg-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+if (DEFINED ENV{TLG_BUILD_COMMIT})
+    target_compile_definitions(tlg-probe PRIVATE TLG_BUILD_COMMIT="$ENV{TLG_BUILD_COMMIT}")
+endif()
+target_compile_options(tlg-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+target_include_directories(tlg-probe PRIVATE .. ../src)
+pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
+target_link_libraries(tlg-probe PRIVATE tlggpu atrac9 PkgConfig::FREETYPE)
+if (NOT WIN32)
+    # Guest pointers pack into 40 bits; the loader's brk heap must stay low.
+    set_target_properties(tlg-probe PROPERTIES POSITION_INDEPENDENT_CODE OFF)
+    set_target_properties(tlg-probe tlggpu PROPERTIES BUILD_RPATH_USE_ORIGIN ON)
+    target_compile_definitions(tlg-probe PRIVATE _POSIX_C_SOURCE=200809L)
+    target_link_options(tlg-probe PRIVATE -no-pie -Wl,--export-dynamic)
+    target_compile_options(tlg-probe PRIVATE -pthread)
+    target_link_libraries(tlg-probe PRIVATE Vulkan::Vulkan m ${CMAKE_DL_LIBS} -pthread)
+    # Existing synthetic runtime harnesses, built only when explicitly requested.
+    foreach(harness IN ITEMS runtime sema freeze)
+        add_executable(${harness}-test EXCLUDE_FROM_ALL ../tests/test_${harness}.c ${TLG_RUNTIME})
+        set_target_properties(${harness}-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF
+            POSITION_INDEPENDENT_CODE OFF)
+        target_compile_definitions(${harness}-test PRIVATE _POSIX_C_SOURCE=200809L)
+        target_compile_options(${harness}-test PRIVATE -UNDEBUG -Wall -Wextra -Werror -pthread)
+        target_include_directories(${harness}-test PRIVATE .. ../src)
+        target_link_options(${harness}-test PRIVATE -no-pie -Wl,--export-dynamic)
+        target_link_libraries(${harness}-test PRIVATE tlggpu atrac9 PkgConfig::FREETYPE
+            Vulkan::Vulkan m ${CMAKE_DL_LIBS} -pthread)
+    endforeach()
+    add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c)
+    set_target_properties(videodec-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_definitions(videodec-test PRIVATE _POSIX_C_SOURCE=200809L)
+    target_compile_options(videodec-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+    target_include_directories(videodec-test PRIVATE .. ../src)
+    target_link_libraries(videodec-test PRIVATE PkgConfig::FFMPEG)
+    foreach(isa IN ITEMS sse4a f16c)
+        add_executable(isa-${isa}-test EXCLUDE_FROM_ALL ../tests/test_isa_${isa}.c
+            ../src/isa_rewrite.c ../src/isa_emulate.c)
+        set_target_properties(isa-${isa}-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+        target_compile_definitions(isa-${isa}-test PRIVATE _POSIX_C_SOURCE=200809L)
+        target_compile_options(isa-${isa}-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+        target_include_directories(isa-${isa}-test PRIVATE .. ../src)
+        target_link_libraries(isa-${isa}-test PRIVATE -pthread)
+    endforeach()
+    set_source_files_properties(../tests/test_isa_sse4a.c PROPERTIES COMPILE_OPTIONS "-msse4a")
+    set_source_files_properties(../tests/test_isa_f16c.c PROPERTIES COMPILE_OPTIONS "-mavx;-mf16c")
+endif()
+
+add_executable(knack-loadexec-test EXCLUDE_FROM_ALL ../../tests/test_knack_loadexec.c ../src/runtime_knack.c)
+target_include_directories(knack-loadexec-test PRIVATE ../src)
+
 if (WIN32)
     enable_language(RC)
-    file(GLOB TLG_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
-    add_executable(knack-loadexec-test EXCLUDE_FROM_ALL ../../tests/test_knack_loadexec.c ../src/runtime_knack.c)
-    target_include_directories(knack-loadexec-test PRIVATE ../src)
-    file(GLOB TLG_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
-    add_library(atrac9 STATIC ${TLG_ATRAC9})
-    target_compile_options(atrac9 PRIVATE -w)
-    set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
-    add_executable(tlg-probe ../src/probe.c ${TLG_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
-        ../src/isa_rewrite.c ../src/isa_emulate.c
-        ../packaging/windows/tlg-probe.rc)
-    set_target_properties(tlg-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
-    if (DEFINED ENV{TLG_BUILD_COMMIT})
-        target_compile_definitions(tlg-probe PRIVATE TLG_BUILD_COMMIT="$ENV{TLG_BUILD_COMMIT}")
-    endif()
-    target_compile_options(tlg-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
-    target_include_directories(tlg-probe PRIVATE .. ../src)
-    # tlg: libSceFont (runtime_gr2_font.c) renders glyphs with FreeType.
-    pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
-    target_link_libraries(tlg-probe PRIVATE tlggpu atrac9 PkgConfig::FREETYPE onecore bcrypt ws2_32 -pthread)
+    target_sources(tlg-probe PRIVATE ../src/compat_win.c ../packaging/windows/tlg-probe.rc)
+    target_link_libraries(tlg-probe PRIVATE onecore bcrypt ws2_32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     target_link_options(tlg-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
     # tlg: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test).
-    add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
+    add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c
+        ../src/runtime_atrac9.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)
     add_executable(services-test EXCLUDE_FROM_ALL ../tests/test_services.c ../src/compat_win.c)
     foreach(test mp3-test videodec-test services-test)
@@ -321,6 +363,20 @@ if (WIN32)
     add_executable(tlg-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
     target_compile_options(tlg-play PRIVATE -municode)
     target_link_options(tlg-play PRIVATE -municode)
+
+    # Original Knack artwork stays local; never fall back to another game's icon.
+    set(KNACK2_ICON_FILE "$ENV{LOCALAPPDATA}/KnackII-PC/identity/Knack.ico" CACHE FILEPATH
+        "Optional local Knack II icon for Windows executables")
+    set(KNACK2_ICON_PATH "")
+    if(EXISTS "${KNACK2_ICON_FILE}")
+        file(TO_CMAKE_PATH "${KNACK2_ICON_FILE}" KNACK2_ICON_PATH)
+    endif()
+    configure_file(../packaging/windows/knack2-icon.h.in
+        "${CMAKE_CURRENT_BINARY_DIR}/knack2-branding/knack2-icon.h" @ONLY)
+    foreach(KNACK2_ICON_TARGET IN ITEMS tlg-play tlg-gpu-capabilities)
+        target_include_directories(${KNACK2_ICON_TARGET} PRIVATE
+            "${CMAKE_CURRENT_BINARY_DIR}/knack2-branding")
+    endforeach()
 endif()
 
 # Explicit test targets; neither launches the game nor needs a Vulkan device.
@@ -456,6 +512,12 @@ add_executable(camera-motion-test EXCLUDE_FROM_ALL ../tests/test_camera_motion.c
 target_include_directories(camera-motion-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
 target_compile_options(camera-motion-test PRIVATE -UNDEBUG -fPIC)
 target_link_libraries(camera-motion-test PRIVATE tlggpu)
+if (WIN32)
+    foreach(test IN ITEMS scene-resolution-test taa-shader-test camera-motion-test)
+        target_sources(${test} PRIVATE ../src/compat_win.c)
+        target_link_libraries(${test} PRIVATE onecore)
+    endforeach()
+endif()
 add_dependencies(camera-motion-test host_shaders)
 
 # tlg: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.
@@ -478,6 +540,10 @@ target_compile_options(perf-overlay-test PRIVATE -UNDEBUG)
 add_executable(cheat-hooks-test EXCLUDE_FROM_ALL ../tests/test_cheat_hooks.cpp)
 target_compile_options(cheat-hooks-test PRIVATE -UNDEBUG)
 add_executable(readback-queue-test EXCLUDE_FROM_ALL ../tests/test_readback_queue.cpp)
+add_executable(barrier-merge-test EXCLUDE_FROM_ALL ../tests/test_barrier_merge.cpp)
+target_include_directories(barrier-merge-test PRIVATE shadps4 third_party/vulkan-headers/include)
+target_link_libraries(barrier-merge-test PRIVATE Boost::headers)
+target_compile_options(barrier-merge-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 target_include_directories(readback-queue-test PRIVATE shadps4)
 target_compile_options(readback-queue-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_executable(wait-diagnostics-test EXCLUDE_FROM_ALL ../tests/test_wait_diagnostics.cpp)
@@ -509,3 +575,16 @@ target_link_libraries(fsr4-bench PRIVATE ffx-vulkan::fsr4-v07-vulkan ffx-vulkan:
 
 add_executable(cheat-hook-test ../tests/test_cheat_hook.cpp)
 target_compile_options(cheat-hook-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+
+# Knack explicit interpolation on hardware without barycentric extensions.
+add_executable(barycentric-shaders-test EXCLUDE_FROM_ALL
+    ../tests/test_barycentric_shaders.cpp ../tests/test_gpu_runtime_stubs.cpp)
+target_include_directories(barycentric-shaders-test PRIVATE shim shadps4 third_party/gcn/include)
+target_compile_options(barycentric-shaders-test PRIVATE -UNDEBUG -fPIC)
+target_link_libraries(barycentric-shaders-test PRIVATE tlggpu)
+if (WIN32)
+    target_link_libraries(barycentric-shaders-test PRIVATE onecore)
+endif()
+add_executable(barycentric-pixels-test EXCLUDE_FROM_ALL ../tests/test_barycentric_pixels.cpp)
+target_compile_options(barycentric-pixels-test PRIVATE -UNDEBUG)
+target_link_libraries(barycentric-pixels-test PRIVATE Vulkan::Vulkan)

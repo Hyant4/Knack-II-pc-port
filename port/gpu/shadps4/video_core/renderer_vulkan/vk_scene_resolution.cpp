@@ -208,11 +208,16 @@ void SceneTargets::Copy(Entry& e, VideoCore::Image& original, bool to_native) {
             .dstSubresource = {aspect, to_native ? e.level : 0u, 0, 1},
             .dstOffsets = std::array{vk::Offset3D{}, to_native ? native : reduced},
         };
-        // Nearest preserves depth/stencil and avoids assuming linear blit support for
-        // integer G-buffer formats. FSR reconstructs color at the HDR scene boundary.
-        scheduler.Record([src,dst,region](vk::CommandBuffer cmd) {
+        // Supersampled color resolves with a linear filter only when the format supports
+        // it. Integer G-buffers and depth/stencil retain nearest sampling.
+        const bool linear = to_native && aspect == vk::ImageAspectFlagBits::eColor &&
+            (reduced.x > native.x || reduced.y > native.y) &&
+            bool(Features(original.backing->image.image_ci.format) &
+                 vk::FormatFeatureFlagBits::eSampledImageFilterLinear);
+        scheduler.Record([src,dst,region,linear](vk::CommandBuffer cmd) {
             cmd.blitImage(src, vk::ImageLayout::eTransferSrcOptimal, dst,
-                          vk::ImageLayout::eTransferDstOptimal, region, vk::Filter::eNearest);
+                          vk::ImageLayout::eTransferDstOptimal, region,
+                          linear ? vk::Filter::eLinear : vk::Filter::eNearest);
         });
     }
     if (to_native) e.state.Resolved(); else e.state.CopiedToProxy();

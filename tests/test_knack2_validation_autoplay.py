@@ -63,8 +63,10 @@ class ValidationAutoplayTests(unittest.TestCase):
             saved = config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']
             self.assertEqual(saved['status'], 'valid')
             self.assertEqual(saved['game_dir'], str(game_dir.resolve()))
+            self.assertEqual((saved['title_id'], saved['version']), ('CUSA08014', '01.01'))
             first.saveSettings()
-            self.assertEqual(config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']['status'], 'valid')
+            self.assertEqual(
+                config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']['status'], 'valid')
             first.shutdown()
 
             second = self.make_backend(data_dir, auto_play=True)
@@ -75,29 +77,54 @@ class ValidationAutoplayTests(unittest.TestCase):
             self.assertEqual(launched, [True])
             second.shutdown()
 
-    def test_direct_play_blocks_new_or_changed_dump_and_explains_hash_failure(self):
+    def test_direct_play_needs_prior_validation_even_when_current_check_passes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             data_dir, game_dir = root / 'data', root / 'game'
             data_dir.mkdir(); game_dir.mkdir()
             config.save_launcher_settings({'game_dir': str(game_dir)}, path=data_dir / 'launcher_settings.json')
-            new = self.make_backend(data_dir, auto_play=True)
+            backend = self.make_backend(data_dir, auto_play=True)
             launched = []
-            new.play = lambda: launched.append(True)
-            self.validate(new)
+            backend.play = lambda: launched.append(True)
+            self.validate(backend)
             self.assertEqual(launched, [])
-            self.assertIn('ainda não tinha uma validação salva', new.notification)
-            new.shutdown()
+            self.assertEqual(backend.validationState, 'valid')
+            self.assertIn('ainda não tinha uma validação salva', backend.notification)
+            backend.shutdown()
 
+    def test_direct_play_blocks_when_saved_version_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_dir, game_dir = root / 'data', root / 'game'
+            data_dir.mkdir(); game_dir.mkdir()
+            config.save_launcher_settings({
+                'game_dir': str(game_dir),
+                'validation': {'schema': 1, 'status': 'valid', 'game_dir': str(game_dir.resolve()),
+                               'title_id': 'CUSA08014', 'version': '01.01'},
+            }, path=data_dir / 'launcher_settings.json')
+            backend = self.make_backend(data_dir, result=self.result(version='01.02'), auto_play=True)
+            launched = []
+            backend.play = lambda: launched.append(True)
+            self.validate(backend)
+            self.assertEqual(launched, [])
+            self.assertIn('não é o mesmo título, versão ou pasta', backend.notification)
+            backend.shutdown()
+
+    def test_hash_failure_explains_error_and_persists_invalid_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_dir, game_dir = root / 'data', root / 'game'
+            data_dir.mkdir(); game_dir.mkdir()
             config.save_launcher_settings({'game_dir': str(game_dir)}, path=data_dir / 'launcher_settings.json')
-            failed = self.make_backend(
+            backend = self.make_backend(
                 data_dir, error=validator.KnackHashMismatchError('eboot.bin: SHA-256 difere do dump suportado'))
-            self.validate(failed)
-            self.assertEqual(failed.validationState, 'invalid')
-            self.assertIn('Falha de validação: eboot.bin', failed.validationText)
-            self.assertIn('Motivo: Um executável não corresponde', failed.validationText)
-            self.assertEqual(config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']['status'], 'invalid')
-            failed.shutdown()
+            self.validate(backend)
+            self.assertEqual(backend.validationState, 'invalid')
+            self.assertIn('Falha de validação: eboot.bin', backend.validationText)
+            self.assertIn('Motivo: Um executável não corresponde', backend.validationText)
+            saved = config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']
+            self.assertEqual(saved['status'], 'invalid')
+            backend.shutdown()
 
 
 if __name__ == '__main__':

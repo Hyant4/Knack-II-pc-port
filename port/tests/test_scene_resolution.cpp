@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include "tlg_win_compat.h"
 #include "common/slot_vector.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -15,14 +16,29 @@
 int main() {
     using namespace Vulkan;
     Instance instance(0, false);
-    // Calls emitted by this executable use a local dispatcher. libtlggpu.so initializes
-    // its own default dispatcher while constructing Instance.
+    // Load only this test's entry points. Emitting Vulkan-Hpp's out-of-line init()
+    // here can interpose the library's platform-specific init() on Windows, leading
+    // to a null call during Instance construction. The renderer keeps its dispatcher.
     static vk::detail::DynamicLoader loader;
     vk::detail::DispatchLoaderDynamic dispatch;
-    dispatch.init(
-        loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
-    dispatch.init(instance.GetInstance());
-    dispatch.init(instance.GetDevice());
+    const auto get_instance = loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+    assert(get_instance);
+    const auto get_device = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+        get_instance(instance.GetInstance(), "vkGetDeviceProcAddr"));
+    assert(get_device);
+    dispatch.vkGetPhysicalDeviceFormatProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceFormatProperties>(
+        get_instance(instance.GetInstance(), "vkGetPhysicalDeviceFormatProperties"));
+    assert(dispatch.vkGetPhysicalDeviceFormatProperties);
+#define LOAD_LOCAL(name) \
+    dispatch.name = reinterpret_cast<PFN_##name>(get_device(instance.GetDevice(), #name)); \
+    assert(dispatch.name)
+    LOAD_LOCAL(vkCmdPipelineBarrier2);
+    LOAD_LOCAL(vkCmdCopyImageToBuffer);
+    LOAD_LOCAL(vkCmdClearDepthStencilImage);
+    LOAD_LOCAL(vkCmdBeginRendering);
+    LOAD_LOCAL(vkCmdEndRendering);
+    LOAD_LOCAL(vkCmdClearAttachments);
+#undef LOAD_LOCAL
     Scheduler scheduler(instance);
     Runtime runtime(instance, scheduler);
     Common::SlotVector<VideoCore::ImageView> views;
@@ -147,6 +163,40 @@ int main() {
         c=targets.Read(color_id,cv);
         assert(pixel(c.image,vk::ImageAspectFlagBits::eColor,c.layout,size.width,size.height)==0xff00ff00);
         std::printf("Scene targets: %ux%u color/depth/stencil roundtrip PASS\n",size.width,size.height);
+    }
+
+    // A 2x supersampled color resolve must average the four source texels. Last source
+    // pixel blue, other three red: nearest would incorrectly return solid blue.
+    targets.SetSize({3840, 2160});
+    const auto supersampled = targets.Attachment(color_id, cv);
+    {
+        auto cmd = scheduler.CommandBuffer();
+        const vk::RenderingAttachmentInfo color{.imageView=supersampled.view,
+            .imageLayout=supersampled.layout, .loadOp=vk::AttachmentLoadOp::eClear,
+            .storeOp=vk::AttachmentStoreOp::eStore,
+            .clearValue=vk::ClearValue{.color={.float32=std::array{1.f,0.f,0.f,1.f}}}};
+        cmd.beginRendering({.renderArea={{0,0},{3840,2160}},.layerCount=1,
+            .colorAttachmentCount=1,.pColorAttachments=&color}, dispatch);
+        const vk::ClearAttachment blue{.aspectMask=vk::ImageAspectFlagBits::eColor,
+            .colorAttachment=0,
+            .clearValue=vk::ClearValue{.color={.float32=std::array{0.f,0.f,1.f,1.f}}}};
+        const vk::ClearRect corner{.rect={{3839,2159},{1,1}},.baseArrayLayer=0,.layerCount=1};
+        cmd.clearAttachments(blue, corner, dispatch);
+        cmd.endRendering(dispatch);
+    }
+    runtime.Transit(&images[color_id], vk::ImageLayout::eTransferSrcOptimal,
+        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead);
+    runtime.FlushBarriers();
+    const auto mixed = pixel(images[color_id].GetImage(), vk::ImageAspectFlagBits::eColor,
+                             vk::ImageLayout::eTransferSrcOptimal, 1920, 1080);
+    if (instance.GetPhysicalDevice().getFormatProperties(ci.pixel_format, dispatch)
+            .optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear) {
+        assert(std::abs(int(mixed & 255) - 191) <= 1);
+        assert(std::abs(int((mixed >> 16) & 255) - 64) <= 1);
+        std::puts("Scene targets: 2160p supersampling linear color resolve PASS");
+    } else {
+        assert(mixed == 0xffff0000);
+        std::puts("Scene targets: linear color unsupported; nearest fallback PASS");
     }
 
     // Half-resolution mip chain (the game's bloom pyramid): one proxy per level, scaled by the

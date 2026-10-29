@@ -1,8 +1,25 @@
 # Launcher Knack II no Windows
 
+## Resolução, antialiasing e FSR na V0.18
+
+Em Configurações, **Resolução da janela** oferece presets de 720p a 4K, tamanhos ultrawide e modo
+automático. Aplica na próxima sessão, respeitando a área útil da tela. Tela cheia
+e janela sem borda usam a resolução do desktop. Esse ajuste não altera a
+renderização interna do jogo. O controle **Resolução interna** é independente
+e oferece, entre outros modos, QHD e 4K nativos. **Antialiasing** permite escolher
+o processamento nativo ou desligado, separado do FSR. FSR 1 e RCAS têm controles próprios.
+Veja [funcionamento, limitações e diagnóstico de FSR temporal](FSR_RESOLUCAO.md).
+A versão 0.16 contém runtime e launcher recompilados. O controle **Proporção e
+campo de visão** oferece automático pelo monitor, 16:9, 21:9 e 32:9.
+Ultrawide é experimental: cutscenes ainda podem apresentar enquadramento incorreto
+e laterais azuis. Instalações anteriores não são atualizadas automaticamente.
+
 ## Abrir e jogar
 
-O pacote [alpha Windows audio-clock09](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-alpha-Version-0.10) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
+O pacote [Windows publicado](https://github.com/Hyant4/Knack-II-pc-port/releases/latest)
+inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir;
+não execute de dentro do ZIP. Não é preciso instalar Python, Qt ou MSYS2 para jogar.
+Dump próprio e driver com Vulkan 1.3+ continuam necessários.
 
 Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 
@@ -10,8 +27,8 @@ Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 & '.\Knack II.exe'
 ```
 
-1. Em **Escolher pasta**, selecione a raiz do dump CUSA08014 versão 01.01,
-   contendo `sce_sys`, `sce_module`, `eboot.bin` e `game.elf`.
+1. Em **Escolher pasta**, selecione a raiz do dump CUSA08014 versão 01.00 ou 01.01,
+   ou CUSA07670 versão 01.01, contendo `sce_sys`, `sce_module`, `eboot.bin` e `game.elf`.
 2. Clique em **Validar**. O launcher verifica identidade, hashes e módulos.
 3. Em **Configurações**, escolha idioma, jogadores e ajustes gráficos.
 4. Clique em **Jogar**. Para encerrar, use **Encerrar sessão**.
@@ -20,6 +37,38 @@ Abrir o launcher não inicia o jogo. A pasta selecionada é salva automaticament
 na próxima abertura, o caminho reaparece, mas a validação continua obrigatória.
 Essa gravação não salva outros ajustes ainda não confirmados. Use **Salvar
 configurações** para persistir idioma e ajustes gráficos.
+
+## Predefinição de desempenho para GTX 1060
+
+Em **Configurações > Vídeo > Predefinições de compatibilidade**, o novo perfil
+**GTX 1060: desempenho** usa FSR temporal desligado, resolução interna
+1920 × 1080 e precisão GPU **Rápida (sem partículas da GPU)**, com leitura
+antecipada desligada. Reduz detalhes da destruição. Aplicar o perfil desliga
+o diagnóstico opcional; salve as configurações e reinicie pelo launcher normal.
+Janela, VSync, limite de FPS, antialiasing, cache e compilação são preservados.
+A qualidade FSR também é preservada, pois fica inativa com FSR desligado.
+
+Esses ajustes vêm do [relato na issue #12](https://github.com/Hyant4/Knack-II-pc-port/issues/12#issuecomment-6480945572),
+com mais de 50 FPS nas cenas testadas pelo relator e perda de detalhes nos
+efeitos de destruição. O desempenho varia por cena e computador. A seleção é
+manual; não altera preferências salvas ao atualizar o launcher. O perfil novo
+está nos fontes locais e ainda não faz parte do ZIP RC4 publicado.
+
+## Diagnóstico opcional no mesmo preset GTX 1060
+
+A RC4 corrigiu as superfícies pretas na máquina do relator. Essa correção é
+automática e não depende de preset. Existe apenas um perfil GTX 1060; o seletor
+de diagnóstico dentro dele permanece para comparações opcionais.
+
+Para jogar, mantenha diagnóstico **Desligado**. Para uma investigação específica,
+escolha o modo solicitado, salve e reinicie o jogo. Reaplicar o preset desliga
+o diagnóstico. Esses modos não ativam a correção automática da RC4.
+
+O cartão mostra **Selecionado** após aplicar. A escolha salva é restaurada se
+os quatro ajustes ainda corresponderem ao preset. Editar um deles desfaz a
+seleção; voltar manualmente aos valores não seleciona GTX 1060 automaticamente.
+Preferências antigas de leitura precisa são preservadas ao abrir o launcher;
+reaplique o único preset GTX para adotar os novos ajustes de desempenho.
 
 ## Jogadores e duração
 
@@ -34,9 +83,12 @@ positivos e também permite zero para execução ilimitada.
 
 ## Idiomas
 
-O dump inspecionado contém português do Brasil, inglês, espanhol latino-americano
-e francês. Após validar a instalação, o seletor oferece somente idiomas cujos
-arquivos estão presentes nesse dump. A interface muda imediatamente; o jogo
+O perfil americano oferece quatro idiomas; o europeu oferece até quatorze.
+O seletor fica desativado até validar o dump e então mostra somente idiomas
+daquela região com arquivos instalados. Trocar a pasta limpa a lista anterior.
+Veja a [lista regional completa](COMPATIBILIDADE_REGIONAL.md).
+A interface usa os quatro catálogos existentes de português, inglês, espanhol
+e francês; demais idiomas do jogo usam o catálogo inglês do launcher. O jogo
 recebe a escolha no próximo lançamento. Logs externos permanecem no idioma
 original para diagnóstico.
 
@@ -48,9 +100,8 @@ essa raiz.
 
 | Conteúdo | Caminho relativo à pasta padrão |
 | --- | --- |
-| Saves de um jogador | `profiles\single\user\savedata` |
-| Saves cooperativos | `profiles\coop\user\savedata` |
-| Backups do runtime | `savedata-backups`, ao lado de `savedata` em cada perfil |
+| Saves de um jogador e cooperativos | `profiles\shared\user\savedata` |
+| Backups do runtime | `profiles\shared\user\savedata-backups` |
 | Pasta lembrada e preferências | `launcher_settings.json` |
 | Configuração de cada lançamento | `launch-configs\UUID.ini` |
 | Logs de abertura do launcher | `logs\launcher-UUID.log` |
@@ -59,10 +110,18 @@ essa raiz.
 | Preparação e logs de coop | `coop-UUID\session-*` para os logs; imagens preparadas em `coop-UUID` |
 | Ícones originais convertidos | `identity\Knack.ico` e `identity\Knack.bmp` |
 
-Os perfis P1 e coop são separados. Cada partida cooperativa cria uma saída nova
-para preparação e logs, mantendo seus saves no perfil fixo. LoadExec preserva o
-caminho do perfil entre executáveis. Um bloqueio impede uso simultâneo do mesmo
-perfil por dois supervisores com `--user-data`.
+Partidas solo e cooperativas usam o mesmo progresso. LoadExec preserva o caminho
+comum entre executáveis. Um bloqueio impede duas sessões de usarem esse save
+simultaneamente. As saídas de preparação e logs continuam próprias de cada sessão.
+
+Em instalações migradas, os caminhos antigos `profiles\single\user` e
+`profiles\coop\user` podem ser atalhos para `profiles\shared\user`, mantendo a
+compatibilidade com executáveis anteriores sem duplicar os saves.
+
+Antes de migrar uma instalação antiga, feche o jogo e faça backup dos dois saves.
+Importe o conjunto completo do save escolhido para o perfil comum, sem misturar
+arquivos de partidas diferentes. O launcher atualizado avisa quando encontra
+saves antigos sem um save comum, em vez de iniciar um perfil vazio.
 
 Use **Ver logs** ou **Logs e diagnóstico** para encontrar os registros da sessão.
 Um código de saída isolado não basta para concluir que houve crash. Por exemplo,

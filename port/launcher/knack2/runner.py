@@ -50,6 +50,7 @@ import threading
 import time
 from typing import Callable, Mapping
 from .languages import language_environment
+from .paths import project_root, supervisor_executable, external_process_environment
 
 # Re-use the existing lightweight log reader
 try:
@@ -134,6 +135,7 @@ class KnackRunner:
         config_file: Path | str | None = None,
         language: str | None = None,
         user_data: Path | str | None = None,
+        gtx1060_diagnostic: str = 'off',
         experimental_build: bool = False,
         firmware_ngs2: bool = False,
     ) -> None:
@@ -146,7 +148,7 @@ class KnackRunner:
 
         if run_py_path is None:
             # Default to repo root run.py
-            repo_root = Path(__file__).resolve().parents[3]
+            repo_root = project_root()
             self.run_py_path = (repo_root / 'run.py').resolve()
         else:
             self.run_py_path = Path(run_py_path).resolve()
@@ -160,6 +162,8 @@ class KnackRunner:
         language_environment(language)
         self.language = language
         self.user_data = Path(user_data).resolve() if user_data is not None else None
+        from .gtx1060_diagnostics import validate_mode
+        self.gtx1060_diagnostic = validate_mode(gtx1060_diagnostic)
         if type(local_users) is not int or local_users not in (1, 2):
             raise KnackRunnerConfigError('Selecione um ou dois jogadores.')
         if ((local_users == 1 and second_user is not None) or
@@ -187,9 +191,7 @@ class KnackRunner:
         self.analyze_only = bool(analyze_only)
         self.check_imports = bool(check_imports)
 
-        # Resolving a venv's interpreter symlink selects the system Python and
-        # loses its site-packages (including iced_x86 used by preparation).
-        self.python_exe = Path(os.path.abspath(python_exe or sys.executable))
+        self.python_exe = Path(os.path.abspath(python_exe)) if python_exe else supervisor_executable()
         self.max_log_lines = max_log_lines
         self.log_poll_interval = max(0.05, float(log_poll_interval))
 
@@ -208,6 +210,7 @@ class KnackRunner:
 
         self._state = RunnerState.IDLE
         self._process: subprocess.Popen[str] | None = None
+        self._posix_group_pid: int | None = None
         self._monitor_thread: threading.Thread | None = None
         self._log_poll_thread: threading.Thread | None = None
 
@@ -293,6 +296,8 @@ class KnackRunner:
             cmd.extend(['--user-data', str(self.user_data)])
         if self.language is not None:
             cmd.extend(['--language', self.language])
+        if self.gtx1060_diagnostic != 'off':
+            cmd.extend(['--gtx1060-diagnostic', self.gtx1060_diagnostic])
         if self.local_users == 2:
             cmd.extend(['--local-users', '2', '--p2-user-id', str(self.second_user)])
         if self.analyze_only:
@@ -397,7 +402,8 @@ class KnackRunner:
                 errors='replace',
                 bufsize=1,  # Line buffered
                 creationflags=creationflags,
-                env=env,
+                start_new_session=os.name != 'nt',
+                env=external_process_environment(env),
             )
         except Exception as error:
             err_msg = f'Falha ao iniciar processo supervisor: {error}'
@@ -421,13 +427,17 @@ class KnackRunner:
                 try:
                     if proc.stdout and not proc.stdout.closed:
                         proc.stdout.close()
-                    proc.kill()
+                    if os.name != 'nt':
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    else:
+                        proc.kill()
                     proc.wait()
                 except OSError:
                     pass
                 return
 
             self._process = proc
+            self._posix_group_pid = proc.pid if os.name != 'nt' else None
             self._state = RunnerState.RUNNING
             callback_running = self._on_state_change
 
@@ -832,6 +842,9 @@ class KnackRunner:
                                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL, timeout=kill_wait,
                                        creationflags=subprocess.CREATE_NO_WINDOW, check=False)
+                    elif self._posix_group_pid == process.pid:
+                        # Only target a session created by this runner, including its guest child.
+                        os.killpg(process.pid, signal.SIGKILL)
                     else:
                         process.kill()
                 except (OSError, subprocess.TimeoutExpired):

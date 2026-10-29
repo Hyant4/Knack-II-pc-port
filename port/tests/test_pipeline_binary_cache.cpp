@@ -164,20 +164,21 @@ void TestDriverFallback(const std::filesystem::path& root) {
     fail_capture = false;
     fail_compile = true;
     create();
-    assert(compiled == 6 && released == 4);
+    // Five failed capture attempts, then one successful uncaptured fallback.
+    assert(compiled == 10 && released == 4);
     fail_compile = false;
     {
         auto result = Vulkan::CreateCachedGraphicsPipeline(device, cache, info, key, {}, root);
         assert(result.result == vk::Result::eSuccess);
     }
-    assert(compiled == 7 && released == 4);
+    assert(compiled == 11 && released == 4);
     // A path below a file cannot be written, but pipeline creation must still succeed.
     {
         auto result = Vulkan::CreateCachedGraphicsPipeline(device, cache, info, key, global,
                                                            file.path() / "blocked");
         assert(result.result == vk::Result::eSuccess);
     }
-    assert(compiled == 8 && released == 5 && destroyed == 13);
+    assert(compiled == 12 && released == 5 && destroyed == 13);
     dispatch = original;
 }
 

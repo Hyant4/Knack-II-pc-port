@@ -12,8 +12,8 @@ Switch {
         width: 46
         height: 25
         radius: 13
-        color: control.checked ? "#efd192" : "#355661"
-        border.color: control.activeFocus ? "#a4e8ef" : control.checked ? "#efd192" : "#8aabb4"
+        color: control.checked ? "#d6bb84" : "#3d424e"
+        border.color: control.activeFocus ? "#d6bb84" : control.checked ? "#d6bb84" : "#858e9f"
         border.width: control.activeFocus ? 2 : 1
         opacity: control.enabled ? 1 : 0.45
         Rectangle {
@@ -22,13 +22,13 @@ Switch {
             width: 17
             height: 17
             radius: 9
-            color: control.checked ? "#18343f" : "#d5e4e7"
+            color: control.checked ? "#262013" : "#d7dfed"
         }
     }
     contentItem: Text {
         leftPadding: 56
         text: control.checked ? qsTr("Ligado") : qsTr("Desligado")
-        color: control.enabled ? "#d5e4e7" : "#99b1b9"
+        color: control.enabled ? "#d7dfed" : "#939dab"
         font: control.font
         verticalAlignment: Text.AlignVCenter
     }

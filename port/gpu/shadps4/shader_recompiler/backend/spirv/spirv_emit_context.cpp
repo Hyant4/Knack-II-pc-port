@@ -4,6 +4,7 @@
 #include "common/assert.h"
 #include "common/div_ceil.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
+#include "shader_recompiler/backend/spirv/emulated_barycentric.h"
 #include "shader_recompiler/frontend/fetch_shader.h"
 #include "shader_recompiler/ir/attribute.h"
 #include "shader_recompiler/ir/microinstruction.h"
@@ -438,6 +439,21 @@ void EmitContext::DefineInputs() {
             }
         }
 
+        std::optional<EmulatedBarycentricLayout> emulated_layout;
+        if (runtime_info.hw.fs.emulated_barycentric && NeedsBarycentricGeometry(info)) {
+            emulated_layout.emplace(runtime_info.hw.fs, info);
+            for (u32 i = 0; i < 6; ++i) {
+                const u32 location = emulated_layout->weights[i];
+                if (location == EmulatedBarycentricLayout::Missing) continue;
+                const Id id = DefineInput(F32[2], location);
+                Name(id, fmt::format("emulated_barycentric_{}", i));
+                if (i < 3) Decorate(id, spv::Decoration::NoPerspective);
+                if (i % 3 == 1) Decorate(id, spv::Decoration::Centroid);
+                if (i % 3 == 2) Decorate(id, spv::Decoration::Sample);
+                emulated_barycentric_weights[i] = id;
+            }
+            emulated_barycentric_weights[6] = emulated_barycentric_weights[3];
+        }
         const bool has_clip_distance_inputs = runtime_info.hw.fs.clip_distance_emulation;
         // Clip distances attribute vector is the last in inputs array
         const auto num_inputs = runtime_info.hw.fs.num_inputs - (has_clip_distance_inputs ? 1 : 0);
@@ -450,8 +466,13 @@ void EmitContext::DefineInputs() {
             const IR::Attribute param = IR::Attribute::Param0 + i;
             const u32 num_components = info.loads.NumComponents(param);
             const auto [primary, auxiliary] = info.fs_interpolation[i];
-            const Id type = F32[num_components];
+            const bool emulated_parameter = emulated_layout && primary == Qualifier::PerVertex;
+            const Id type = emulated_parameter ? U32[num_components] : F32[num_components];
             const Id attr_id = [&] {
+                if (emulated_layout && primary == Qualifier::PerVertex) {
+                    return Name(DefineInput(TypeArray(type, ConstU32(3U)), emulated_layout->parameters[i]),
+                                fmt::format("fs_in_attr{}_emulated", i));
+                }
                 const auto bind_location = input.param_index + (has_clip_distance_inputs ? 1 : 0);
                 if (primary == Qualifier::PerVertex &&
                     profile.supports_fragment_shader_barycentric) {
@@ -460,7 +481,9 @@ void EmitContext::DefineInputs() {
                 }
                 return Name(DefineInput(type, bind_location), fmt::format("fs_in_attr{}", i));
             }();
-            if (primary == Qualifier::PerVertex) {
+            if (primary == Qualifier::PerVertex && emulated_layout) {
+                Decorate(attr_id, spv::Decoration::Flat);
+            } else if (primary == Qualifier::PerVertex) {
                 Decorate(attr_id, profile.supports_amd_shader_explicit_vertex_parameter
                                       ? spv::Decoration::ExplicitInterpAMD
                                       : spv::Decoration::PerVertexKHR);
@@ -468,11 +491,11 @@ void EmitContext::DefineInputs() {
                 Decorate(attr_id, primary == Qualifier::Flat ? spv::Decoration::Flat
                                                              : spv::Decoration::NoPerspective);
             }
-            if (auxiliary != Qualifier::None) {
+            if (auxiliary != Qualifier::None && !emulated_parameter) {
                 Decorate(attr_id, auxiliary == Qualifier::Centroid ? spv::Decoration::Centroid
                                                                    : spv::Decoration::Sample);
             }
-            input_params[i] = GetAttributeInfo(AmdGpu::NumberFormat::Float, attr_id, num_components,
+            input_params[i] = GetAttributeInfo(emulated_parameter ? AmdGpu::NumberFormat::Uint : AmdGpu::NumberFormat::Float, attr_id, num_components,
                                                false, false, primary == Qualifier::PerVertex);
         }
 

@@ -49,10 +49,15 @@ public:
     [[nodiscard]] const char* Problem() const noexcept;
     /// Assets or device features are missing: FSR 4 will not run in this session.
     [[nodiscard]] bool Fatal() const noexcept;
+    /// A private model is being prepared; Record keeps the native pass until it is ready.
+    [[nodiscard]] bool Preparing() const noexcept;
 
 private:
     struct Impl;
+    struct Preparation;
     std::unique_ptr<Impl> impl;
+    std::unique_ptr<Preparation> preparation;
+    bool async_prepare = false;
 };
 
 } // namespace Vulkan

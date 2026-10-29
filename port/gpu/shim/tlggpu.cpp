@@ -3,6 +3,7 @@
 #include "tlg_overlay.h"
 #include "tlg_png.h"
 #include "tlg_settings.h"
+#include "tlg_graphics.h"
 #include <cstdlib>
 #include <cstdio>
 #include <fstream>
@@ -58,6 +59,41 @@ void runtime_report(void);
 }
 
 Frontend::WindowSDL* g_window = nullptr;
+
+extern "C" float tlggpu_ultrawide_aspect(void) {
+    return TlgGraphics::KnackProfile(std::getenv("KNACK2_PROFILE"))
+        ? TlgSettings::Get().requested_aspect.load() : TlgGraphics::NativeAspect;
+}
+extern "C" void tlggpu_ultrawide_enable(int enabled) {
+    TlgSettings::Get().active_aspect = enabled ? tlggpu_ultrawide_aspect() : TlgGraphics::NativeAspect;
+}
+extern "C" int tlggpu_native_resolution_request(uint32_t* width, uint32_t* height) {
+    if (!width || !height || !TlgGraphics::KnackProfile(std::getenv("KNACK2_PROFILE"))) return 0;
+    const auto index = TlgSettings::Get().startup_internal_resolution;
+    if (index != 4 && index != 5) return 0;
+    const auto size = TlgGraphics::InternalSizes[index];
+    *width = uint32_t(size.width);
+    *height = uint32_t(size.height);
+    return 1;
+}
+extern "C" void tlggpu_native_resolution_enable(uint32_t width, uint32_t height) {
+    auto& settings = TlgSettings::Get();
+    settings.native_width = int(width);
+    settings.native_height = int(height);
+    settings.native_resolution_active = true;
+}
+extern "C" int tlggpu_native_aa_request(void) {
+    const auto& s = TlgSettings::Get();
+    if (!s.startup_antialiasing) return 0;
+    const int size = s.startup_internal_resolution;
+    if (s.startup_antialiasing != 1 || !TlgGraphics::KnackProfile(std::getenv("KNACK2_PROFILE")) ||
+        s.startup_upscaler != TlgSettings::UpscalerOff || size == 1 || size == 2 ||
+        s.startup_output_res != TlgSettings::OutputDefault || std::getenv("TLG_RENDER_RES")) return -1;
+    return 1;
+}
+extern "C" void tlggpu_native_aa_enable(void) {
+    TlgSettings::Get().native_aa_disabled = true;
+}
 
 namespace Libraries::GnmDriver { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
 namespace Libraries::AvPlayer { void RegisterLib(Core::Loader::SymbolsResolver* sym); }
