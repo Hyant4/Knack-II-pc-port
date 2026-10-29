@@ -49,6 +49,8 @@ def create_window(backend=None):
         if ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(enabled), 0):
             motion_allowed = bool(enabled.value)
     engine.rootContext().setContextProperty('launcherMotionAllowed', motion_allowed)
+    from ..paths import display_version
+    engine.rootContext().setContextProperty('launcherVersion', display_version())
     from .i18n import Translator
     translator = Translator(backend.uiLanguage)
     app = QGuiApplication.instance()

@@ -155,7 +155,7 @@ ApplicationWindow {
                         }
                     }
                 }
-                Label { text: "0.15"; color: "#b7bdca"; font.pixelSize: 11 }
+                Label { objectName: "launcherVersionLabel"; text: launcherVersion; color: "#b7bdca"; font.pixelSize: 11 }
             }
         }
         StackLayout {

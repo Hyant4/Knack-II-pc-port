@@ -2,6 +2,7 @@
 """Find project files beside compiled launchers, outside extraction caches."""
 from pathlib import Path
 import os
+import re
 import sys
 
 
@@ -12,6 +13,18 @@ def project_root():
         if (directory / 'run.py').is_file() and (directory / 'profiles/CUSA08014-01.01.json').is_file():
             return directory
     raise FileNotFoundError('Knack II: mantenha o launcher junto ao repositório do projeto.')
+
+
+def display_version(root=None):
+    """Read the packaged build label; source checkouts without a label show dev."""
+    try:
+        path = (project_root() if root is None else Path(root)) / 'VERSION'
+        if path.stat().st_size > 128:
+            return 'dev'
+        value = path.read_text(encoding='utf-8').strip()
+    except (OSError, UnicodeError):
+        return 'dev'
+    return value if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}', value) else 'dev'
 
 
 def supervisor_executable():

@@ -103,6 +103,11 @@ class QtUiTests(unittest.TestCase):
                     ('ReferenceError', 'TypeError', 'binding loop', 'Binding loop', 'failed to load', 'Error:'))]
         self.assertEqual(failures, [])
 
+    def test_header_uses_the_packaged_build_label(self):
+        self.engine.rootContext().setContextProperty('launcherVersion', 'pr19-abcdef0')
+        self.pump()
+        self.assertEqual(self.item('launcherVersionLabel').property('text'), 'pr19-abcdef0')
+
     def pump(self, milliseconds=20):
         QTest.qWait(milliseconds)
 
