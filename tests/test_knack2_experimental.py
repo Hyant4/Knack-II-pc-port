@@ -64,6 +64,17 @@ class ExperimentalBuildTests(unittest.TestCase):
             self.assertTrue(all(profile == expected for profile in seen))
             self.assertNotIn('--experimental-build', KnackRunner(game).build_command())
 
+    def test_runner_default_output_keeps_experimental_saves_separate(self):
+        game = Path(tempfile.gettempdir()) / 'dump'
+        normal, experimental = KnackRunner(game), KnackRunner(game, experimental_build=True)
+        self.assertEqual(normal.out_dir, (ROOT / 'out/knack2').resolve())
+        self.assertEqual(experimental.out_dir, (ROOT / 'out/knack2-experimental').resolve())
+        # No explicit user_data: run.py keeps saves in OUT/user, so they differ too.
+        self.assertIsNone(experimental.user_data)
+        command = experimental.build_command()
+        self.assertEqual(command[command.index('--out') + 1], str(experimental.out_dir))
+        self.assertNotIn('--user-data', command)
+
     def test_gui_propagates_mode_and_isolates_profile(self):
         from PySide6.QtGui import QGuiApplication
         from port.launcher.knack2.ui.real import RealBackend

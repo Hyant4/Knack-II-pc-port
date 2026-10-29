@@ -173,7 +173,9 @@ class KnackRunner:
             raise KnackRunnerConfigError('Arquivo INI não encontrado.')
 
         if out_dir is None:
-            self.out_dir = (self.run_py_path.parent / 'out' / 'knack2').resolve()
+            # Same default as run.py: the experimental build never shares the normal saves (out/user).
+            name = 'knack2-experimental' if self.experimental_build else 'knack2'
+            self.out_dir = (self.run_py_path.parent / 'out' / name).resolve()
         else:
             self.out_dir = Path(out_dir).resolve()
 
