@@ -8,6 +8,25 @@ from .i18n_errors import translate_error
 
 # Source Portuguese, followed by English, Latin American Spanish and French.
 MESSAGES = {
+    'RX 580: compatibilidade experimental': ['RX 580: experimental compatibility', 'RX 580: compatibilidad experimental', 'RX 580 : compatibilité expérimentale'],
+    'Teste para o crash no carregamento relatado na issue #20. Correção no Knack ainda não confirmada.': [
+        'Test for the loading crash reported in issue #20. A Knack fix has not been confirmed yet.',
+        'Prueba para el cierre al cargar reportado en la issue #20. La solución en Knack aún no está confirmada.',
+        'Test du plantage au chargement signalé dans le ticket #20. La correction dans Knack reste à confirmer.'],
+    'Junta barreiras de imagem equivalentes. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': [
+        'Merges equivalent image barriers. Other settings are preserved. Save and restart the game to compare.',
+        'Combina barreras de imagen equivalentes. Conserva los demás ajustes. Guarda y reinicia el juego para comparar.',
+        'Regroupe les barrières d’image équivalentes. Les autres réglages sont conservés. Enregistrez et relancez le jeu pour comparer.'],
+    'Junção de barreiras de imagem': ['Image barrier merging', 'Unión de barreras de imagen', 'Regroupement des barrières d’image'],
+    'Diagnóstico de barreiras de imagem': ['Image barrier diagnostics', 'Diagnóstico de barreras de imagen', 'Diagnostic des barrières d’image'],
+    'Experimental para RX 580. Padrão deixa desligado. Salve e reinicie o jogo para comparar.': [
+        'Experimental for RX 580. Default leaves it off. Save and restart the game to compare.',
+        'Experimental para RX 580. Predeterminado lo deja apagado. Guarda y reinicia el juego para comparar.',
+        'Expérimental pour RX 580. Désactivé par défaut. Enregistrez et relancez le jeu pour comparer.'],
+    'Registra lotes grandes no log, com limite de mensagens. Padrão deixa desligado. Reinicie para aplicar.': [
+        'Logs large batches with a message limit. Default leaves it off. Restart to apply.',
+        'Registra lotes grandes con un límite de mensajes. Predeterminado lo deja apagado. Reinicia para aplicar.',
+        'Journalise les grands lots avec un nombre limité de messages. Désactivé par défaut. Relancez pour appliquer.'],
     'Preparação': ['Preparation', 'Preparación', 'Préparation'],
     'Código': ['Exit code', 'Código de salida', 'Code de sortie'],
     'Logs do supervisor': ['Supervisor logs', 'Registros del supervisor', 'Journaux du superviseur'],

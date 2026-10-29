@@ -1,11 +1,13 @@
 # Launcher Knack II no Windows
 
-## Resolução e FSR nos fontes atuais
+## Resolução, antialiasing e FSR na V0.18
 
 Em Configurações, **Resolução da janela** oferece presets de 720p a 4K, tamanhos ultrawide e modo
 automático. Aplica na próxima sessão, respeitando a área útil da tela. Tela cheia
 e janela sem borda usam a resolução do desktop. Esse ajuste não altera a
-renderização interna do jogo. FSR 1 e RCAS têm controles separados.
+renderização interna do jogo. O controle **Resolução interna** é independente
+e oferece, entre outros modos, QHD e 4K nativos. **Antialiasing** permite escolher
+o processamento nativo ou desligado, separado do FSR. FSR 1 e RCAS têm controles próprios.
 Veja [funcionamento, limitações e diagnóstico de FSR temporal](FSR_RESOLUCAO.md).
 A versão 0.16 contém runtime e launcher recompilados. O controle **Proporção e
 campo de visão** oferece automático pelo monitor, 16:9, 21:9 e 32:9.
@@ -14,7 +16,10 @@ e laterais azuis. Instalações anteriores não são atualizadas automaticamente
 
 ## Abrir e jogar
 
-O pacote [Windows 0.16](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.16) inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir; não execute de dentro do ZIP. O pacote não exige instalar Python, Qt ou MSYS2 para jogar. Dump e driver Vulkan atualizado continuam necessários.
+O pacote [Windows publicado](https://github.com/Hyant4/Knack-II-pc-port/releases/latest)
+inclui launcher, supervisor, runtime e DLLs. Extraia a pasta inteira antes de abrir;
+não execute de dentro do ZIP. Não é preciso instalar Python, Qt ou MSYS2 para jogar.
+Dump próprio e driver com Vulkan 1.3+ continuam necessários.
 
 Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 

@@ -642,6 +642,47 @@ ApplicationWindow {
                                         }
                                     }
                                     Hint { visible: window.gpuAdvanced; text: qsTr("Desligar a compilação compute em segundo plano pode aumentar pausas ao carregar conteúdo."); font.pixelSize: 11 }
+                                    RowLayout {
+                                        visible: window.gpuAdvanced
+                                        SettingLabel { text: qsTr("Junção de barreiras de imagem") }
+                                        OptionSelect {
+                                            id: barrierMergeOption
+                                            objectName: "gpuDiagnosticBarrierMerge"
+                                            Layout.preferredWidth: 210
+                                            model: [qsTr("Padrão"), qsTr("Desligado"), qsTr("Ligado")]
+                                            currentIndex: ["auto", "0", "1"].indexOf(backend.settings.barrier_merge)
+                                            // A translated model resets ComboBox's index. Restore its binding after reset.
+                                            onModelChanged: Qt.callLater(function() {
+                                                barrierMergeOption.currentIndex = Qt.binding(function() {
+                                                    return ["auto", "0", "1"].indexOf(backend.settings.barrier_merge)
+                                                })
+                                            })
+                                            enabled: backend.editable
+                                            Accessible.name: qsTr("Junção de barreiras de imagem")
+                                            onActivated: backend.setSetting("barrier_merge", ["auto", "0", "1"][currentIndex])
+                                        }
+                                    }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("Experimental para RX 580. Padrão deixa desligado. Salve e reinicie o jogo para comparar."); font.pixelSize: 11 }
+                                    RowLayout {
+                                        visible: window.gpuAdvanced
+                                        SettingLabel { text: qsTr("Diagnóstico de barreiras de imagem") }
+                                        OptionSelect {
+                                            id: barrierTraceOption
+                                            objectName: "gpuDiagnosticBarrierTrace"
+                                            Layout.preferredWidth: 210
+                                            model: [qsTr("Padrão"), qsTr("Desligado"), qsTr("Ligado")]
+                                            currentIndex: ["auto", "0", "1"].indexOf(backend.settings.barrier_trace)
+                                            onModelChanged: Qt.callLater(function() {
+                                                barrierTraceOption.currentIndex = Qt.binding(function() {
+                                                    return ["auto", "0", "1"].indexOf(backend.settings.barrier_trace)
+                                                })
+                                            })
+                                            enabled: backend.editable
+                                            Accessible.name: qsTr("Diagnóstico de barreiras de imagem")
+                                            onActivated: backend.setSetting("barrier_trace", ["auto", "0", "1"][currentIndex])
+                                        }
+                                    }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("Registra lotes grandes no log, com limite de mensagens. Padrão deixa desligado. Reinicie para aplicar."); font.pixelSize: 11 }
                                 }
                             }
                             ControllerGuide { objectName: "controllerGuide"; backend: window.backend; motionAllowed: window.motionAllowed; visible: window.settingsTab === 2; Layout.fillWidth: true; Layout.preferredHeight: 640 }

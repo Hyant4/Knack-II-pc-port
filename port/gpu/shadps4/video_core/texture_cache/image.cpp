@@ -4,6 +4,7 @@
 #include "video_core/amdgpu/tlg_amd_1d.h"
 #include "tlg_toggles.h"
 #include <atomic>
+#include <cstdio>
 #include <cstdlib>
 #include <ranges>
 #include "common/assert.h"
@@ -12,6 +13,7 @@
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/texture_cache/blit_helper.h"
+#include "video_core/texture_cache/barrier_merge.h"
 #include "video_core/texture_cache/image.h"
 
 #include <vk_mem_alloc.h>
@@ -309,6 +311,7 @@ void Image::GetBarriers(Barriers& barriers, vk::ImageLayout dst_layout, vk::Acce
                                       vk::AccessFlagBits2::eShaderWrite |
                                       vk::AccessFlagBits2::eMemoryWrite;
     auto& memo = backing->partial_memo;
+    const auto first_new_barrier = barriers.size();
     if (needs_partial_transition && partially_transited && memo.valid &&
         memo.range == *subres_range && memo.layout == dst_layout && memo.access == dst_mask &&
         memo.stage == dst_stage) {
@@ -337,8 +340,7 @@ void Image::GetBarriers(Barriers& barriers, vk::ImageLayout dst_layout, vk::Acce
 
         for (u32 mip : mips) {
             for (u32 layer : layers) {
-                // NOTE: these loops may produce a lot of small barriers.
-                // If this becomes a problem, we can optimize it by merging adjacent barriers.
+                // Equal adjacent transitions may be coalesced below, on explicit opt-in.
                 const auto subres_idx = mip * info.resources.layers + layer;
                 ASSERT(subres_idx < subresource_states.size());
                 auto& state = subresource_states[subres_idx];
@@ -405,6 +407,23 @@ void Image::GetBarriers(Barriers& barriers, vk::ImageLayout dst_layout, vk::Acce
                 .layerCount = VK_REMAINING_ARRAY_LAYERS,
             },
         });
+    }
+
+    static const bool merge = IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_MERGE"));
+    static const bool trace = IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
+    const auto generated = barriers.size() - first_new_barrier;
+    if (merge) {
+        MergeAdjacentBarriers(barriers, first_new_barrier);
+    }
+    if (trace) {
+        static BarrierTraceBudget budget;
+        if (const auto id = budget.Claim(generated)) {
+            std::printf("GPU barriers: generation #%u raw=%zu emitted=%zu merge=%d "
+                        "mips=%u layers=%u (limit 16, threshold 256)\n", id, generated,
+                        barriers.size() - first_new_barrier, int(merge),
+                        u32(info.resources.levels), u32(info.resources.layers));
+            std::fflush(stdout);
+        }
     }
 
     last_state.layout = dst_layout;

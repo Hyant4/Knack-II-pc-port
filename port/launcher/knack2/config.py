@@ -27,6 +27,8 @@ GPU_DIAGNOSTIC_ENV = {
     'pipeline_binaries': 'TLG_PIPELINE_BINARIES',
     'bp06': 'TLG_BP06',
     'compute_async_build': 'TLG_COMPUTE_ASYNC_BUILD',
+    'barrier_merge': 'TLG_BARRIER_MERGE',
+    'barrier_trace': 'TLG_BARRIER_TRACE',
 }
 
 # Keys that the Knack II launcher is authorized to modify in knack2.ini

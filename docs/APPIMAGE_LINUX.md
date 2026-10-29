@@ -1,9 +1,9 @@
-# AppImage Linux local
+# AppImage Linux — V0.18
 
-O AppImage empacota o candidato Linux de 30/10/2026, incluindo Python, Qt e
-bibliotecas nativas de áudio, vídeo e interface. A glibc e os drivers gráficos
-permanecem no sistema. O empacotamento não modifica o runtime nem corrige as
-falhas de testes descritas em [revisão local](REVISAO_BUILD_LOCAL_20261030.md).
+O AppImage inclui Python, Qt e bibliotecas nativas de áudio, vídeo e interface.
+A glibc e os drivers gráficos permanecem no sistema. Resultados do candidato
+atual ficam no BUILDINFO.json; relatórios antigos descrevem somente suas
+respectivas compilações, não o estado da V0.18.
 
 Este candidato foi compilado no Ubuntu 26.04 e requer **glibc 2.43 ou superior**,
 Linux x86-64 e driver com Vulkan 1.3. Não há validação de compatibilidade com
@@ -14,14 +14,14 @@ o formato de distribuição não reduz o requisito de glibc.
 ## Executar
 
 ```bash
-chmod +x Knack-II-x86_64-local-20261030.AppImage
-./Knack-II-x86_64-local-20261030.AppImage
+chmod +x Knack-II-x86_64-0.18.0.AppImage
+./Knack-II-x86_64-0.18.0.AppImage
 ```
 
 Se FUSE estiver indisponível, use o modo de extração do runtime AppImage:
 
 ```bash
-./Knack-II-x86_64-local-20261030.AppImage --appimage-extract-and-run
+./Knack-II-x86_64-0.18.0.AppImage --appimage-extract-and-run
 ```
 
 A abertura mostra o launcher e não inicia o jogo automaticamente. Selecione um
@@ -44,7 +44,8 @@ python scripts/build_knack_appimage.py \
   --build-dir /pasta/nova/appimage-build \
   --appimagetool /pasta/ferramentas/squashfs-root/AppRun \
   --runtime-file /pasta/ferramentas/runtime-x86_64 \
-  --runtime-license /pasta/ferramentas/runtime-LICENSE.txt
+  --runtime-license /pasta/ferramentas/runtime-LICENSE.txt \
+  --version 0.18.0
 ```
 
 O script não baixa dependências, exige saída nova, confere o manifesto de

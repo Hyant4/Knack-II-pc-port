@@ -23,6 +23,8 @@ CONTROLS = {
     'pipeline_binaries': 'TLG_PIPELINE_BINARIES',
     'bp06': 'TLG_BP06',
     'compute_async_build': 'TLG_COMPUTE_ASYNC_BUILD',
+    'barrier_merge': 'TLG_BARRIER_MERGE',
+    'barrier_trace': 'TLG_BARRIER_TRACE',
 }
 
 
@@ -84,6 +86,29 @@ class GpuDiagnosticsTests(unittest.TestCase):
         for preset in ('rx580', 'renderer_v2', 'invalid', None):
             with self.subTest(preset=preset), self.assertRaises(ValueError):
                 gpu_preset_targets(preset)
+
+    def test_rx580_is_opt_in_preserves_preferences_and_can_be_disabled_alone(self):
+        original = {'internal_resolution': '2560x1440', 'gpu_readbacks': '2', 'upscaler': 'fsr3',
+                    'bp06': '1', 'compute_async_build': '0', 'barrier_trace': '1'}
+        targets = gpu_preset_targets('rx580_barriers')
+        self.assertEqual(targets, {'barrier_merge': '1'})
+        settings = {**original, **targets}
+        self.assertEqual({k: v for k, v in settings.items() if k != 'barrier_merge'}, original)
+        self.assertEqual(matching_gpu_preset(settings, 'rx580_barriers'), 'rx580_barriers')
+        ini = self.root / 'rx580.ini'
+        for choice in ('1', '0', 'auto'):
+            config.update_knack2_ini(ini, {**settings, 'barrier_merge': choice})
+            env = supervisor.runtime_environment(self.root, config_file=ini)
+            if choice == 'auto':
+                self.assertNotIn('TLG_BARRIER_MERGE', env)
+            else:
+                self.assertEqual(env['TLG_BARRIER_MERGE'], choice)
+            self.assertEqual(env['TLG_BARRIER_TRACE'], '1')
+            self.assertEqual(env['TLG_READBACKS'], '2')
+            self.assertEqual(env['TLG_INTERNAL_RESOLUTION'], '2560x1440')
+        settings.update(gpu_preset_targets('default'))
+        self.assertEqual(settings['barrier_merge'], 'auto')
+        self.assertEqual(settings['barrier_trace'], 'auto')
 
     def test_gtx1060_selection_requires_explicit_id_and_matching_readbacks(self):
         settings = gpu_preset_targets('gtx_1060_black_texture')
@@ -182,7 +207,8 @@ class GpuDiagnosticsTests(unittest.TestCase):
     def test_choices_survive_loadexec_and_are_recorded(self):
         ini = self.root / 'settings.ini'
         config.update_knack2_ini(ini, {'pipeline_binaries': '0', 'bp06': '1',
-                                      'compute_async_build': '0'})
+                                      'compute_async_build': '0', 'barrier_merge': '1',
+                                      'barrier_trace': '1'})
         ini.chmod(0o700)  # Synthetic runtime_path fixture; the subprocess itself is mocked.
         profile = json.loads((ROOT / 'profiles/CUSA07670-01.01.json').read_text(encoding='utf-8'))
         calls = []
@@ -211,11 +237,13 @@ class GpuDiagnosticsTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         for _, env in calls:
             self.assertEqual({key: env[variable] for key, variable in CONTROLS.items()},
-                             {'pipeline_binaries': '0', 'bp06': '1', 'compute_async_build': '0'})
+                             {'pipeline_binaries': '0', 'bp06': '1', 'compute_async_build': '0',
+                              'barrier_merge': '1', 'barrier_trace': '1'})
         report, = (self.root / 'out').glob('session-*/session.json')
         evidence = json.loads(report.read_text(encoding='utf-8'))
         self.assertEqual(evidence['gpu_diagnostics'],
-                         {'pipeline_binaries': '0', 'bp06': '1', 'compute_async_build': '0'})
+                         {'pipeline_binaries': '0', 'bp06': '1', 'compute_async_build': '0',
+                          'barrier_merge': '1', 'barrier_trace': '1'})
         self.assertEqual([stage['exit_code'] for stage in evidence['stages']], [75, 3])
         self.assertIn('GPU diagnostic overrides: pipeline_binaries=0, bp06=1, compute_async_build=0',
                       output.getvalue())
