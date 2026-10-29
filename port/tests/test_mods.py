@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -161,7 +162,12 @@ class ModTests(unittest.TestCase):
         env = dict(os.environ, TLG_PREBUILT='1', TLG_PROBE=str(probe), PYTHON=str(python),
             TLG_DATA_DIR=str(self.root), TLG_GAME_DIR=str(self.game),
             TLG_MODS_DIR=str(self.moddir), TLG_MODS_ENABLED='1', TLG_MODS_CONFIG=str(self.root/'mods.json'))
-        result = subprocess.run(['bash', 'run.sh'], cwd=ROOT, env=env, capture_output=True, timeout=30)
+        # Exercise the shell logic with POSIX line endings even from a Windows checkout.
+        runner = self.root / 'runner'
+        (runner / 'scripts').mkdir(parents=True)
+        (runner / 'run.sh').write_bytes((ROOT / 'run.sh').read_bytes().replace(b'\r\n', b'\n'))
+        shutil.copy2(ROOT / 'scripts/mods.py', runner / 'scripts/mods.py')
+        result = subprocess.run(['bash', 'run.sh'], cwd=runner, env=env, capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 7, result.stderr)
         mounted = json.loads((self.root / 'mounted.json').read_text())
         self.assertEqual(mounted['content'], 'mod')

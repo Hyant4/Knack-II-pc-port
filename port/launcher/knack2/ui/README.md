@@ -1,4 +1,24 @@
-# Knack II PC — launcher F3B
+# Knack II PC — launcher
+
+## Estado atual — executável Windows e pasta lembrada — 21/10/2026
+
+Abra **Knack II.exe** na raiz do projeto. A interface compilada inclui Qt/Python,
+usa o supervisor compilado auxiliar e executa o `run.py` oficial. O caminho da
+pasta selecionada é salvo automaticamente; a próxima abertura restaura esse
+caminho, mantendo a validação obrigatória antes de Jogar. Salvar configurações
+continua sendo a ação para persistir idioma e ajustes gráficos.
+
+P1=1 é o padrão. P2=4099 exige seleção explícita de dois jogadores, sem campo
+de ID. A interface usa timeout zero e perfis fixos separados para saves de P1 e
+coop. Configurações de dois jogadores não são restauradas automaticamente.
+O ícone da aplicação é o original do dump local; componentes visuais anteriores
+da interface permanecem.
+
+Guia prático: [Launcher Windows](../../../../docs/LAUNCHER_WINDOWS.md).
+46 testes focados passaram na entrega compilada, incluindo persistência da pasta;
+gates do EXE confirmaram abertura, supervisor e encerramento de filho sintético.
+Sem jogo executado nessa validação. As seções F3B abaixo são histórico de entregas,
+não instruções para substituir o executável atual por uma worktree antiga.
 
 ## Identidade e saves persistentes — 21/10/2026
 

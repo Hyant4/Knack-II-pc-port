@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#include "third_party/LibAtrac9/C/src/libatrac9.h"
+#include "runtime_atrac9.h"
 
 #define ERR_INVALID_CONTEXT ((int32_t)0x80930002)
 #define ERR_INVALID_INSTANCE ((int32_t)0x80930003)
@@ -59,7 +59,7 @@ _Static_assert(sizeof(SidebandFormat)==24 && sizeof(SidebandGapless)==8 && sizeo
 typedef struct {
     int used, codec, format, channels_hint, gapless_loop;
     uint32_t codec_flags;
-    void *handle;
+    RuntimeAtrac9 *handle;
     unsigned char config[4];
     int initialized;
     Atrac9CodecInfo info;
@@ -146,10 +146,9 @@ static ABI void *job_inline(void *buffer, const void *data, uint64_t size, const
 
 /* ---- ATRAC9 decoding ---- */
 static void at9_reset(Instance *in) {
-    if (in->handle) Atrac9ReleaseHandle(in->handle);
-    in->handle=Atrac9GetHandle();
-    in->initialized = Atrac9InitDecoder(in->handle,in->config)==0;
-    if (in->initialized) Atrac9GetCodecInfo(in->handle,&in->info);
+    runtime_atrac9_release(in->handle);
+    in->handle=runtime_atrac9_create();
+    in->initialized = in->handle && runtime_atrac9_init(in->handle,in->config,&in->info)==0;
     in->frames=0; in->superframe_remain=(uint32_t)in->info.superframeSize;
     if (ajm_trace())
         printf("Audio trace: ATRAC9 init %s: %d ch, %d Hz, frame %d samples, %d frames/superframe, superframe %d bytes, format %d, flags %#x\n",
@@ -190,7 +189,7 @@ static uint32_t at9_frame(Instance *in, const unsigned char **input, uint64_t *i
     int channels=in->info.channels, frame=in->info.frameSamples, used=0;
     int16_t pcm[256*8];
     if (frame*channels>(int)(sizeof(pcm)/sizeof(*pcm))) return RESULT_CODEC_ERROR|RESULT_FATAL;
-    int e=Atrac9Decode(in->handle,*input,pcm,&used);
+    int e=runtime_atrac9_decode(in->handle,*input,pcm,&used);
     if (e) { *internal=e; return RESULT_CODEC_ERROR|RESULT_FATAL; }
     *input+=used; *input_size-=(uint64_t)used; in->superframe_remain-=(uint32_t)used;
     ++frames_decoded;
@@ -224,7 +223,7 @@ static uint32_t at9_frame(Instance *in, const unsigned char **input, uint64_t *i
     } else if (gapless_end(in)) {
         /* Drain the rest of the superframe so the next stream starts aligned. */
         while (in->frames%(uint32_t)in->info.framesInSuperframe && *input_size) {
-            if (Atrac9Decode(in->handle,*input,pcm,&used)) break;
+            if (runtime_atrac9_decode(in->handle,*input,pcm,&used)) break;
             *input+=used; *input_size-=(uint64_t)used; in->superframe_remain-=(uint32_t)used; ++in->frames;
         }
         uint64_t skip_bytes=in->superframe_remain<*input_size ? in->superframe_remain : *input_size;
@@ -254,7 +253,7 @@ static void parse_riff(Instance *in, const unsigned char **input, uint64_t *size
 /* ---- MP3 decoding ---- */
 enum { CODEC_MP3=0, CODEC_AT9=1 };
 static void instance_release(Instance *in) {
-    if (in->handle) Atrac9ReleaseHandle(in->handle);
+    runtime_atrac9_release(in->handle);
     runtime_mp3_close(in->mp3);
 }
 /* The frame at the input: its header sets the frame layout (and the gapless metadata of a tag

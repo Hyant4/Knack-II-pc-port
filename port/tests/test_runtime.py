@@ -1,9 +1,10 @@
 from paths import ROOT
 from pathlib import Path
+import os
 import subprocess
 import unittest
 
-EXE = ROOT / 'out/runtime-test'
+EXE = Path(os.environ.get('KNACK2_TEST_BUILD_DIR', ROOT / 'out')) / 'runtime-test'
 
 
 @unittest.skipUnless(EXE.exists(), 'run bash build.sh --test first')

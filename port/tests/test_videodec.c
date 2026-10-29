@@ -1,7 +1,14 @@
 /* libSceVideodec: H.264 access units to NV12 pictures (tests/data/tiny.h264: 6 frames of
  * 64x48 testsrc, made with ffmpeg -c:v libx264 -profile:v main -f h264). */
 #undef NDEBUG /* the checks are asserts; release builds define NDEBUG */
+#include <libavcodec/avcodec.h>
+static int native_decoder_unavailable;
+static const AVCodec *find_native_decoder(const char *name) {
+    return native_decoder_unavailable ? NULL : avcodec_find_decoder_by_name(name);
+}
+#define avcodec_find_decoder_by_name find_native_decoder
 #include "../src/runtime_videodec.c"
+#undef avcodec_find_decoder_by_name
 #include <assert.h>
 #include <stdio.h>
 
@@ -35,8 +42,13 @@ int main(int argc, char **argv) {
     assert(videodec_query(&config,&resource)==ERR_STRUCT_SIZE);
     config.this_size=sizeof(ConfigInfo);
 
+    native_decoder_unavailable=1;
+    Ctrl unavailable={0};
+    assert(videodec_create(&config,&resource,&unavailable)==ERR_API_FAIL && !unavailable.handle);
+    native_decoder_unavailable=0;
     Ctrl ctrl={0};
     assert(videodec_create(&config,&resource,&ctrl)==0 && ctrl.handle && ctrl.this_size==sizeof(Ctrl));
+    assert(!strcmp(((Decoder *)ctrl.handle)->codec->codec->name,"h264"));
     FrameBuffer buffer={sizeof(FrameBuffer),frame_buffer,sizeof(frame_buffer)};
     PictureInfo picture; memset(&picture,0,sizeof(picture)); picture.this_size=sizeof(picture);
 

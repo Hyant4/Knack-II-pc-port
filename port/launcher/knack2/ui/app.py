@@ -32,7 +32,7 @@ def create_window(backend=None):
     # installed files explicitly; no font is copied or downloaded.
     if os.name == 'nt':
         fonts = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts'
-        for filename in ('segoeui.ttf', 'seguisb.ttf', 'consola.ttf'):
+        for filename in ('segoeui.ttf', 'seguisb.ttf', 'seguisym.ttf', 'consola.ttf'):
             path = fonts / filename
             if path.is_file():
                 QFontDatabase.addApplicationFont(str(path))
@@ -41,6 +41,14 @@ def create_window(backend=None):
     icon = identity_assets() / 'Knack.ico'
     QGuiApplication.instance().setWindowIcon(QIcon(str(icon)) if icon.is_file() else QIcon())
     engine = QQmlApplicationEngine()
+    motion_allowed = False
+    if os.name == 'nt':
+        import ctypes
+        enabled = ctypes.c_int(0)
+        # Read the Windows client-area animation preference. Failure stays static.
+        if ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(enabled), 0):
+            motion_allowed = bool(enabled.value)
+    engine.rootContext().setContextProperty('launcherMotionAllowed', motion_allowed)
     from .i18n import Translator
     translator = Translator(backend.uiLanguage)
     app = QGuiApplication.instance()
@@ -51,9 +59,11 @@ def create_window(backend=None):
         translator.locale = backend.uiLanguage
         engine.retranslate()
     backend.uiLanguageChanged.connect(retranslate)
-    # During interpreter shutdown Qt can destroy either QObject first.
-    engine.destroyed.connect(lambda: app.removeTranslator(translator)
-                             if isValid(app) and isValid(translator) else None)
+    def remove_translator():
+        from shiboken6 import isValid
+        if isValid(translator) and isValid(app):
+            app.removeTranslator(translator)
+    engine.destroyed.connect(remove_translator)
     engine.setInitialProperties({'backend': backend})
     engine.load(QUrl.fromLocalFile(str(Path(__file__).with_name('Main.qml'))))
     if not engine.rootObjects():
@@ -80,14 +90,22 @@ def main(argv=None):
     parser.add_argument('--quit-after-ms', type=int, default=0, help='Fechar após N ms, para smoke finito.')
     parser.add_argument('--screenshot', type=Path, help='Salvar captura PNG da interface antes de fechar.')
     args = parser.parse_args(argv)
+    # Startup failures also follow the saved UI choice, even when Qt cannot load.
+    from ..config import load_launcher_settings
+    from ..storage import application_data_root
+    from .i18n_errors import translate_error
+    saved = load_launcher_settings((args.data_dir or application_data_root()) / 'launcher_settings.json')
+    locale = saved.get('ui_language') or args.language or saved.get('language') or 'pt-BR'
+    def startup_message(text):
+        return translate_error(locale, text) or text
     if args.quit_after_ms < 0:
-        parser.error('--quit-after-ms deve ser >= 0')
+        parser.error(startup_message('--quit-after-ms deve ser >= 0'))
     if args.screenshot and not args.quit_after_ms:
-        parser.error('--screenshot requer --quit-after-ms')
+        parser.error(startup_message('--screenshot requer --quit-after-ms'))
     if args.demo and args.experimental_build:
-        parser.error('--experimental-build requer o launcher real')
+        parser.error(startup_message('--experimental-build requer o launcher real'))
     if args.demo and args.play:
-        parser.error('--play não está disponível na demonstração')
+        parser.error(startup_message('--play não está disponível na demonstração'))
     if args.offscreen:
         os.environ['QT_QPA_PLATFORM'] = 'offscreen'
         os.environ.setdefault('QT_QUICK_BACKEND', 'software')
@@ -96,8 +114,8 @@ def main(argv=None):
         from PySide6.QtGui import QGuiApplication
         from PySide6.QtQuickControls2 import QQuickStyle
     except ImportError:
-        print('Qt/PySide6 indisponível. Instale PySide6-Essentials>=6.7 no ambiente Python do projeto. '
-              'Nenhum jogo foi iniciado.', file=sys.stderr)
+        print(startup_message('Qt/PySide6 indisponível. Instale PySide6-Essentials>=6.7 no ambiente Python do projeto. '
+                              'Nenhum jogo foi iniciado.'), file=sys.stderr)
         return 2
     QQuickStyle.setStyle('Basic')
     app = QGuiApplication.instance() or QGuiApplication([sys.argv[0]])
@@ -108,12 +126,13 @@ def main(argv=None):
         from .backend import Backend
         from .real import RealBackend
         backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play,
-                                                                       experimental_build=args.experimental_build)
-        if args.language is not None:
+                                                                       experimental_build=args.experimental_build,
+                                                                       initial_language=args.language)
+        if args.demo and args.language is not None:
             backend.setLanguage(args.language)
         engine, window, backend = create_window(backend)
     except RuntimeError as error:
-        print(str(error), file=sys.stderr)
+        print(startup_message(str(error)), file=sys.stderr)
         return 3
     app.aboutToQuit.connect(backend.shutdown)
     if not args.demo:
@@ -122,7 +141,7 @@ def main(argv=None):
 
     def finish():
         if args.screenshot and not window.grabWindow().save(str(args.screenshot)):
-            print('Falha ao salvar screenshot.', file=sys.stderr)
+            print(startup_message('Falha ao salvar screenshot.'), file=sys.stderr)
             capture_failed.append(True)
         window.close()
 

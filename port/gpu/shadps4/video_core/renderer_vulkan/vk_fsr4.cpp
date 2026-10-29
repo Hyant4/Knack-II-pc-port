@@ -4,8 +4,10 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <fstream>
+#include <future>
 #include <string>
 #include <utility>
 #include <vector>
@@ -13,6 +15,7 @@
 #include "ffx_vk_fsr4_v07.h"
 #include "ffx_vk_fsr4_v07_assets.h"
 #include "tlg_settings.h"
+#include "tlg_threads.h"
 #include "video_core/renderer_vulkan/fsr411/fsr411.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -378,21 +381,83 @@ struct Fsr4Upscaler::Impl {
     }
 };
 
-Fsr4Upscaler::Fsr4Upscaler(const Instance& instance, Scheduler& scheduler)
-    : impl{std::make_unique<Impl>(instance, scheduler)} {}
+struct Fsr4Upscaler::Preparation {
+    // Only the worker touches state until future::get publishes the completed model.
+    std::unique_ptr<Impl> state;
+    std::future<bool> result;
+};
 
-Fsr4Upscaler::~Fsr4Upscaler() = default;
+Fsr4Upscaler::Fsr4Upscaler(const Instance& instance, Scheduler& scheduler)
+    : impl{std::make_unique<Impl>(instance, scheduler)} {
+    const char* profile = std::getenv("KNACK2_PROFILE");
+    async_prepare = profile && (std::strcmp(profile, "CUSA08014-01.00") == 0 ||
+        std::strcmp(profile, "CUSA08014-01.01") == 0 ||
+        std::strcmp(profile, "CUSA07670-01.01") == 0);
+}
+
+Fsr4Upscaler::~Fsr4Upscaler() {
+    // The device and scheduler outlive this object. Never detach a worker using their device.
+    if (preparation && preparation->result.valid()) preparation->result.wait();
+}
 
 bool Fsr4Upscaler::Record(const Frame& frame) {
+    if (async_prepare && TlgSettings::Get().upscaler != TlgSettings::UpscalerFsr411 &&
+        impl->instance.IsFsr4Int8Supported() && !impl->fatal) {
+        if (preparation) {
+            if (preparation->result.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+                return false;
+            bool ready = false;
+            try { ready = preparation->result.get(); } catch (...) {}
+            if (!ready) {
+                const std::string reason = preparation->state->problem.empty()
+                    ? "background model preparation failed" : preparation->state->problem;
+                preparation->state->Destroy(true);
+                preparation.reset();
+                impl->Fail(reason, true);
+                return false;
+            }
+            // Retire on the recording thread without submitting its current command buffer.
+            impl->Destroy(true);
+            impl = std::move(preparation->state);
+            preparation.reset();
+            std::printf("Upscaler: FSR 4 background preparation complete\n");
+        }
+        const int model = std::clamp(frame.preset, 0, 4);
+        if (!impl->context_ok || impl->model != model || impl->out_width != frame.output.width ||
+            impl->out_height != frame.output.height) {
+            preparation = std::make_unique<Preparation>();
+            preparation->state = std::make_unique<Impl>(impl->instance, impl->scheduler);
+            Impl* state = preparation->state.get();
+            const u32 w = frame.output.width, h = frame.output.height;
+            try {
+                preparation->result = std::async(std::launch::async, [state, model, w, h] {
+                    TlgThreads::MakeBackground();
+                    // A fresh model only creates device resources and pipelines; it records no
+                    // scheduler commands and shares no mutable backend state with the renderer.
+                    return state->CreateBackend(model, w, h);
+                });
+            } catch (...) {
+                preparation.reset();
+                impl->Fail("cannot start background model preparation", true);
+                return false;
+            }
+            std::printf("Upscaler: preparing FSR 4 in background; native temporal pass continues\n");
+            return false;
+        }
+    }
     return impl->Record(frame);
 }
 
 const char* Fsr4Upscaler::Problem() const noexcept {
+    if (preparation) return "Preparing FSR 4 model; native temporal pass is active";
     return impl->problem.empty() ? nullptr : impl->problem.c_str();
 }
 
 bool Fsr4Upscaler::Fatal() const noexcept {
+    if (preparation) return false;
     return impl->fatal;
 }
+
+bool Fsr4Upscaler::Preparing() const noexcept { return bool(preparation); }
 
 } // namespace Vulkan

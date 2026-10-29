@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "video_core/renderer_vulkan/vk_camera_motion.h"
+#include "video_core/renderer_vulkan/knack_temporal.h"
 
 #include <cmath>
 #include <cstdio>
@@ -153,7 +154,7 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
 CameraMotion::~CameraMotion() = default;
 
 float CameraMotion::VerticalFov() const noexcept {
-    return 2.0f * std::atan(1.0f / current.proj[1]);
+    return 2.0f * std::atan(1.0f / std::abs(current.proj[1]));
 }
 
 float CameraMotion::Near() const noexcept {
@@ -177,18 +178,21 @@ vk::Image CameraMotion::ObjectMotionImage(u32 width, u32 height) const noexcept 
 }
 
 void CameraMotion::RecordMotion(vk::CommandBuffer cmdbuf, vk::ImageView depth_view,
-                                vk::ImageView motion_view, u32 width, u32 height) {
+                                vk::ImageView motion_view, u32 width, u32 height,
+                                vk::ImageView native_motion) {
     bool object_valid = false;
-    const vk::ImageView object_view = object_motion && object_motion->Enabled()
+    const vk::ImageView object_view = native_motion ? native_motion : object_motion && object_motion->Enabled()
         ? object_motion->PrepareRead(cmdbuf, width, height, object_valid) : depth_view;
     const PushConstants push{
         .reproject = Multiply(previous.view, current.inv_view),
         .proj = current.proj,
         .prev_proj = previous.proj,
         .size = {float(width), float(height)},
-        .jitter = jitter,
-        .previous_jitter = previous_jitter,
-        .mode = object_valid ? 1u : 0u,
+        .jitter = native_motion ? native_jitter : jitter,
+        .previous_jitter = native_motion
+            ? std::array<float, 2>{float(width) / render_size[0], float(height) / render_size[1]}
+            : previous_jitter,
+        .mode = native_motion ? 2u : object_valid ? 1u : 0u,
     };
     const vk::DescriptorImageInfo depth_info{.imageView = depth_view,
                                              .imageLayout = vk::ImageLayout::eGeneral};
@@ -216,6 +220,22 @@ void CameraMotion::RecordMotion(vk::CommandBuffer cmdbuf, vk::ImageView depth_vi
     cmdbuf.pushConstants(*motion_pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0,
                          sizeof(push), &push);
     cmdbuf.dispatch((width + 7) / 8, (height + 7) / 8, 1);
+}
+
+bool CameraMotion::OnKnackConstants(const float* data, u64 bytes) {
+    if (frame_has_camera || bytes != 432) return false;
+    KnackTemporal::Camera parsed;
+    if (!KnackTemporal::ParseCamera({data, 108}, parsed)) return false;
+    previous = current;
+    current.view = parsed.view;
+    current.inv_view = parsed.inverse;
+    current.proj = parsed.projection;
+    current.valid = true;
+    render_size = parsed.size;
+    native_jitter = parsed.jitter;
+    far_plane = parsed.far_plane;
+    frame_has_camera = true;
+    return true;
 }
 
 void CameraMotion::OnConstants(const float* data) {

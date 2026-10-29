@@ -22,9 +22,22 @@ import re
 from typing import Any, Mapping
 import uuid
 
+# Diagnostic overrides are opt-in. Missing/auto leaves the runtime default intact.
+GPU_DIAGNOSTIC_ENV = {
+    'pipeline_binaries': 'TLG_PIPELINE_BINARIES',
+    'bp06': 'TLG_BP06',
+    'compute_async_build': 'TLG_COMPUTE_ASYNC_BUILD',
+}
+
 # Keys that the Knack II launcher is authorized to modify in knack2.ini
 ALLOWED_MANAGED_KEYS = frozenset({
     'display_mode',
+    'window_resolution',
+    'internal_resolution',
+    'aspect_ratio',
+    'upscaler',
+    'antialiasing',
+    'preset',
     'vsync',
     'fps_limit',
     'async_shaders',
@@ -32,6 +45,9 @@ ALLOWED_MANAGED_KEYS = frozenset({
     'rcas',
     'rcas_strength',
     'frames_queued',
+    'gpu_readbacks',
+    'eager_readback',
+    'shader_preload',
     'key_map',
     'mouse_enabled',
     'mouse_sensitivity',
@@ -39,12 +55,16 @@ ALLOWED_MANAGED_KEYS = frozenset({
     'mouse_smoothing',
     'mouse_accel',
     'mouse_deadzone',
-})
+}) | frozenset(GPU_DIAGNOSTIC_ENV)
 
 # Rejection of control characters and newline injection (checked on raw strings before strip)
 _CONTROL_CHAR_RE = re.compile(r'[\x00-\x1f\x7f]')
 
 VALID_DISPLAY_MODES = frozenset({'windowed', 'borderless', 'fullscreen'})
+VALID_WINDOW_RESOLUTIONS = ('auto', '1280x720', '1600x900', '1920x1080', '2560x1440', '3840x2160',
+                            '2560x1080', '3440x1440', '3840x1600', '5120x1440', '5120x2160', '7680x2160')
+VALID_ASPECT_RATIOS = ('auto', '16:9', '21:9', '32:9')
+VALID_INTERNAL_RESOLUTIONS = ('auto', '1280x720', '1600x900', '1920x1080', '2560x1440', '3840x2160')
 
 
 def default_app_data_dir(env: Mapping[str, str] | None = None,
@@ -170,14 +190,48 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
     val = raw_val_str.strip()
 
     # Semantic domain validation per managed key
+    if key in GPU_DIAGNOSTIC_ENV:
+        if val not in ('auto', '0', '1'):
+            raise ValueError(f"Diagnóstico GPU inválido para '{key}': '{val}' (esperado auto/0/1)")
+        return key, val
+
+    if key == 'antialiasing':
+        if val not in ('native', 'off'):
+            raise ValueError(f"Suavização inválida: '{val}'")
+        return key, val
+    if key == 'upscaler':
+        if val not in ('off', 'fsr3', 'fsr4'):
+            raise ValueError(f"FSR temporal inválido: '{val}'")
+        return key, val
+    if key == 'preset':
+        return key, _validate_int_range(key, val, 0, 3)
+
+    if key == 'internal_resolution':
+        if val not in VALID_INTERNAL_RESOLUTIONS:
+            raise ValueError(f"Resolução interna inválida: '{val}'")
+        return key, val
+
+    if key == 'window_resolution':
+        if val not in VALID_WINDOW_RESOLUTIONS:
+            raise ValueError(f"Resolução de janela inválida: '{val}'")
+        return key, val
+    if key == 'aspect_ratio':
+        if val not in VALID_ASPECT_RATIOS:
+            raise ValueError(f"Proporção inválida: '{val}'")
+        return key, val
+
     if key == 'display_mode':
         lower_mode = val.lower()
         if lower_mode not in VALID_DISPLAY_MODES:
             raise ValueError(f"Modo de exibição inválido: '{val}' (esperado windowed, borderless ou fullscreen)")
         return key, lower_mode
 
-    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y'):
+    if key in ('vsync', 'async_shaders', 'fsr1', 'rcas', 'mouse_enabled', 'mouse_invert_y', 'eager_readback',
+               'shader_preload'):
         return key, _validate_bool_string(key, val)
+
+    if key == 'gpu_readbacks':
+        return key, _validate_int_range(key, val, 0, 2)
 
     if key == 'rcas_strength':
         return key, _validate_int_range(key, val, 0, 100)
@@ -206,6 +260,28 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
         return key, val
 
     return key, val
+
+
+def gpu_diagnostic_environment(settings: Mapping[str, Any]) -> dict[str, str]:
+    """Return only validated, explicit diagnostic overrides for the child runtime."""
+    overrides = {}
+    for key, variable in GPU_DIAGNOSTIC_ENV.items():
+        _, value = sanitize_and_validate_key_value(key, settings.get(key, 'auto'))
+        if value not in (None, 'auto'):
+            overrides[variable] = value
+    return overrides
+
+
+def validate_graphics_settings(settings: Mapping[str, Any]) -> None:
+    """Reject incompatible native-AA requests before writing or starting the runtime."""
+    aa = settings.get('antialiasing', 'native')
+    if aa not in ('native', 'off'):
+        raise ValueError(f"Suavização inválida: '{aa}'")
+    if aa == 'off':
+        if settings.get('upscaler', 'off') != 'off':
+            raise ValueError('Para desligar a suavização nativa, desligue primeiro o FSR temporal.')
+        if settings.get('internal_resolution', 'auto') not in ('auto', '1920x1080', '2560x1440', '3840x2160'):
+            raise ValueError('Suavização desligada requer resolução interna 1080p, 1440p ou 4K.')
 
 
 def load_knack2_ini(path: Path | str) -> dict[str, str]:
@@ -247,7 +323,8 @@ def update_knack2_ini(path: Path | str,
     validated_updates: dict[str, str | None] = {}
     for raw_k, raw_v in updates.items():
         k, v = sanitize_and_validate_key_value(raw_k, raw_v)
-        validated_updates[k] = v
+        # The native bpNN parser treats nonnumeric values as false; never write "auto".
+        validated_updates[k] = None if k in GPU_DIAGNOSTIC_ENV and v == 'auto' else v
 
     target = Path(path)
     newline = '\n'
@@ -262,6 +339,18 @@ def update_knack2_ini(path: Path | str,
         lines = [header_comment] if header_comment else ['# Knack II configuration']
     except OSError as error:
         raise OSError(f'Cannot read configuration {target}: {error}') from error
+
+    pending = {}
+    for line in lines:
+        if '=' in line and not line.lstrip().startswith(('#', ';')):
+            key, _, value = line.partition('=')
+            pending[key.strip()] = value.strip()
+    for key, value in validated_updates.items():
+        if value is None:
+            pending.pop(key, None)
+        else:
+            pending[key] = value
+    validate_graphics_settings(pending)
 
     out: list[str] = []
     seen: set[str] = set()

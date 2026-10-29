@@ -14,12 +14,19 @@
 #include "actor_hook.h"
 #include "damage_hook.h"
 #include "view_hook.h"
+#include "knack_dialogue_gain.h"
+#include "knack_ultrawide_patch.h"
+#include "knack_native_resolution.h"
+#include "knack_native_aa.h"
+#include "knack_executable_layout.h"
 #include "gpu/tlggpu.h"
 #if !defined(__x86_64__) || !defined(__GNUC__)
 #error This prototype requires x86-64 GCC or Clang (including MinGW).
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#include "ngs2_factor_probe.h"
+#include "ngs2_sync_probe.h"
 #else
 #include <sys/mman.h>
 #include <malloc.h>
@@ -598,6 +605,263 @@ static void install_cheats(const char *app0, Segment *segments, uint64_t count, 
 
 /* Damage hook for the enemy health bar (src/actor_hook.h). Always
  * installed when the code matches: it only records values; the overlay decides what to show. */
+/* Single, opt-in normal CALL boundary; the original evaluator still runs once. */
+static int factor_probe_config(char *indices,size_t cap) {
+    const char *path=getenv("TLG_CONFIG");
+    FILE *file=path && *path?fopen(path,"rb"):NULL;
+    if (!file) return 0;
+    int enabled=0; char line[256]; indices[0]=0;
+    while (fgets(line,sizeof(line),file)) {
+        char *key=line; while (*key==' ' || *key=='\t') ++key;
+        char *equals=strchr(key,'='); if (!equals || *key=='#') continue;
+        char *end=equals; while (end>key && (end[-1]==' ' || end[-1]=='\t')) --end; *end=0;
+        char *value=equals+1; while (*value==' ' || *value=='\t') ++value;
+        end=value+strlen(value); while (end>value && strchr(" \t\r\n",end[-1])) --end; *end=0;
+        if (!strcmp(key,"ngs2_factor_probe")) enabled=!strcmp(value,"1");
+        if (!strcmp(key,"ngs2_factor_probe_indices")) snprintf(indices,cap,"%s",value);
+    }
+    fclose(file); return enabled;
+}
+#ifdef _WIN32
+static int factor_probe_read(void *dst,uintptr_t address,size_t bytes) {
+    SIZE_T got=0;
+    return ReadProcessMemory(GetCurrentProcess(),(const void *)address,dst,bytes,&got) && got==bytes;
+}
+#endif
+static int knack_patch_identity(const char *app0,char *serial,size_t serial_cap,
+                                char *version,size_t version_cap) {
+    char path[4096];
+    snprintf(path,sizeof(path),"%s/sce_sys/param.sfo",app0?app0:".");
+    sfo_value(path,"TITLE_ID",serial,serial_cap,NULL);
+    sfo_value(path,"APP_VER",version,version_cap,NULL);
+    const char *code_serial=NULL,*code_version=NULL;
+    if (!knack_code_profile(serial,version,getenv("KNACK2_EXECUTABLE_LAYOUT"),
+                            &code_serial,&code_version)) return 0;
+    snprintf(serial,serial_cap,"%s",code_serial);
+    snprintf(version,version_cap,"%s",code_version);
+    return 1;
+}
+
+static void install_factor_probe(const char *app0,Segment *segments,uint64_t count,uint64_t size) {
+    char indices[256]; if (!factor_probe_config(indices,sizeof(indices))) return;
+#ifdef _WIN32
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version))) return;
+    const uint64_t at=FACTOR_CALL_OFFSET,entry=FACTOR_EVALUATOR_OFFSET;
+    if (strcmp(serial,"CUSA08014") || strcmp(version,"01.01") || at>size || entry>size ||
+        size-at<5 || size-entry<12 || !mapped(segments,count,at,5) || !mapped(segments,count,entry,12) ||
+        !factor_signatures(image+at,(size_t)(size-at),image+entry,(size_t)(size-entry)) ||
+        !factor_set_filter(indices)) {
+        puts("NGS2-FACTORS: installed=0 reason=profile_signature_or_filter_mismatch trace_incomplete=1"); return;
+    }
+    int call_exec=0,entry_exec=0;
+    for (uint64_t i=0;i<count;++i) {
+        Segment *seg=&segments[i];
+        if (!(seg->flags&1)) continue;
+        if (at>=seg->address && at-seg->address<seg->size && seg->size-(at-seg->address)>=5) call_exec=1;
+        if (entry>=seg->address && entry-seg->address<seg->size && seg->size-(entry-seg->address)>=12) entry_exec=1;
+    }
+    if (!call_exec || !entry_exec) {
+        puts("NGS2-FACTORS: installed=0 reason=non_executable_site trace_incomplete=1"); return;
+    }
+    unsigned char *stub=allocate(page_size),call[5];
+    if (!factor_call_bytes((uintptr_t)(image+at),(uintptr_t)stub,call)) {
+        puts("NGS2-FACTORS: installed=0 reason=rel32_range trace_incomplete=1"); return;
+    }
+    factor_stub_bytes(stub,(uintptr_t)factor_wrapper); protect(stub,page_size,5);
+    factor_read=factor_probe_read; factor_original=(FactorEvaluator)(image+entry);
+    memcpy(image+at,call,sizeof(call));
+    printf("NGS2-FACTORS: installed=1 call=0xb62830 original=0xb4a420 indices=%s changes=%u summaries=%u\n",
+           *indices?indices:"all",FACTOR_CHANGE_LIMIT,FACTOR_SUMMARY_LIMIT);
+#else
+    (void)app0; (void)segments; (void)count; (void)size;
+    puts("NGS2-FACTORS: installed=0 reason=requires_windows trace_incomplete=1");
+#endif
+}
+
+static void install_knack_native_resolution(const char *app0,const char *executable,
+        const char **args,unsigned argc,Segment *segments,uint64_t count,uint64_t size) {
+    if (!gpu_enabled || strcmp(executable,"/app0/game.elf")) return;
+    uint32_t width=0,height=0;
+    if (!tlggpu_native_resolution_request(&width,&height)) return;
+    const char *memory=getenv("TLG_DMEM_MB"); char *memory_end=NULL;
+    const uint64_t memory_mb=memory?strtoull(memory,&memory_end,10):0;
+    if (!memory || !memory_end || *memory_end || memory_mb>16384 ||
+        memory_mb<knack_native_direct_mb(width,height))
+        fail("native resolution: insufficient configured direct-memory backing");
+    int option=0;
+    for (unsigned i=0;i<argc;++i) if (!strcmp(args[i],"-2160p")) option=1;
+    if (!option) fail("native resolution requires the supervisor's -2160p guest option");
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version)))
+        fail("native resolution: unknown executable layout");
+    const KnackNativeSites *sites=knack_native_profile(serial,version);
+    if (!sites) fail("native resolution: unsupported game profile");
+    const uint64_t code[]={sites->width_limit,sites->height_limit,sites->preset_load,sites->pool_load};
+    for (unsigned i=0;i<4;++i) {
+        int valid=0;
+        for (uint64_t s=0;s<count;++s) {
+            const Segment *seg=&segments[s];
+            if ((seg->flags&1) && code[i]>=seg->address && code[i]-seg->address<seg->size &&
+                seg->size-(code[i]-seg->address)>=8) valid=1;
+        }
+        if (!valid) fail("native resolution: executable segment mismatch");
+    }
+    if (!mapped(segments,count,sites->preset,16) || !mapped(segments,count,sites->pool_defaults,16) ||
+        !knack_native_apply(image,size,sites,width,height))
+        fail("native resolution: private image signature mismatch");
+    tlggpu_native_resolution_enable(width,height);
+    printf("Knack native resolution: %ux%u preset=2160p bounds=validated console=base extra-gpu=%uMiB direct=%" PRIu64 "MiB\n",
+           width,height,knack_native_extra_mb(width,height),memory_mb);
+}
+
+static void install_knack_native_aa(const char *app0,const char *executable,
+        Segment *segments,uint64_t count,uint64_t size) {
+    if (!gpu_enabled || strcmp(executable,"/app0/game.elf")) return;
+    const int requested=tlggpu_native_aa_request();
+    if (!requested) return;
+    if (requested<0) fail("native AA off requires a supported profile, FSR off and native resolution");
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version)))
+        fail("native AA: unknown executable layout");
+    const KnackAaSite *site=knack_aa_profile(serial,version);
+    if (!site) fail("native AA off: unsupported game profile");
+    int valid=0;
+    for (uint64_t s=0;s<count;++s) {
+        const Segment *seg=&segments[s];
+        const uint64_t start=site->instruction-16;
+        if ((seg->flags&1) && start>=seg->address && start-seg->address<=seg->size &&
+            sizeof(site->context)<=seg->size-(start-seg->address)) valid=1;
+    }
+    if (!valid || !knack_aa_apply(image,size,site))
+        fail("native AA off: private executable context mismatch");
+    tlggpu_native_aa_enable();
+    printf("Knack native AA: jitter-disabled=1 profile=%s/01.01 site=%#" PRIx64 " restart-only=1\n",
+           serial,site->instruction);
+}
+
+static void install_knack_ultrawide(const char *app0,Segment *segments,uint64_t count,uint64_t size) {
+    if (!gpu_enabled || size<UINT64_C(0xce2000)) return;
+    const float aspect=tlggpu_ultrawide_aspect();
+    if (aspect<=KNACK_WIDE_NATIVE+0.001f) return;
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version))) return;
+    const KnackWideSite *sites=knack_wide_profile(serial,version);
+    if (!sites) return;
+    const KnackWideCameraSite *camera=knack_wide_camera_site(sites);
+    int camera_code=0;
+    for (uint64_t s=0;s<count;++s) {
+        const Segment *seg=&segments[s];
+        if (camera && (seg->flags&1) && camera->start>=seg->address &&
+            camera->start-seg->address<seg->size &&
+            seg->size-(camera->start-seg->address)>=sizeof(knack_wide_camera_signature)) camera_code=1;
+    }
+    if (!camera_code) {
+        puts("Knack ultrawide: installed=0 reason=camera_segment_mismatch"); return;
+    }
+    for (unsigned i=0;i<KNACK_WIDE_SITES;++i) {
+        int code=0;
+        for (uint64_t s=0;s<count;++s) {
+            const Segment *seg=&segments[s];
+            if ((seg->flags&1) && sites[i].instruction>=seg->address &&
+                sites[i].instruction-seg->address<seg->size &&
+                seg->size-(sites[i].instruction-seg->address)>=8) code=1;
+        }
+        if (!code || !mapped(segments,count,sites[i].constant,4)) {
+            puts("Knack ultrawide: installed=0 reason=segment_mismatch"); return;
+        }
+    }
+    const int installed=knack_wide_apply(image,size,sites,aspect);
+    tlggpu_ultrawide_enable(installed==(int)KNACK_WIDE_SITES);
+    printf("Knack ultrawide: installed=%d aspect=%.6f sites=%d camera_source=%d%s\n",installed!=0,aspect,installed,
+           installed!=0,
+           installed?"":" reason=profile_or_signature_mismatch");
+}
+
+static void install_dialogue_gain(const char *app0,Segment *segments,uint64_t count,uint64_t size) {
+    /* The eboot stage has no dialogue evaluator. Fail closed on other images. */
+    if (size<UINT64_C(0xb28336)) return;
+    char serial[32]="",version[32]="";
+    if (!knack_patch_identity(app0,serial,sizeof(serial),version,sizeof(version))) return;
+    if (!dialogue_profile_matches(serial,version) || !dialogue_image_matches(image,size)) {
+        puts("Runtime: dialogue gain installed=0 reason=profile_or_signature_mismatch"); return;
+    }
+    for (unsigned i=0;i<KNACK_DIALOGUE_SITES;++i) {
+        int executable=0;
+        for (uint64_t s=0;s<count;++s) {
+            Segment *seg=&segments[s]; uint64_t at=dialogue_sites[i];
+            if ((seg->flags&1) && at>=seg->address && at-seg->address<seg->size &&
+                dialogue_lengths[i]<=seg->size-(at-seg->address)) executable=1;
+        }
+        if (!executable) {
+            puts("Runtime: dialogue gain installed=0 reason=non_executable_site"); return;
+        }
+    }
+    unsigned char *stubs=allocate(page_size),patches[KNACK_DIALOGUE_SITES][8];
+    for (unsigned i=0;i<KNACK_DIALOGUE_SITES;++i) {
+        unsigned char *stub=stubs+i*KNACK_DIALOGUE_STUB_STRIDE;
+        uintptr_t next=(uintptr_t)(image+dialogue_sites[i]+dialogue_lengths[i]);
+        size_t emitted=i<2 ? dialogue_load_stub(stub,KNACK_DIALOGUE_STUB_STRIDE,i,next) :
+            dialogue_clamp_stub(stub,KNACK_DIALOGUE_STUB_STRIDE,next,
+                                (uintptr_t)(image+0x5bfdbe),(uintptr_t)(image+0x5c0579));
+        if (!emitted || !dialogue_jump_bytes((uintptr_t)(image+dialogue_sites[i]),
+                                             (uintptr_t)stub,dialogue_lengths[i],patches[i])) {
+            puts("Runtime: dialogue gain installed=0 reason=stub_range"); return;
+        }
+    }
+    protect(stubs,page_size,5);
+    /* All signatures, ranges and stubs validated before changing any site. */
+    for (unsigned i=0;i<KNACK_DIALOGUE_SITES;++i)
+        memcpy(image+dialogue_sites[i],patches[i],dialogue_lengths[i]);
+    puts("Runtime: dialogue gain installed=1 category=2 multiplier=1.50 sites=3");
+}
+
+static void install_sync_probe(Segment *segments,uint64_t count,uint64_t size) {
+#ifdef _WIN32
+    if(!factor_original || !factor_read)return; /* Same opt-in/profile gate as factor probe. */
+    const uint64_t control=SYNC_CONTROL_OFFSET,query=SYNC_QUERY_OFFSET,table=SYNC_QUERY_TABLE;
+    const unsigned char control_signature[]={0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x53};
+    const unsigned char query_signature[]={0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x41,0x55};
+    if(control>size || query>size || table>size || size-control<sizeof(control_signature) ||
+       size-query<sizeof(query_signature) || size-table<8 ||
+       !mapped(segments,count,control,sizeof(control_signature)) ||
+       !mapped(segments,count,query,sizeof(query_signature)) || !mapped(segments,count,table,8) ||
+       memcmp(image+control,control_signature,sizeof(control_signature)) ||
+       memcmp(image+query,query_signature,sizeof(query_signature))) {
+        puts("NGS2-SYNC: installed=0 reason=entry_mapping_signature trace_incomplete=1");return;
+    }
+    uintptr_t original;memcpy(&original,image+table,8);
+    if(original!=(uintptr_t)(image+query)) {
+        puts("NGS2-SYNC: installed=0 reason=query_table_signature trace_incomplete=1");return;
+    }
+    for(unsigned j=0;j<2;++j) {
+        uint64_t site=sync_call_sites[j];int executable=0;
+        for(uint64_t i=0;i<count;++i) {
+            Segment *seg=&segments[i];
+            if((seg->flags&1) && site>=seg->address && site-seg->address<=seg->size &&
+               seg->size-(site-seg->address)>=5)executable=1;
+        }
+        if(site>size || size-site<5 || !executable || !sync_call_signature(image+site,(size_t)(size-site),j)) {
+            puts("NGS2-SYNC: installed=0 reason=call_signature trace_incomplete=1");return;
+        }
+    }
+    unsigned char *stub=allocate(page_size),calls[2][5];
+    for(unsigned j=0;j<2;++j)
+        if(!factor_call_bytes((uintptr_t)(image+sync_call_sites[j]),(uintptr_t)stub,calls[j])) {
+            puts("NGS2-SYNC: installed=0 reason=call_range trace_incomplete=1");return;
+        }
+    factor_stub_bytes(stub,(uintptr_t)sync_control_wrapper);protect(stub,page_size,5);
+    sync_control_original=(SyncControl)(image+control);sync_query_original=(SyncQuery)original;
+    sync_read=factor_read;
+    uintptr_t observed=(uintptr_t)sync_query_wrapper;
+    memcpy(image+table,&observed,8);
+    for(unsigned j=0;j<2;++j)memcpy(image+sync_call_sites[j],calls[j],5);
+    puts("NGS2-SYNC: installed=1 control=0x5ce5e0 query=0x5ce3b0 normal_calls=2 query_table=0x1217828 debugger=0 limit=1024");
+#else
+    (void)segments;(void)count;(void)size;
+#endif
+}
+
 static void install_actor_watch(const char *app0, Segment *segments, uint64_t count, uint64_t size) {
     char path[4096], serial[32] = "", version[32] = "";
     snprintf(path, sizeof(path), "%s/sce_sys/param.sfo", app0 ? app0 : ".");
@@ -801,6 +1065,11 @@ void runtime_restart(void) {
     /* The new launch waits for this process's GPU device to go away (run.py --after). */
     TerminateProcess(GetCurrentProcess(),0);
 #else
+    if (getenv("KNACK2_PROFILE") && getenv("KNACK2_EXEC_REQUEST")) {
+        puts("Runtime: restarting through Knack II supervisor");
+        fflush(NULL);
+        _exit(76); /* The supervisor reaps this process before starting the same stage. */
+    }
     puts("Runtime: restarting through run.sh");
     syscall(SYS_close_range, 3u, ~0u, 0u);
     execlp("bash", "bash", "run.sh", (char *)NULL);
@@ -931,6 +1200,8 @@ int main(int argc, char **argv) {
         if (!cpu_supported(missing, sizeof missing)) return 20;
         if (cpu_missing_sets) printf("CPU: missing %s\n", missing);
         else puts("CPU: complete");
+        puts("KNACK2_EXECUTABLE_LAYOUTS_V1=elf-80ccc228,elf-0b7843d3");
+        puts("KNACK2_BOUNDED_CAPTURE_V1=128MiB,13images,1frame");
         return 0;
     }
     if (argc == 2 && !strcmp(argv[1], "--gamepad")) {
@@ -981,6 +1252,14 @@ int main(int argc, char **argv) {
         snprintf(path, sizeof(path), "%s/sce_sys/param.sfo", app0 ? app0 : ".");
         sfo_value(path, "TITLE_ID", serial, sizeof(serial), NULL);
         sfo_value(path, "APP_VER", version, sizeof(version), NULL);
+        const char *layout=getenv("KNACK2_EXECUTABLE_LAYOUT");
+        if (layout) {
+            const char *code_serial=NULL,*code_version=NULL;
+            if (!knack_code_profile(serial,version,layout,&code_serial,&code_version))
+                fail("unknown or incompatible Knack executable layout");
+            printf("Knack executable layout: %s; title=%s %s; patch_profile=%s %s\n",
+                   layout,serial,version,code_serial,code_version);
+        }
         printf("Build: %s (built %s %s); game %s %s; threads inherit the creator's MXCSR/x87 control\n",
                TLG_BUILD_COMMIT, __DATE__, __TIME__, serial, version);
     }
@@ -1318,6 +1597,12 @@ int main(int argc, char **argv) {
         runtime_set_report_hook(isa_report_hook);
         protect(stubs, stub_area + red_zone_area, 5);
     }
+    install_knack_ultrawide(app0,segments,ns,size);
+    install_knack_native_resolution(app0,guest_executable,guest_args,guest_argc,segments,ns,size);
+    install_knack_native_aa(app0,guest_executable,segments,ns,size);
+    install_dialogue_gain(app0,segments,ns,size);
+    install_factor_probe(app0,segments,ns,size);
+    install_sync_probe(segments,ns,size);
     protect(traps, round_page((import_count + 1) * 32), 5);
     if (trace_stubs) protect(trace_stubs, round_page((import_count + 1) * TRACE_STUB_SIZE), 5);
     protect(image, round_page(size), 0);

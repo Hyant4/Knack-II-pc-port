@@ -34,16 +34,14 @@ realizada uma nova sessão de gameplay para validar esta entrega.
 ## Saves fixos
 
 No Windows, dados ficam em `%LOCALAPPDATA%\KnackII-PC`, independentemente da
-branch, worktree ou versão do launcher. Os perfis são separados:
+branch, worktree ou versão do launcher. Solo e cooperativo usam o mesmo perfil:
 
-- P1: `profiles\single\user\savedata`.
-- Cooperativo: `profiles\coop\user\savedata`.
-- Backups do runtime: `savedata-backups`, ao lado de `savedata` em cada perfil.
+- Saves: `profiles\shared\user\savedata`.
+- Backups do runtime: `profiles\shared\user\savedata-backups`.
 
 P1 continua sendo o padrão; P2 exige seleção explícita e recebe ID 4099, com
-P1=1. O perfil cooperativo persiste por pedido do proprietário. Cada execução
-cooperativa ainda cria uma saída `coop-UUID` nova para preparação, capturas e logs.
-Os dois perfis nunca compartilham o mesmo diretório de saves.
+P1=1. Cada execução cooperativa ainda cria uma saída `coop-UUID` nova para
+preparação, capturas e logs. Trocar o número de jogadores mantém o mesmo save.
 
 O launcher passa `--user-data` ao supervisor. O mesmo caminho acompanha todas as
 transições LoadExec. Um bloqueio do sistema operacional impede duas sessões de
@@ -55,11 +53,18 @@ dessa interface. Não use uma pasta descartável nessa opção para partidas nor
 Sem `--user-data`, comandos CLI antigos mantêm `OUT/user`, inclusive diagnósticos
 cooperativos com saída nova. A CLI não migra ou procura saves automaticamente.
 
-A migração local inicial copiou os saves P1 da sessão F3B.2 e os saves cooperativos
-da sessão F3B confirmada. Originais foram preservados. Cópias e backups foram
-conferidos por SHA-256; o manifesto fica fora do Git. Novas instalações devem copiar
-o conteúdo dos próprios diretórios `savedata` e `savedata-backups` para o perfil
-correto, com o jogo encerrado, sem sobrescrever um perfil já preenchido.
+A separação de perfis da migração inicial foi substituída em 22/10/2026, a pedido
+do proprietário. O save cooperativo foi primeiro aplicado ao solo; depois o
+perfil comum passou a usar os dados cooperativos. Originais e históricos de
+backup foram preservados e conferidos por SHA-256, com manifestos fora do Git.
+Os caminhos antigos foram mantidos como junções Windows para o perfil comum,
+permitindo usar o executável instalado sem reconstruí-lo.
+
+Em outra instalação antiga, faça backup dos dois diretórios antes de escolher o
+save a importar. Copie o conjunto completo de `savedata` e seu histórico de
+backups para o perfil comum, com o jogo encerrado, sem sobrescrever progresso
+já existente. O código atualizado detecta saves antigos sem um save comum e
+avisa antes de iniciar uma partida vazia.
 
 ## Ícone original e executável
 

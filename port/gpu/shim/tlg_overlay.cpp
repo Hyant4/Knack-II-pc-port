@@ -361,25 +361,63 @@ void ImageTab() {
         static const char* const modes[] = {TL("Windowed", "Janela"), TL("Borderless window", "Janela sem borda"), TL("Fullscreen", "Tela cheia")};
         ChoiceRow(TL("Display mode", "Modo de exibição"), s.display_mode, G::DisplayModeCount == 3 ? modes : G::DisplayModeNames.data(),
                   nullptr, G::DisplayModeCount, TL("Windowed, borderless window or exclusive fullscreen.", "Janela, janela sem borda ou tela cheia exclusiva."));
+        static const char* const sizes[] = {TL("Automatic", "Automática"), "1280 x 720", "1600 x 900",
+            "1920 x 1080", "2560 x 1440", "3840 x 2160", "2560 x 1080", "3440 x 1440",
+            "3840 x 1600", "5120 x 1440", "5120 x 2160", "7680 x 2160"};
+        ImGui::BeginDisabled(s.display_mode != G::Windowed);
+        ChoiceRow(TL("Window size (next session)", "Janela (próxima sessão)"), s.window_resolution,
+                  sizes, nullptr, int(G::WindowResolutionKeys.size()),
+                  TL("Fits the usable screen. Fullscreen uses the desktop. Internal rendering is unchanged.",
+                     "Ajusta à área útil da tela. Tela cheia usa o desktop. Renderização interna não muda."));
+        ImGui::EndDisabled();
+        if (G::KnackProfile(std::getenv("KNACK2_PROFILE"))) {
+            static const char* const aspects[] = {TL("Automatic (monitor)", "Automática (monitor)"),
+                                                  "16:9", "21:9", "32:9"};
+            ChoiceRow(TL("Aspect ratio (next session)", "Proporção (próxima sessão)"),
+                      s.aspect_ratio,aspects,nullptr,int(G::AspectKeys.size()),
+                      TL("Wider horizontal field of view; native UI proportions. Applies after restart.",
+                         "Campo de visão horizontal ampliado; interface proporcional. Aplica após reiniciar."));
+        }
         CheckRow("VSync", s.vsync, TL("Waits for the monitor: no tearing, a little more input delay.", "Espera o monitor: sem tearing, um pouco mais de atraso de entrada."));
         ImGui::EndTable();
     }
     const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;
-    const bool upscaling = iw < ww && ih < wh;
     const bool downscaling = iw > ww || ih > wh;
     const bool rcas_blocked = s.rcas && !s.rcas_applied;
     // tlg: only spatial filters on the final image. The temporal upscalers (FSR 3/4, TAA, DLSS) were
     // built for GoW3's pipeline and make TLG's image shake, so they are not offered here.
     ImGui::SeparatorText(TL("Scaling and sharpening", "Escala e nitidez"));
     if (BeginRows("##scaling")) {
+        const char* profile = std::getenv("KNACK2_PROFILE");
+        if (profile && (std::strcmp(profile, "CUSA08014-01.00") == 0 ||
+            std::strcmp(profile, "CUSA08014-01.01") == 0 ||
+            std::strcmp(profile, "CUSA07670-01.01") == 0)) {
+            static const char* const providers[] = {TL("Off", "Desligado"), "FSR 3.1", "FSR 4"};
+            static const char* const presets[] = {"Native AA", TL("Quality", "Qualidade"),
+                                                 TL("Balanced", "Equilibrado"), TL("Performance", "Desempenho")};
+            ChoiceRow(TL("Temporal FSR", "FSR temporal"), s.upscaler, providers, nullptr, 3,
+                      TL("Replaces the native temporal pass before UI. FSR 4 requires model assets.",
+                         "Substitui o passe temporal antes da interface. FSR 4 requer os arquivos do modelo."));
+            static const char* const internal[] = {TL("Automatic (FSR / 1080p)", "Automática (FSR / 1080p)"),
+                "1280 x 720", "1600 x 900", "1920 x 1080", "2560 x 1440", "3840 x 2160"};
+            ChoiceRow(TL("Internal resolution (next session)", "Resolução interna (próxima sessão)"),
+                      s.internal_resolution, internal, nullptr, int(G::InternalResolutionKeys.size()),
+                      TL("QHD/4K use the game's native resolution through final composition. The window fits the monitor. Restart required; manual size overrides the FSR preset.",
+                         "QHD/4K usam resolução nativa do jogo até a composição final. A janela se ajusta ao monitor. Exige reinício; tamanho manual substitui o preset FSR."));
+            ImGui::BeginDisabled(s.upscaler == TlgSettings::UpscalerOff || s.internal_resolution != 0);
+            ChoiceRow(TL("Temporal FSR quality", "Qualidade do FSR temporal"), s.preset, presets, nullptr, 4,
+                      TL("Scene reconstruction to 1080p. Window resolution controls presentation.",
+                         "Reconstrução da cena para 1080p. Resolução da janela controla a apresentação."));
+            ImGui::EndDisabled();
+            InfoRow(TL("Temporal pass", "Passe temporal"), s.temporal_applied ? TL("applied", "aplicado") : TL("native", "nativo"));
+            if (const char* problem = s.fsr4_problem.load()) InfoRow("FSR 4", problem);
+        }
         CheckRow(TL("Upscale with FSR 1", "Ampliar com FSR 1"), s.fsr1,
                  TL("Enlarges the game image when it is smaller than the window (spatial filter, no shimmer).", "Amplia a imagem do jogo quando ela é menor que a janela (filtro espacial, sem tremor)."));
-        ImGui::BeginDisabled(rcas_blocked);
         CheckRow(TL("Sharpening (RCAS)", "Nitidez (RCAS)"), s.rcas,
                  rcas_blocked && downscaling ? TL("No effect: the game's image is larger than the window.", "Sem efeito: a imagem do jogo é maior que a janela.")
                  : rcas_blocked              ? TL("Needs FSR 1: the game's image is smaller than the window.", "Precisa do FSR 1: a imagem do jogo é menor que a janela.")
                                              : TL("Sharpens the final image.", "Deixa a imagem final mais nítida."));
-        ImGui::EndDisabled();
         ImGui::BeginDisabled(!s.rcas || rcas_blocked);
         SliderRow(TL("Sharpening strength", "Intensidade da nitidez"), s.rcas_strength, 0, 100, "%d%%", TL("How strong the sharpening is.", "Quão forte é a nitidez."));
         ImGui::EndDisabled();
@@ -434,11 +472,15 @@ void ImageTab() {
     ImGui::SeparatorText(TL("Information", "Informações"));
     if (BeginRows("##image_info")) {
         char text[96];
+        if (G::KnackProfile(std::getenv("KNACK2_PROFILE"))) {
+            std::snprintf(text, sizeof(text), "%d x %d", s.active_render_width.load(), s.active_render_height.load());
+            InfoRow(TL("Scene raster target", "Alvo de rasterização da cena"), text);
+        }
         std::snprintf(text, sizeof(text), "%d x %d", iw, ih);
         InfoRow(TL("Game image", "Imagem do jogo"), text);
         std::snprintf(text, sizeof(text), "%d x %d", ww, wh);
         InfoRow(TL("Windowed", "Janela"), text);
-        InfoRow("FSR 1", !s.fsr1 ? TL("off", "desligado") : upscaling ? TL("active", "ativo") : TL("no effect (image not smaller than window)", "sem efeito (imagem não é menor que a janela)"));
+        InfoRow("FSR 1", !s.fsr1 ? TL("off", "desligado") : s.fsr1_applied ? TL("active", "ativo") : TL("no effect (image not smaller than window)", "sem efeito (imagem não é menor que a janela)"));
         InfoRow(TL("Sharpening", "Nitidez"), s.rcas_applied ? TL("applied", "aplicada") : TL("not applied", "não aplicada"));
         ImGui::EndTable();
     }

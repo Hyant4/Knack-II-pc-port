@@ -769,6 +769,9 @@ void ScanDcb(std::span<const u32> dcb, int depth) {
 Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<const u32> ccb,
                                            u64 seq) {
     FIBER_ENTER(dcb_task_name);
+    static const bool trace_submit_requested = EmulatorSettingsImpl::Flag("TLG_RELIC_SUBMIT_TRACE", false);
+    if (trace_submit_requested && rasterizer && rasterizer->RelicSubmissionTraceActive())
+        rasterizer->TraceRelicConsumption(2, dcb, ccb, seq);
     // Top-level buffers enqueued for the draw preparation workers (nested IBs are not).
     Vulkan::DrawPreparation* draw_prep =
         seq != NoSeq && rasterizer ? &rasterizer->GetDrawPreparation() : nullptr;
@@ -794,6 +797,11 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
     }
 
     const auto base_addr = reinterpret_cast<uintptr_t>(dcb.data());
+    const auto trace_buffer_words = dcb.size();
+    static const bool trace_pm4_requested = EmulatorSettingsImpl::Flag("TLG_RELIC_PM4_TRACE", false);
+    if (trace_pm4_requested && rasterizer && rasterizer->RelicPm4TraceActive())
+        rasterizer->TraceRelicPm4(3, 0, dcb, 0, base_addr, trace_buffer_words, seq,
+                                 regs.num_indices, regs.num_instances.num_instances);
     while (!dcb.empty()) {
         ProcessCommands();
 
@@ -815,7 +823,14 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         case 3:
             const u32 count = header->type3.NumWords();
             const PM4ItOpcode opcode = header->type3.opcode;
+            const bool trace_pm4 = trace_pm4_requested && rasterizer && rasterizer->RelicPm4TraceActive();
+            const u32 trace_before_indices = trace_pm4 ? regs.num_indices : 0;
+            const u32 trace_before_instances = trace_pm4 ? regs.num_instances.num_instances : 0;
             ApplyGraphicsRegisterPacket(regs, header, gfx_reg_checksum, &pipe_dirty);
+            if (trace_pm4)
+                rasterizer->TraceRelicPm4(1, u32(opcode), dcb, count + 1, base_addr,
+                                         trace_buffer_words, seq, trace_before_indices,
+                                         trace_before_instances);
             // DmaData to 0x3022C does nothing here (skipped below): no need to wait.
             if (rasterizer && !PipelinedOpcode(opcode) &&
                 !(opcode == PM4ItOpcode::DmaData &&
@@ -1403,6 +1418,11 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     LOG_WARNING(Render, "IT_COND_EXEC used a reserved command");
                 }
                 const auto skip = *cond_exec->Address() == false;
+                if (trace_pm4_requested && rasterizer && rasterizer->RelicPm4TraceActive())
+                    rasterizer->TraceRelicPm4(2, u32(opcode), dcb, count + 1, base_addr,
+                                             trace_buffer_words, seq, regs.num_indices,
+                                             regs.num_instances.num_instances, skip,
+                                             cond_exec->exec_count.Value());
                 if (skip) {
                     dcb = NextPacket(dcb,
                                      header->type3.NumWords() + 1 + cond_exec->exec_count.Value());
@@ -1419,6 +1439,9 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         }
     }
 
+    if (trace_pm4_requested && rasterizer && rasterizer->RelicPm4TraceActive())
+        rasterizer->TraceRelicPm4(4, 0, dcb, 0, base_addr, trace_buffer_words, seq,
+                                 regs.num_indices, regs.num_instances.num_instances);
     if (ce_task.handle) {
         while (!ce_task.handle.done()) {
             RESUME_GFX(ce_task);
@@ -1828,9 +1851,22 @@ Liverpool::CmdBuffer Liverpool::CopyCmdBuffers(std::span<const u32> dcb, std::sp
 
 void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
     auto& queue = mapped_queues[GfxQueueId];
+    static const bool trace_submit_requested = EmulatorSettingsImpl::Flag("TLG_RELIC_SUBMIT_TRACE", false);
+    const bool trace_submit = trace_submit_requested && rasterizer && rasterizer->RelicSubmissionTraceActive();
+    Vulkan::RelicSubmissionSample trace_sample;
+    if (trace_submit) {
+        trace_sample.kind = 1; trace_sample.copy_mode = 1;
+        trace_sample.samples[0] = Vulkan::Rasterizer::SampleRelicCommands(dcb);
+        trace_sample.samples[1] = Vulkan::Rasterizer::SampleRelicCommands(ccb);
+    }
 
     if (EmulatorSettings.IsCopyGpuBuffers()) {
         std::tie(dcb, ccb) = CopyCmdBuffers(dcb, ccb);
+        if (trace_submit) trace_sample.copy_mode = 2;
+    }
+    if (trace_submit) {
+        trace_sample.samples[2] = Vulkan::Rasterizer::SampleRelicCommands(dcb);
+        trace_sample.samples[3] = Vulkan::Rasterizer::SampleRelicCommands(ccb);
     }
 
     // The copy for the draw preparation workers is made before taking the queue lock, which
@@ -1845,14 +1881,19 @@ void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
             seq = gfx_submit_seq++;
             draw_prep->Enqueue(seq, std::move(prep_submission));
         }
+        trace_sample.submission = seq;
         auto task = ProcessGraphics(dcb, ccb, seq);
         queue.submits.emplace(task.handle);
     }
-
-    std::scoped_lock lk{submit_mutex};
-    ++num_submits;
-    work_retired = false;
-    submit_cv.notify_one();
+    {
+        std::scoped_lock lk{submit_mutex};
+        ++num_submits;
+        work_retired = false;
+        submit_cv.notify_one();
+    }
+    // Do not extend the existing enqueue/count gap or nest the capture lock with queue locks.
+    // The GPU may already have consumed the buffer when this metadata is published.
+    if (trace_submit) rasterizer->RecordRelicSubmission(trace_sample);
 }
 
 void Liverpool::SubmitAsc(u32 gnm_vqid, std::span<const u32> acb) {

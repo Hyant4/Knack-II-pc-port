@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Stable launcher profiles; session outputs remain disposable and separate."""
+"""Shared game progress for solo and coop; session outputs stay separate."""
 from contextlib import contextmanager
 import os
 from pathlib import Path
@@ -14,7 +14,21 @@ def application_data_root():
 def profile_user(root, players):
     if players not in (1, 2):
         raise ValueError('Selecione um ou dois jogadores.')
-    return Path(root).resolve() / 'profiles' / ('coop' if players == 2 else 'single') / 'user'
+    root = Path(root).resolve()
+    shared = root / 'profiles/shared/user'
+    if not _has_savedata(shared):
+        for mode in ('single', 'coop'):
+            legacy = root / 'profiles' / mode / 'user'
+            if legacy.resolve() != shared.resolve() and _has_savedata(legacy):
+                raise ValueError('Foram encontrados saves antigos de solo/coop. '
+                                 'Importe o save que deseja manter antes de jogar; '
+                                 'nenhum arquivo foi sobrescrito.')
+    return shared
+
+
+def _has_savedata(user):
+    savedata = user / 'savedata'
+    return savedata.is_dir() and any(path.is_file() for path in savedata.rglob('*'))
 
 
 @contextmanager

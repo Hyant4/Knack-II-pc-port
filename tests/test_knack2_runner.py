@@ -80,7 +80,7 @@ class TestKnack2Runner(unittest.TestCase):
             out_dir=self.out_dir,
         )
         cmd = runner.build_command()
-        self.assertEqual(cmd[0], str(Path(sys.executable).absolute()))
+        self.assertEqual(cmd[0], os.path.abspath(sys.executable))
         self.assertEqual(cmd[1], str(self.mock_run_py.resolve()))
         self.assertIn('--game-dir', cmd)
         self.assertEqual(cmd[cmd.index('--game-dir') + 1], str(self.game_dir.resolve()))

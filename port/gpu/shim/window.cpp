@@ -47,6 +47,22 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     if (!SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         UNREACHABLE_MSG("Failed to initialize SDL video: {}", SDL_GetError());
     }
+    // A selected size affects only the startup window, never guest allocations or the desktop mode.
+    const auto requested = TlgGraphics::WindowSizes[std::clamp(
+        TlgSettings::Get().window_resolution.load(), 0, int(TlgGraphics::WindowSizes.size()) - 1)];
+    if (requested.width && TlgSettings::Get().display_mode == TlgGraphics::Windowed) {
+        width_ = requested.width;
+        height_ = requested.height;
+    }
+    if (TlgGraphics::KnackProfile(std::getenv("KNACK2_PROFILE"))) {
+        const auto* desktop = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+        auto& settings = TlgSettings::Get();
+        const float aspect = TlgGraphics::RequestedAspect(settings.aspect_ratio,
+            desktop ? desktop->w : 0, desktop ? desktop->h : 0);
+        settings.requested_aspect = aspect;
+        if (!requested.width && settings.display_mode == TlgGraphics::Windowed)
+            height_ = std::max(1,int(std::lround(float(width_)/aspect)));
+    }
     // tlg: the window opens at the game's size (1920x1080) unless the screen is smaller: on a
     // 1366x768 laptop it was larger than the screen and the picture was cut. It then opens at the
     // largest same-shape size that fits the usable area (taskbar and title bar kept clear); it can
@@ -54,9 +70,11 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     SDL_Rect usable{};
     if (width_ > 0 && height_ > 0 && SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) &&
         usable.w > 0 && usable.h > 0) {
-        const double fit = std::min({1.0, usable.w * 0.95 / width_, (usable.h - 40) * 0.95 / height_});
-        if (fit < 1.0) {
-            const s32 w = std::max<s32>(640, s32(width_ * fit)), h = std::max<s32>(360, s32(height_ * fit));
+        const auto fitted = TlgGraphics::FitImage(width_, height_,
+            std::min(width_, std::max(1, usable.w * 95 / 100)),
+            std::min(height_, std::max(1, (usable.h - 40) * 95 / 100)));
+        if (fitted.width != width_ || fitted.height != height_) {
+            const s32 w = fitted.width, h = fitted.height;
             LOG_INFO(Frontend, "Window {}x{} does not fit the screen ({}x{} usable): opening at {}x{}", width_,
                      height_, usable.w, usable.h, w, h);
             width_ = w;

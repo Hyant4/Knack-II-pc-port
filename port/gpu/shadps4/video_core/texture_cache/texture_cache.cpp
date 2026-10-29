@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <filesystem>
+#include <fstream>
+#include <format>
 #include <xxhash.h>
 #include "video_core/amdgpu/liverpool.h"
 
@@ -19,6 +21,7 @@
 #include "video_core/buffer_cache/buffer_cache.h"
 #include "video_core/page_manager.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
+#include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_wait_diagnostics.h"
@@ -440,9 +443,41 @@ void TextureCache::DownloadImageMemory(ImageId image_id, bool sync) {
     }
 }
 
-void TextureCache::DiagDumpImage(ImageId image_id, const char* tag) {
+void TextureCache::DiagDumpImage(ImageId image_id, const char* tag, Vulkan::KnackCapture::Role role) {
     Image& image = slot_images[image_id];
+    const bool bounded = Vulkan::FrameCapture::BoundedImages();
     const u32 bytes_per_pixel = image.info.num_bits / 8;
+    if (bounded) {
+        using Vulkan::FrameCapture;
+        using Vulkan::KnackCapture::Role;
+        if (!FrameCapture::IsRecording()) return;
+        const auto reject = [&](const char* reason) {
+            FrameCapture::ImageResult(std::format("skip {} {:#x}: {}", tag, image.info.guest_address, reason));
+        };
+        if (!image.backing || image.info.props.is_depth || image.info.props.is_block ||
+            image.info.props.is_volume || image.info.props.is_bc_decoded ||
+            image.info.size.depth != 1 || image.info.resources.layers != 1 ||
+            image.info.num_samples != 1 || image.backing->num_samples != 1) {
+            reject("requires plain 2D, one layer, single-sampled color");
+            return;
+        }
+        if (image.backing->image.image_ci.format != image.info.pixel_format ||
+            image.backing->image.image_ci.extent.width != image.info.size.width ||
+            image.backing->image.image_ci.extent.height != image.info.size.height) {
+            reject("host backing differs from described format/extent");
+            return;
+        }
+        if (role == Role::Intermediate && (!FrameCapture::HasGBuffer() ||
+            image.info.size.width < 960 || image.info.size.height < 540 ||
+            (image.info.pixel_format != vk::Format::eB10G11R11UfloatPack32 &&
+             image.info.pixel_format != vk::Format::eR16G16B16A16Sfloat))) return;
+        const auto size = Vulkan::KnackCapture::ImageBytes(image.info.size.width,
+                          image.info.size.height, image.info.pitch, bytes_per_pixel);
+        if (!size || !FrameCapture::ReserveImage(role, image.info.guest_address, *size)) {
+            reject("dimensions, duplicate, image count or byte budget");
+            return;
+        }
+    }
     if (image.info.props.is_depth || image.info.props.is_block || bytes_per_pixel == 0) {
         return;
     }
@@ -459,6 +494,26 @@ void TextureCache::DiagDumpImage(ImageId image_id, const char* tag) {
     runtime.DownloadImage(&image, download.buffer, std::span{&copy, 1});
     scheduler.Finish();
     download.Invalidate();
+    if (bounded) {
+        const char* directory = std::getenv("TLG_CAPTURE_DIR");
+        if (!directory || !*directory) {
+            Vulkan::FrameCapture::ImageResult("error: missing capture directory");
+            return;
+        }
+        const auto dir = std::filesystem::path(directory);
+        std::error_code error;
+        std::filesystem::create_directories(dir, error);
+        const auto filename = std::format("role{}_{}_{:x}_{}x{}_p{}_b{}_f{}.raw",
+            static_cast<unsigned>(role), tag, image.info.guest_address, image.info.size.width,
+            image.info.size.height, image.info.pitch, bytes_per_pixel, static_cast<int>(image.info.pixel_format));
+        std::ofstream file(dir / filename, std::ios::binary | std::ios::trunc);
+        file.write(reinterpret_cast<const char*>(download.mapped), size);
+        file.close();
+        Vulkan::FrameCapture::ImageResult(std::format("{} {} bytes={} format={}",
+            file ? "saved" : "write-error", filename, size, vk::to_string(image.info.pixel_format)));
+        std::printf("Knack capture: %s %s\n", file ? "saved" : "write-error", filename.c_str());
+        return;
+    }
     static int sequence = 0;
     const char* dir = std::getenv("TLG_DIAG_DIR");
     const char* dir_path = dir && *dir ? dir : "out/diag";

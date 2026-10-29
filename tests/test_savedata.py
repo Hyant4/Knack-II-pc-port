@@ -1,6 +1,7 @@
 """Compile and run the isolated SaveData contract against synthetic files."""
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import shlex
 import tempfile
@@ -12,19 +13,17 @@ TOOLCHAIN = Path(os.environ.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/kn
 
 class SaveDataTests(unittest.TestCase):
     def test_metadata_backup_and_events(self):
-        env = dict(os.environ)
-        if os.name == 'nt':
-            compiler = [str(TOOLCHAIN / 'clang64/bin/clang.exe')]
-            self.assertTrue(Path(compiler[0]).exists(), 'MSYS2 CLANG64 is required for this native test')
-            env['PATH'] = str(Path(compiler[0]).parent) + os.pathsep + env.get('PATH', '')
-        else:
-            compiler = shlex.split(os.environ.get('CC', 'cc'))
+        compiler = TOOLCHAIN / 'clang64/bin/clang.exe' if os.name == 'nt' else Path(shutil.which(os.environ.get('CC', 'cc')) or '/missing-cc')
+        self.assertTrue(compiler.is_file(), 'A native C compiler is required for this test')
+        env = dict(os.environ, PATH=str(compiler.parent) + os.pathsep + os.environ.get('PATH', ''))
         with tempfile.TemporaryDirectory(prefix='knack save test ') as temporary:
             root = Path(temporary)
             exe = root / ('savedata-test.exe' if os.name == 'nt' else 'savedata-test')
-            command = compiler + ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+            command = [str(compiler), '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
                        '-I' + str(ROOT / 'port/src'), '-I' + str(ROOT / 'port'),
                        str(ROOT / 'tests/test_knack_savedata.c'), '-pthread', '-o', str(exe)]
+            if os.name != 'nt':
+                command.insert(1, '-D_GNU_SOURCE=')
             built = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             user = root / 'user with spaces'

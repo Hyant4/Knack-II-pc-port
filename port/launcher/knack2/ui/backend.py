@@ -14,17 +14,23 @@ from PySide6.QtCore import (QAbstractListModel, QModelIndex, QObject, Property,
 from PySide6.QtGui import QGuiApplication
 
 from .. import config, validator
+from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset
+from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import RunnerState
 from .demo import DemoRunnerPort, SimulatedRunner
 from ..languages import LANGUAGES, BY_CODE
-from .i18n import translate
+from .i18n import translate, translate_failure
 
 MAX_ROWS = 500
 MAX_LINE = 2048
 MAX_PENDING = 1000
-DEFAULTS = {'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '60',
+DEFAULTS = {'display_mode': 'windowed', 'window_resolution': 'auto', 'vsync': '1', 'fps_limit': '60',
+            'aspect_ratio': 'auto', 'internal_resolution': 'auto',
+            'upscaler': 'off', 'preset': '0', 'antialiasing': 'native',
             'fsr1': '0', 'rcas': '0', 'rcas_strength': '50',
-            'mouse_enabled': '0', 'mouse_invert_y': '0'}
+            'mouse_enabled': '0', 'mouse_invert_y': '0',
+            'gpu_readbacks': '2', 'eager_readback': '0', 'shader_preload': '1',
+            **{key: 'auto' for key in config.GPU_DIAGNOSTIC_ENV}}
 STATE_LABELS = {'IDLE': 'Pronto para simular', 'STARTING': 'Iniciando simulação',
                 'RUNNING': 'Simulação em execução', 'STOPPING': 'Encerrando simulação',
                 'FINISHED': 'Simulação encerrada', 'FAILED': 'Erro na simulação'}
@@ -83,13 +89,16 @@ class Backend(QObject):
         super().__init__(parent)
         self._closed = False
         self._language = 'pt-BR'
+        self._ui_language = None
         self._state = 'IDLE'
         self._stop_requested = False
         self._session = ''
         self._game_dir = ''
         self._validation = 'Nenhuma pasta selecionada.'
         self._validation_state = 'empty'
-        self._installation = 'Knack II · CUSA08014 · perfil 01.01'
+        self._installation = 'Knack II'
+        self._installation_id = ''
+        self._installation_version = ''
         self._validating = False
         self._notification = 'Modo de demonstração. O jogo real não será iniciado.'
         self._notification_error = False
@@ -102,6 +111,8 @@ class Backend(QObject):
         self._validate_dump = validate_dump
         self._validation_thread = None
         self._settings = dict(DEFAULTS)
+        self._selected_gpu_preset = None
+        self._gtx1060_diagnostic = 'off'
         self._workspace = tempfile.TemporaryDirectory(prefix='knack2-f3a-')
         self.workspace = Path(self._workspace.name)
         self.supervisor_model = LogModel(self)
@@ -116,27 +127,41 @@ class Backend(QObject):
         self._timer.start()
 
     state = Property(str, lambda self: self._state, notify=changed)
-    uiLanguage = Property(str, lambda self: self._language, notify=uiLanguageChanged)
+    uiLanguage = Property(str, lambda self: self._ui_language or self._language, notify=uiLanguageChanged)
     languageOptions = Property('QVariantList', lambda self: [dict(entry) for entry in LANGUAGES
                                if entry['code'] in self._language_codes()], notify=changed)
     languageIndex = Property(int, lambda self: next((i for i, entry in enumerate(self.languageOptions)
                              if entry['code'] == self._language), -1), notify=changed)
     isDemo = Property(bool, lambda self: not getattr(self, '_real_mode', False), constant=True)
+    updateManager = Property(QObject, lambda self: getattr(self, '_updates', None), constant=True)
     editable = Property(bool, lambda self: self._editable(), notify=changed)
+    gpuPresets = Property('QVariantList', lambda self: [
+        {'id': profile['id'], 'experimental': profile['experimental'],
+         **{key: self._translate(profile[key]) for key in ('label', 'when', 'changes')}}
+        for profile in GPU_PRESETS], notify=uiLanguageChanged)
+    gpuPresetId = Property(str, lambda self: matching_gpu_preset(self._settings, self._selected_gpu_preset), notify=settingsChanged)
+    gtx1060Diagnostic = Property(str, lambda self: self._gtx1060_diagnostic
+                               if self.gpuPresetId == GTX1060_PRESET else 'off', notify=settingsChanged)
     stateLabel = Property(str, lambda self: self._state_label(), notify=changed)
     sessionId = Property(str, lambda self: self._session or self._translate('Nenhuma sessão'), notify=changed)
     gameDir = Property(str, lambda self: self._game_dir, notify=changed)
-    validationText = Property(str, lambda self: self._translate(self._validation), notify=changed)
+    validationText = Property(str, lambda self: (self._translate_error if self._validation_state == 'invalid'
+                                               else self._translate)(self._validation), notify=changed)
     validationState = Property(str, lambda self: self._validation_state, notify=changed)
     installation = Property(str, lambda self: self._installation, notify=changed)
+    installationId = Property(str, lambda self: self._installation_id, notify=changed)
+    installationVersion = Property(str, lambda self: self._installation_version, notify=changed)
     validating = Property(bool, lambda self: self._validating, notify=changed)
-    notification = Property(str, lambda self: self._translate(self._notification), notify=changed)
+    notification = Property(str, lambda self: (self._translate_error if self._notification_error
+                                             else self._translate)(self._notification), notify=changed)
     notificationError = Property(bool, lambda self: self._notification_error, notify=changed)
-    errorText = Property(str, lambda self: '\n\n'.join(self._translate(e) for e in self._errors) or self._translate('Nenhum erro registrado.'), notify=changed)
+    errorText = Property(str, lambda self: '\n\n'.join(self._translate_error(e) for e in self._errors) or self._translate('Nenhum erro registrado.'), notify=changed)
     droppedLogs = Property(int, lambda self: self._dropped, notify=changed)
     canPlay = Property(bool, lambda self: self._can_play(), notify=changed)
     canStop = Property(bool, lambda self: self._can_stop(), notify=changed)
     settings = Property('QVariantMap', lambda self: dict(self._settings), notify=settingsChanged)
+    windowResolutions = Property('QVariantList', lambda self: list(config.VALID_WINDOW_RESOLUTIONS), constant=True)
+    internalResolutions = Property('QVariantList', lambda self: list(config.VALID_INTERNAL_RESOLUTIONS), constant=True)
     supervisorLogs = Property(QObject, lambda self: self.supervisor_model, constant=True)
     guestLogs = Property(QObject, lambda self: self.guest_model, constant=True)
 
@@ -147,7 +172,18 @@ class Backend(QObject):
         return self._translate(STATE_LABELS[self._state])
 
     def _translate(self, text):
-        return translate(self._language, text)
+        return translate(self.uiLanguage, text)
+
+    def _translate_error(self, text):
+        return translate_failure(self.uiLanguage, text)
+
+    @Slot(str)
+    def setUiLanguage(self, code):
+        if self._closed or code not in ('pt-BR', 'en-US', 'ru-RU'):
+            return
+        self._ui_language = code
+        self.uiLanguageChanged.emit()
+        self.changed.emit()
 
     def _language_codes(self):
         return tuple(BY_CODE)
@@ -237,6 +273,8 @@ class Backend(QObject):
             self._validation = error_text or 'Instalação válida: metadados, executáveis e módulos conferidos.'
             if not error:
                 self._installation = f"{result['app_title']} · {result['title_id']} · {result['version']}"
+                self._installation_id = result['title_id']
+                self._installation_version = result['version']
                 self._on_validated(result)
             self._notice(error_text or self._validation, bool(error_text))
             self._on_validation_finished(result, error_text, auto_play=auto_play)
@@ -251,7 +289,9 @@ class Backend(QObject):
         self._game_dir = str(Path(url.toLocalFile())) if url.isLocalFile() else text.strip()
         self._validation_state = 'empty'
         self._validation = 'Pasta selecionada. Valide a instalação.' if self._game_dir else 'Nenhuma pasta selecionada.'
-        self._installation = 'Knack II · CUSA08014 · perfil 01.01'
+        self._installation = 'Knack II'
+        self._installation_id = ''
+        self._installation_version = ''
         self.changed.emit()
 
     @Slot()
@@ -291,7 +331,45 @@ class Backend(QObject):
             if key not in DEFAULTS:
                 raise ValueError('Opção indisponível nesta interface.')
             key, normalized = config.sanitize_and_validate_key_value(key, value)
+            config.validate_graphics_settings({**self._settings, key: normalized})
             self._settings[key] = normalized
+            if self.gpuPresetId != self._selected_gpu_preset:
+                self._selected_gpu_preset = None
+                self._gtx1060_diagnostic = 'off'
+        except ValueError as error:
+            self._notice(str(error), True)
+        self.settingsChanged.emit()
+
+    @Slot(str)
+    def applyGpuPreset(self, preset_id):
+        if self._closed or not self.editable:
+            return
+        try:
+            targets = gpu_preset_targets(preset_id)
+        except ValueError as error:
+            self._notice(str(error), True)
+            return
+        try:
+            config.validate_graphics_settings({**self._settings, **targets})
+        except ValueError as error:
+            self._notice(str(error), True)
+            return
+        self._settings.update(targets)
+        self._selected_gpu_preset = preset_id
+        self._gtx1060_diagnostic = 'off'
+        self.settingsChanged.emit()
+        if 'gpu_readbacks' in targets:
+            self._notice('Predefinição experimental aplicada. Salve as configurações e reinicie o jogo para comparar.')
+
+    @Slot(str)
+    def setGtx1060Diagnostic(self, mode):
+        if self._closed or not self.editable:
+            return
+        try:
+            validate_gtx1060_mode(mode)
+            if self.gpuPresetId != GTX1060_PRESET:
+                raise ValueError('Selecione o preset GTX 1060 antes do diagnóstico.')
+            self._gtx1060_diagnostic = mode
         except ValueError as error:
             self._notice(str(error), True)
         self.settingsChanged.emit()

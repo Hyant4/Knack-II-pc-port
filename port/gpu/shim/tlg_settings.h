@@ -38,6 +38,10 @@ inline constexpr int kExtraPrefs = sizeof(kExtraKeys) / sizeof(kExtraKeys[0]);
 
 struct Values {
     std::atomic<int> upscaler{UpscalerFsr3};
+    std::atomic<int> antialiasing{0}; ///< 0 native, 1 off, -1 invalid; next session only
+    int startup_antialiasing = 0;
+    std::atomic<bool> native_aa_disabled{false}; ///< set only after the guarded guest patch
+    std::atomic<bool> native_aa_applied{false}; ///< both temporal destinations written
     std::atomic<int> preset{NativeAA};
     std::atomic<bool> sharpen{true};
     std::atomic<float> sharpness{0.3f};
@@ -73,6 +77,13 @@ struct Values {
     std::atomic<bool> actor_watch_supported{false};
     // Graphics (tlg_graphics.h). Live: applied on the next frame.
     std::atomic<int> display_mode{0};
+    std::atomic<int> window_resolution{0}; ///< startup window size, not guest render resolution
+    std::atomic<int> internal_resolution{0}; ///< startup Knack size; high presets use native guest targets
+    int startup_internal_resolution = 0;
+    std::atomic<bool> native_resolution_active{false}; ///< guarded private guest preset installed
+    std::atomic<int> native_width{1920}, native_height{1080};
+    std::atomic<int> aspect_ratio{0}; ///< startup only: auto, 16:9, 21:9, 32:9
+    std::atomic<float> requested_aspect{16.0f/9.0f}, active_aspect{16.0f/9.0f};
     std::atomic<bool> vsync{true};
     std::atomic<int> fps_limit{0};
     /// Off by default (2026-10-16): a draw whose pipeline was still compiling was skipped, and the
@@ -85,12 +96,17 @@ struct Values {
     /// Set by the presenter: sharpening ran on the last frame (it needs FSR 1 when the game's
     /// image is smaller than the window).
     std::atomic<bool> rcas_applied{false};
+    std::atomic<bool> fsr1_applied{false}; ///< EASU ran on the last presented frame
+    std::atomic<bool> temporal_applied{false}; ///< native Knack temporal pass replaced by FSR
     /// Set by the presenter: the game's image and the window it is shown in, in pixels.
     std::atomic<int> image_width{0}, image_height{0}, window_width{0}, window_height{0};
     std::atomic<int> frames_queued{1};
     // Startup: run.py turns them into patches and environment variables; "Apply and restart".
     std::atomic<int> render_resolution{0};
     std::atomic<int> engine_fps{120};
+    /// Startup-only GPU readbacks, forwarded by the supervisor on the next launch.
+    std::atomic<int> gpu_readbacks{2};
+    std::atomic<bool> eager_readback{false};
     std::atomic<bool> deferred_readback{true};
     std::atomic<bool> stale_readback{false};
     /// Set before an "Apply and restart"; cleared once the new launch shows the game. run.py

@@ -11,6 +11,7 @@
 #include "common/assert.h"
 #include "shader_recompiler/backend/spirv/emit_spirv_discard_frag.h"
 #include "shader_recompiler/backend/spirv/emit_spirv_quad_rect.h"
+#include "shader_recompiler/backend/spirv/emulated_barycentric.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_blend_rewrite.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
@@ -213,8 +214,37 @@ GraphicsPipeline::GraphicsPipeline(
             .pName = "main",
         });
     }
+    vk::UniqueShaderModule barycentric_module;
     stage = u32(Shader::SwStage::Geometry);
-    if (infos[stage]) {
+    if (!preloading && infos[u32(Shader::SwStage::Fragment)] &&
+        runtime_infos[u32(Shader::SwStage::Fragment)].hw.fs.emulated_barycentric &&
+        Shader::Backend::SPIRV::NeedsBarycentricGeometry(*infos[u32(Shader::SwStage::Fragment)])) {
+        const auto limits = instance.GetPhysicalDevice().getProperties().limits;
+        const auto* fs = infos[u32(Shader::SwStage::Fragment)];
+        const auto* vs = infos[u32(Shader::SwStage::Vertex)];
+        LOG_INFO(Render_Vulkan, "Knack barycentric fallback: fragment {:#x}, vertex {:#x}",
+                 fs->pgm_hash, vs->pgm_hash);
+        sdata.barycentric_geometry = Shader::Backend::SPIRV::EmitBarycentricGeometry(
+            runtime_infos[u32(Shader::SwStage::Fragment)].hw.fs, *fs, *vs,
+            profile.needs_clip_distance_emulation,
+            key.provoking_vtx_last == AmdGpu::ProvokingVtxLast::Last,
+            std::min(limits.maxGeometryOutputComponents, limits.maxFragmentInputComponents),
+            limits.maxGeometryTotalOutputComponents);
+    }
+    if (!sdata.barycentric_geometry.empty()) {
+        ASSERT(!infos[stage]);
+        auto result = instance.GetDevice().createShaderModuleUnique({
+            .codeSize = sdata.barycentric_geometry.size() * sizeof(u32),
+            .pCode = sdata.barycentric_geometry.data(),
+        });
+        ASSERT_MSG(result.result == vk::Result::eSuccess, "Failed to create barycentric geometry module");
+        barycentric_module = std::move(result.value);
+        shader_stages.emplace_back(vk::PipelineShaderStageCreateInfo{
+            .stage = vk::ShaderStageFlagBits::eGeometry,
+            .module = *barycentric_module,
+            .pName = "main",
+        });
+    } else if (infos[stage]) {
         shader_stages.emplace_back(vk::PipelineShaderStageCreateInfo{
             .stage = vk::ShaderStageFlagBits::eGeometry,
             .module = modules[stage],

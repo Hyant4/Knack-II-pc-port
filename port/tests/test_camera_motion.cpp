@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Execute production camera motion SPIR-V: distant geometry, sky and stale object vectors.
+#ifdef _WIN32
+#include "tlg_win_compat.h"
+#endif
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -9,13 +12,11 @@
 #include "video_core/texture_cache/image.h"
 #include "video_core/host_shaders/camera_motion_comp.h"
 #include <vk_mem_alloc.h>
+#include "vulkan_test_dispatch.h"
 
 int main() {
     Vulkan::Instance instance(0, false);
-    static vk::detail::DynamicLoader loader;
-    vk::detail::DispatchLoaderDynamic d;
-    d.init(loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
-    d.init(instance.GetInstance()); d.init(instance.GetDevice());
+    auto d = VulkanTestDispatch(instance);
     const auto device = instance.GetDevice();
     Vulkan::Scheduler scheduler(instance);
     constexpr u32 W=9,H=7,N=W*H;

@@ -18,6 +18,7 @@ class ExperimentalBuildTests(unittest.TestCase):
     def test_profiles_only_differ_in_updated_executable(self):
         normal = validator.load_profile()
         experimental = validator.load_profile(validator.default_profile_path(experimental_build=True))
+        normal.pop('game_elf_variants', None)  # Local normal mode already supports the exact alternate layout.
         self.assertNotEqual(normal['executables']['game.elf'], experimental['executables']['game.elf'])
         experimental['executables']['game.elf'] = normal['executables']['game.elf']
         self.assertEqual(normal, experimental)
@@ -38,8 +39,8 @@ class ExperimentalBuildTests(unittest.TestCase):
             with patch.object(validator.prepare, 'load_sfo', return_value={'TITLE_ID': 'CUSA08014', 'APP_VER': '01.01'}) as sfo, patch.object(validator, 'digest_file', side_effect=digest), patch.object(validator.link_modules, 'module') as module:
                 self.assertTrue(validator.validate_knack2_dump(game, profile=profile)['valid'])
                 self.assertEqual(module.call_count, 3)
-                with self.assertRaises(validator.KnackHashMismatchError):
-                    validator.validate_knack2_dump(game)
+                default_result = validator.validate_knack2_dump(game)
+                self.assertEqual(default_result['executable_layout'], 'elf-0b7843d3')
                 sfo.return_value['APP_VER'] = '01.00'
                 with self.assertRaises(validator.KnackVersionMismatchError):
                     validator.validate_knack2_dump(game, profile=profile)
@@ -57,7 +58,7 @@ class ExperimentalBuildTests(unittest.TestCase):
             runner = KnackRunner(game, experimental_build=True, analyze_only=True,
                                  out_dir=Path(temporary) / 'analysis')
             seen = []
-            with patch.object(supervisor, 'validate_game') as validate, patch.object(supervisor, 'prepare_image', side_effect=lambda game, profile, name, out: seen.append(profile) or out), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(supervisor, 'validate_game') as validate, patch.object(supervisor, 'prepare_image', side_effect=lambda game, profile, name, out, **kwargs: seen.append(profile) or out), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(supervisor.main(runner.build_command()[2:]), 0)
             expected = validator.load_profile(validator.default_profile_path(experimental_build=True))
             self.assertEqual(validate.call_args.args[1], expected)
@@ -92,8 +93,12 @@ class ExperimentalBuildTests(unittest.TestCase):
                                  validator.default_profile_path(experimental_build=True))
                 backend._game_dir = str(root / 'dump')
                 backend._validation_state = 'valid'
-                backend._on_validated({'languages': ['en-US']})
-                backend.play()
+                backend._on_validated({'title_id': 'CUSA08014', 'version': '01.01', 'languages': ['en-US']})
+                runtime = root / 'synthetic-runtime'
+                runtime.write_bytes(b'command capture only; never executed')
+                runtime.chmod(0o755)
+                with patch('port.launcher.knack2.ui.real.runtime_path', return_value=runtime):
+                    backend.play()
                 self.assertEqual(len(captured), 1)
                 self.assertIn('--experimental-build', captured[0].build_command())
                 self.assertTrue(captured[0].user_data.is_relative_to(root / 'experimental-build'))

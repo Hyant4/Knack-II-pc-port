@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Prepare and supervise Knack 2's original executables on Windows and Linux."""
+"""Prepare and supervise Knack 2's original executables on Windows or Linux."""
 import argparse
 from contextlib import ExitStack
 import hashlib
@@ -24,7 +24,13 @@ import content_profile
 from port.launcher.knack2.languages import BY_CODE, discover_languages, language_environment
 from port.launcher.knack2.identity import game_identity_environment, runtime_path
 from port.launcher.knack2.storage import user_data_lock
-from port.launcher.knack2.validator import default_profile_path
+from port.launcher.knack2.gtx1060_diagnostics import MODES as GTX1060_MODES, create_environment as gtx1060_environment
+from port.launcher.knack2.gtx1060_diagnostics import require_capture_runtime
+from port.launcher.knack2.config import (load_knack2_ini, sanitize_and_validate_key_value,
+                                       validate_graphics_settings, gpu_diagnostic_environment,
+                                       GPU_DIAGNOSTIC_ENV)
+from port.launcher.knack2.validator import (default_profile_path, load_profile, profile_id, SUPPORTED_PROFILES,
+                                          executable_layout_for_hash, validate_executable_layout)
 
 
 def digest(path):
@@ -35,9 +41,13 @@ def digest(path):
 def validate_game(game, profile):
     values = prepare.load_sfo(game / 'sce_sys/param.sfo')
     if (values.get('TITLE_ID'), values.get('APP_VER')) != (profile['title_id'], profile['version']):
-        raise ValueError('This profile requires CUSA08014 version 01.01')
+        raise ValueError(f"This profile requires {profile['title_id']} version {profile['version']}")
     for name, expected in profile['executables'].items():
-        if digest(prepare.executable_path(game, name)) != expected:
+        actual = digest(prepare.executable_path(game, name))
+        if name == 'game.elf':
+            values = {**values, 'executable_layout': executable_layout_for_hash(profile, actual),
+                      'game_elf_sha256': actual}
+        elif actual != expected:
             raise ValueError(f'{name}: SHA-256 differs from the supported dump')
     for name in {m for modules in profile['modules'].values() for m in modules}:
         link_modules.module(game / 'sce_module' / name)
@@ -75,8 +85,13 @@ def with_system_modules(profile, ngs2):
     return {**profile, 'modules': modules}
 
 
-def prepare_image(game, profile, executable, out):
-    folder = out / executable.replace('.', '_')
+def prepare_image(game, profile, executable, out, *, executable_layout=None):
+    # Preserve American cache paths; European images never replace those images.
+    cache = out if profile_id(profile) == 'CUSA08014-01.01' else out / profile_id(profile)
+    layout = validate_executable_layout(profile_id(profile), executable_layout)
+    if layout != validate_executable_layout(profile_id(profile)):
+        cache = out / profile_id(profile) / layout
+    folder = cache / executable.replace('.', '_')
     folder.mkdir(parents=True, exist_ok=True)
     modules = profile['modules'][executable]
     fingerprint = {name: digest(path) for name, path in [
@@ -91,6 +106,21 @@ def prepare_image(game, profile, executable, out):
         marker.write_text(json.dumps(fingerprint, indent=2), encoding='utf-8')
     content_profile.prepare(game, folder)
     return folder
+
+
+def require_runtime_layout(probe, layout):
+    """Older runtimes must not silently ignore an alternative code identity."""
+    try:
+        result = subprocess.run([str(probe), '--cpu-features'], capture_output=True, text=True,
+                                encoding='utf-8', errors='replace', timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ValueError('Não foi possível conferir suporte do runtime ao layout do executável') from error
+    prefix = 'KNACK2_EXECUTABLE_LAYOUTS_V1='
+    supported = {item for line in result.stdout.splitlines() if line.startswith(prefix)
+                 for item in line[len(prefix):].split(',')}
+    if result.returncode != 0 or layout not in supported:
+        raise ValueError('Runtime instalado não oferece suporte a esta variante de game.elf. '
+                         'Use um runtime correspondente ao launcher atualizado.')
 
 
 def read_exec_request(path, profile):
@@ -148,33 +178,68 @@ def local_user_environment(local_users, second_user):
 
 
 def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, second_user=None,
-                        config_file=None, language=None, ngs2=False):
+                        config_file=None, language=None, profile='CUSA08014-01.01', executable_layout=None,
+                        vulkan_validation='off', ngs2=False):
+    if vulkan_validation not in ('off', 'core', 'sync'):
+        raise ValueError('Unsupported Vulkan validation mode')
+    if profile not in SUPPORTED_PROFILES:
+        raise ValueError('Unsupported Knack II runtime profile')
+    executable_layout = validate_executable_layout(profile, executable_layout)
     users = local_user_environment(local_users, second_user)
     locale = language_environment(language)
     if config_file is not None:
         config_file = Path(config_file).resolve()
         if not config_file.is_file():
             raise ValueError('--config must name an existing INI file')
+    settings_path = config_file if config_file is not None else Path(out) / 'knack2.ini'
+    settings = load_knack2_ini(settings_path) if settings_path.is_file() else {}
+    validate_graphics_settings(settings)
+    antialiasing = sanitize_and_validate_key_value('antialiasing', settings.get('antialiasing', 'native'))[1]
+    readbacks = sanitize_and_validate_key_value('gpu_readbacks', settings.get('gpu_readbacks', '2'))[1]
+    eager = sanitize_and_validate_key_value('eager_readback', settings.get('eager_readback', '0'))[1]
+    preload = sanitize_and_validate_key_value('shader_preload', settings.get('shader_preload', '1'))[1]
+    upscaler = sanitize_and_validate_key_value('upscaler', settings.get('upscaler', 'off'))[1]
+    preset = sanitize_and_validate_key_value('preset', settings.get('preset', '0'))[1]
+    internal = sanitize_and_validate_key_value('internal_resolution',
+                                              settings.get('internal_resolution', 'auto'))[1]
     # Old launchers' title-specific overrides must not bleed into this profile.
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
+    env = {k: v for k, v in os.environ.items()
+           if k == 'TLG_TOGGLE_FILE' or not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
     if sys.platform == 'win32':
         toolchain = Path(env.get('MSYS2_ROOT') or Path.home() / 'AppData/Local/knack2-toolchain/msys64')
         env['PATH'] = str(toolchain / 'clang64/bin') + os.pathsep + env.get('PATH', '')
         system_font = Path(env.get('WINDIR', 'C:/Windows')) / 'Fonts/arial.ttf'
+        if system_font.is_file():
+            env.setdefault('KNACK2_SYSTEM_FONT', str(system_font))
     else:
-        # The licensed font is already shipped for the in-game overlay. Do not
-        # depend on a distro-specific font path or console system font files.
         system_font = PORT / 'gpu/third_party/fonts/DejaVuSans.ttf'
-    if system_font.is_file():
-        env.setdefault('KNACK2_SYSTEM_FONT', str(system_font.resolve()))
-    env.update(KNACK2_PROFILE='CUSA08014-01.01', TLG_UPSCALER='off', TLG_FULLSCREEN='0',
-               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'), TLG_RED_ZONE_REWRITE='1' if sys.platform == 'win32' else '0',
+        if system_font.is_file():
+            env.setdefault('KNACK2_SYSTEM_FONT', str(system_font.resolve()))
+    env.update(KNACK2_PROFILE=profile, KNACK2_EXECUTABLE_LAYOUT=executable_layout, TLG_UPSCALER=upscaler,
+               TLG_ANTIALIASING=antialiasing,
+               TLG_UPSCALE_PRESET=preset, TLG_INTERNAL_RESOLUTION=internal,
+               TLG_OBJECT_MOTION='0', TLG_FULLSCREEN='0',
+               TLG_CONFIG=str(config_file if config_file is not None else out / 'knack2.ini'),
+               TLG_RED_ZONE_REWRITE='1' if sys.platform == 'win32' else '0',
                TLG_FREEZE_REPORT_SECONDS='10', TLG_GPU_LOG='info', TLG_VERBOSE_LOG='1')
+    # Native framebuffer storage is allocated from the game's fixed graphics pool.
+    # Match its guarded reserve increase with the runtime's existing direct-memory capacity.
+    if internal in ('2560x1440', '3840x2160'):
+        env['TLG_DMEM_MB'] = {'2560x1440': '5824', '3840x2160': '6592'}[internal]
     if ngs2:
-        env['TLG_NGS2'] = 'native'  # the linked firmware NGS2 wins over the silent placeholder
+        env['TLG_NGS2'] = 'native'  # Explicit opt-in; the current HLE mixer remains the default.
     env.update(users)  # Only validated CLI values may enable a second local user.
+    if vulkan_validation != 'off':
+        env['TLG_VK_VALIDATION'] = '1'
+        env['TLG_VK_VALIDATION_SYNC'] = '1' if vulkan_validation == 'sync' else '0'
     env.update(locale)  # Inherited TLG_LANGUAGE remains filtered; only explicit CLI values survive.
     env.update(game_identity_environment(ROOT))  # Fixed local identity, never inherited from another port.
+    # Startup-only GPU choices come from the validated INI, after inherited overrides are filtered.
+    env.update(TLG_READBACKS=readbacks, TLG_EAGER_READBACK=eager if readbacks == '2' else '0')
+    if preload == '1':
+        env.update(TLG_PIPELINE_BINARIES='0', TLG_BACKGROUND_WARMUP='0', TLG_PARALLEL_WARMUP='1')
+    # Explicit, validated diagnostic choices take precedence over startup defaults.
+    env.update(gpu_diagnostic_environment(settings))
     if pad_file is not None:
         pad_file = Path(pad_file).resolve()
         if not pad_file.is_file():
@@ -186,6 +251,19 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
         env['TLG_DUMP_DIR'] = str(capture_dir)
         env['TLG_FRAME_DUMP_TRIGGER'] = str(capture_dir / 'capture.request')
     return env
+
+
+def native_resolution_arguments(executable, arguments, resolution):
+    """Use the game's native framebuffer preset only for an explicitly selected high size."""
+    result = list(arguments)
+    if executable == 'game.elf' and resolution in ('2560x1440', '3840x2160'):
+        if not result:
+            result.append('/app0/game.elf')
+        if '-2160p' not in result:
+            if len(result) >= 64:
+                raise ValueError('Native resolution requires a free guest argument slot')
+            result.append('-2160p')
+    return result
 
 
 def run_child(command, env, log, seconds):
@@ -223,12 +301,17 @@ def _main(argv, lifetime):
                         help='maximum seconds for the entire guest session; 0 disables the time limit')
     parser.add_argument('--out', type=Path, help='output root; P2 requires an explicit fresh directory')
     parser.add_argument('--config', type=Path, help='explicit runtime INI; defaults to OUT/knack2.ini')
+    parser.add_argument('--runtime', type=Path, help='explicit host runtime from an isolated build')
     parser.add_argument('--user-data', type=Path, help='explicit persistent user profile, separate from session output')
     parser.add_argument('--language', choices=tuple(BY_CODE), help='explicit language installed in the dump')
     parser.add_argument('--local-users', type=int, choices=(1, 2), default=1)
     parser.add_argument('--p2-user-id', type=p2_user_id, help='explicit local P2 ID, required with --local-users 2')
     parser.add_argument('--pad-file', type=Path, help='explicit scePad button input file for diagnostics')
     parser.add_argument('--capture-dir', type=Path, help='write capture.request here to dump the next presented frame')
+    parser.add_argument('--gtx1060-diagnostic', choices=GTX1060_MODES, default='off',
+                        help='opt-in GTX preset experiment: fresh GPU cache, optionally synchronous shaders')
+    parser.add_argument('--vulkan-validation', choices=('off', 'core', 'sync'), default='off',
+                        help='request Vulkan diagnostics; requires installed Khronos validation layer')
     args = parser.parse_args(argv)
     if args.timeout < 0:
         parser.error('--timeout must be non-negative (0 means unlimited)')
@@ -240,6 +323,12 @@ def _main(argv, lifetime):
         game = args.game_dir.resolve()
         out = (args.out if args.out is not None else ROOT / ('out/knack2-experimental' if args.experimental_build else 'out/knack2')).resolve()
         user = args.user_data.resolve() if args.user_data is not None else out / 'user'
+        if args.gtx1060_diagnostic != 'off':
+            if args.out is None or args.analyze or args.check_imports:
+                raise ValueError('GTX 1060 diagnostics require explicit --out and a gameplay session')
+            for protected in (game, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
+                if out.is_relative_to(protected) or protected.is_relative_to(out):
+                    raise ValueError('GTX 1060 diagnostic output overlaps game or habitual data')
         if args.user_data is not None:
             for protected in (game, out, (PORT / 'user').resolve(), (ROOT / 'out/knack2').resolve()):
                 if user.is_relative_to(protected) or protected.is_relative_to(user):
@@ -278,18 +367,33 @@ def _main(argv, lifetime):
                 raise ValueError('P2 --capture-dir must stay inside --out')
             if len(str(out / 'user').encode('utf-8')) >= 512:
                 raise ValueError('P2 user path exceeds the runtime limit of 511 UTF-8 bytes')
-        ngs2 = ngs2_module() if args.firmware_ngs2 else None  # never searched unless requested
+        settings_path = args.config if args.config is not None else out / 'knack2.ini'
+        if settings_path.is_file():
+            startup_settings = load_knack2_ini(settings_path)
+            validate_graphics_settings(startup_settings)
+            gpu_diagnostic_environment(startup_settings)
+        ngs2 = ngs2_module() if args.firmware_ngs2 else None
         if args.firmware_ngs2 and ngs2 is None:
             raise ValueError(f'--firmware-ngs2: {NGS2_MODULE} not found; put it in {ROOT / "firmware"} '
                              'or set KNACK2_SYSTEM_MODULES')
     except (ValueError, OSError) as error:
         parser.error(str(error))
-    profile_path = default_profile_path(ROOT, experimental_build=args.experimental_build)
-    profile = json.loads(profile_path.read_text())
-    if args.experimental_build:
-        print('Experimental executable build selected; gameplay compatibility is unverified.', flush=True)
-    validate_game(game, profile)
-    if args.language is not None and args.language not in discover_languages(game):
+    probe = args.runtime.resolve() if args.runtime is not None else runtime_path(PORT)
+    if not args.analyze:
+        if not probe.is_file():
+            hint = '.\\build.ps1' if sys.platform == 'win32' else 'see docs/DESENVOLVIMENTO_LINUX.md'
+            parser.error(f'Build the runtime first: {hint}')
+        if sys.platform != 'win32' and not os.access(probe, os.X_OK):
+            parser.error(f'Runtime is not executable: {probe}')
+    profile_path = default_profile_path(ROOT, experimental_build=True) if args.experimental_build else None
+    profile = load_profile(profile_path=profile_path, game_dir=game, repo_root=ROOT)
+    validated = validate_game(game, profile)
+    executable_layout = validated['executable_layout']
+    if args.gtx1060_diagnostic in ('capture', 'capture_linear'):
+        require_capture_runtime(probe)
+    if not args.analyze and executable_layout != validate_executable_layout(profile_id(profile)):
+        require_runtime_layout(probe, executable_layout)
+    if args.language is not None and args.language not in discover_languages(game, title_id=profile['title_id']):
         raise ValueError('--language is not installed in this dump')
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
@@ -297,29 +401,55 @@ def _main(argv, lifetime):
     if ngs2 is not None:
         print(f'Audio: firmware NGS2 {ngs2}', flush=True)
     profile = with_system_modules(profile, ngs2)
-    images = {name: prepare_image(game, profile, name, out) for name in profile['executables']}
+    preparation = ({'executable_layout': executable_layout}
+                   if executable_layout != validate_executable_layout(profile_id(profile)) else {})
+    images = {name: prepare_image(game, profile, name, out, **preparation) for name in profile['executables']}
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
         return 0
-    probe = runtime_path(PORT)
-    if not probe.is_file():
-        build = r'.\build.ps1' if sys.platform == 'win32' else 'bash port/build.sh'
-        raise ValueError(f'Build the runtime first: {build}')
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
-                              config_file=args.config, language=args.language, ngs2=ngs2 is not None)
+                              config_file=args.config, language=args.language, profile=profile_id(profile),
+                              executable_layout=executable_layout, vulkan_validation=args.vulkan_validation, ngs2=bool(ngs2))
     user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
         for folder in images.values():
-            subprocess.run([sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
-                            '--out', str(folder)] +
-                           (['--red-zone'] if sys.platform == 'win32' else []), check=True)
+            rewrite = [sys.executable, str(PORT / 'scripts/isa_rewrite.py'), str(folder / 'boot-linked.bin'),
+                       '--out', str(folder)]
+            if sys.platform == 'win32':
+                rewrite.append('--red-zone')
+            subprocess.run(rewrite, check=True)
     session = out / ('session-' + time.strftime('%Y%m%d-%H%M%S'))
     session.mkdir()
-    report = {'profile': profile_path.stem, 'experimental_build': args.experimental_build, 'mode': 'imports' if args.check_imports else 'run',
+    diagnostic_env = gtx1060_environment(args.gtx1060_diagnostic, session)
+    env.update(diagnostic_env)
+    report = {'profile': profile_id(profile), 'experimental_build': args.experimental_build,
+              'firmware_ngs2': bool(ngs2), 'mode': 'imports' if args.check_imports else 'run',
+              'executable_layout': executable_layout, 'game_elf_sha256': validated['game_elf_sha256'],
               'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
               'user_data': str(user),
+              'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
+              'shader_preload': env.get('TLG_BACKGROUND_WARMUP') == '0',
+              'vulkan_validation_requested': args.vulkan_validation,
               'visual_verified': False, 'stages': []}
+    diagnostic_choices = {key: env[variable] for key, variable in GPU_DIAGNOSTIC_ENV.items()
+                          if variable in env}
+    report['gpu_diagnostics'] = diagnostic_choices
+    if diagnostic_choices:
+        print('GPU diagnostic overrides: ' + ', '.join(
+            f'{key}={value}' for key, value in diagnostic_choices.items()), flush=True)
+    if diagnostic_env:
+        report['gtx1060_diagnostic'] = {'mode': args.gtx1060_diagnostic,
+                                      'fresh_gpu_cache': args.gtx1060_diagnostic not in ('capture', 'capture_linear'),
+                                      'environment': diagnostic_env}
+        print(f'GTX 1060 diagnostic: {args.gtx1060_diagnostic}; '
+              f'output: {diagnostic_env.get("TLG_GPU_USER_DIR", diagnostic_env.get("TLG_CAPTURE_DIR"))}', flush=True)
+        if args.gtx1060_diagnostic in ('capture', 'capture_linear'):
+            report['gtx1060_diagnostic']['capture_limits'] = {'bytes': 128 * 1024 * 1024,
+                'images': 13, 'frames': 1, 'trigger': 'F11', 'boundary': 'SubmitDone'}
+            print('GTX 1060 capture: press F11 in the affected scene; one capture per session.', flush=True)
+        if args.gtx1060_diagnostic == 'cache_sync':
+            print('GTX 1060 diagnostic: TLG_ASYNC_SHADERS=0, TLG_COMPUTE_ASYNC_BUILD=0', flush=True)
     deadline = time.monotonic() + args.timeout if args.timeout else None
     executable, guest_args = profile['entry'], []
     status = 0
@@ -337,7 +467,8 @@ def _main(argv, lifetime):
                 command.append('--check-imports')
             else:
                 command += ['--isa-rewrite', str(folder / 'isa-rewrite.bin')]
-            for value in guest_args:
+            stage_args = native_resolution_arguments(executable, guest_args, env['TLG_INTERNAL_RESOLUTION'])
+            for value in stage_args:
                 command += ['--guest-arg', value]
             log = session / f'{stage:02d}-{executable}.log'
             with tempfile.TemporaryDirectory(prefix='exec-', dir=session) as temporary:
@@ -345,7 +476,7 @@ def _main(argv, lifetime):
                 child_env = {**env, 'KNACK2_EXEC_REQUEST': str(request)}
                 print(f'Starting {executable}; log: {log}', flush=True)
                 code = run_child(command, child_env, log, remaining + 5 if deadline is not None else None)
-                report['stages'].append({'executable': executable, 'arguments': guest_args, 'exit_code': code,
+                report['stages'].append({'executable': executable, 'arguments': stage_args, 'exit_code': code,
                                          'log': log.name})
                 print(f'{executable}: exit {code}', flush=True)
                 if args.check_imports:
@@ -359,8 +490,19 @@ def _main(argv, lifetime):
                     if deadline is not None and time.monotonic() >= deadline:
                         return 124
                     continue
+                if code == 76 and sys.platform != 'win32':
+                    # Linux overlay restart: keep the same executable, arguments, profile lock and deadline.
+                    if deadline is not None and time.monotonic() >= deadline:
+                        return 124
+                    env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
+                                              local_users=args.local_users, second_user=args.p2_user_id,
+                                              config_file=args.config, language=args.language,
+                                              profile=profile_id(profile), executable_layout=executable_layout,
+                                              vulkan_validation=args.vulkan_validation)
+                    env.update(diagnostic_env)
+                    continue
                 return code
-        raise ValueError('LoadExec transition limit reached')
+        raise ValueError('LoadExec/restart transition limit reached')
     finally:
         (session / 'session.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
         print(f'Session evidence: {session}', flush=True)
@@ -371,6 +513,9 @@ if __name__ == '__main__':
     # terminating immediately, allowing run_child() to reap the guest and write evidence.
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, signal.default_int_handler)
+    if sys.platform != 'win32':
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        signal.signal(signal.SIGTERM, signal.default_int_handler)
     try:
         sys.exit(main())
     except (OSError, ValueError, KeyError, struct.error, subprocess.CalledProcessError) as error:

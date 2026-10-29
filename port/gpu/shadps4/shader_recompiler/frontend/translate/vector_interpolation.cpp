@@ -104,9 +104,9 @@ void Translator::V_INTERP_MOV_F32(const GcnInst& inst) {
     ASSERT_MSG(src_select < 3, "Invalid V_INTERP_MOV_F32 selector {}", src_select);
     ASSERT(attr.is_flat || src_select == 2 ||
            profile.supports_amd_shader_explicit_vertex_parameter ||
-           profile.supports_fragment_shader_barycentric);
+           profile.supports_fragment_shader_barycentric || runtime_info.hw.fs.emulated_barycentric);
     if (profile.supports_amd_shader_explicit_vertex_parameter ||
-        profile.supports_fragment_shader_barycentric) {
+        profile.supports_fragment_shader_barycentric || runtime_info.hw.fs.emulated_barycentric) {
         // VSRC 0=P10, 1=P20, 2=P0
         interp.primary = Qualifier::PerVertex;
         IR::F32 result = ir.GetAttribute(attrib, inst.control.vintrp.chan, (src_select + 1) % 3);
