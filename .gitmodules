@@ -1,6 +1,6 @@
 [submodule "port/gpu/third_party/fsr-vulkan"]
 	path = port/gpu/third_party/fsr-vulkan
-	url = https://github.com/FireBurn/FSR-Vulkan.git
+	url = https://github.com/Hyant4/FSR-Vulkan.git
 [submodule "port/gpu/third_party/imgui"]
 	path = port/gpu/third_party/imgui
 	url = https://github.com/ocornut/imgui.git
