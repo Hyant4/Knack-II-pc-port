@@ -74,7 +74,9 @@ reaplique o único preset GTX para adotar os novos ajustes de desempenho.
 
 O padrão é um jogador, P1=1. Para cooperativo, selecione explicitamente dois
 jogadores e conecte dois controles. P2 usa o ID interno fixo 4099; não há campo
-de ID na interface. A opção de dois jogadores não é restaurada automaticamente.
+de ID na interface. Clique em **Salvar configurações** para lembrar a seleção
+de um ou dois jogadores na próxima abertura, inclusive pelo atalho de jogo
+direto. Preferências antigas sem essa seleção continuam abrindo com um jogador.
 
 Partidas iniciadas pelo launcher não têm limite de duração. Ele envia
 `--timeout 0` ao supervisor e mantém o controle de encerramento dos filhos.

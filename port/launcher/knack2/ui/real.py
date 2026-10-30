@@ -84,7 +84,10 @@ class RealBackend(Backend):
         ui_language = saved.get('ui_language')
         if isinstance(ui_language, str) and ui_language in ('pt-BR', 'en-US', 'ru-RU'):
             self._ui_language = ui_language
-        # P2 is deliberately never restored. Every opt-in is explicit for this UI session.
+        # Restore only an explicitly saved launcher preference, never a guest user ID.
+        players = saved.get('players')
+        if type(players) is int and players in (1, 2):
+            self._players = players
         for key, value in saved.get('settings', {}).items() if isinstance(saved.get('settings'), dict) else ():
             try:
                 if key in DEFAULTS:
@@ -311,6 +314,7 @@ class RealBackend(Backend):
             path = self._data_path('launcher_settings.json')
             saved = config.load_launcher_settings(path)
             saved.update({'game_dir': self._game_dir, 'settings': settings,
+                          'players': self._players,
                           'language': self._language, 'ui_language': self._ui_language,
                           'gpu_preset': self.gpuPresetId,
                           'gtx1060_diagnostic': self.gtx1060Diagnostic})

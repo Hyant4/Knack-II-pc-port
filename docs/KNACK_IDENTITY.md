@@ -39,7 +39,8 @@ branch, worktree ou versão do launcher. Solo e cooperativo usam o mesmo perfil:
 - Saves: `profiles\shared\user\savedata`.
 - Backups do runtime: `profiles\shared\user\savedata-backups`.
 
-P1 continua sendo o padrão; P2 exige seleção explícita e recebe ID 4099, com
+P1 continua sendo o padrão; a seleção explícita de dois jogadores pode ser
+lembrada com **Salvar configurações**. P2 recebe ID 4099, com
 P1=1. Cada execução cooperativa ainda cria uma saída `coop-UUID` nova para
 preparação, capturas e logs. Trocar o número de jogadores mantém o mesmo save.
 

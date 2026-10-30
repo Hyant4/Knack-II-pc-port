@@ -64,6 +64,7 @@ class ValidationAutoplayTests(unittest.TestCase):
             self.assertEqual(saved['status'], 'valid')
             self.assertEqual(saved['game_dir'], str(game_dir.resolve()))
             self.assertEqual((saved['title_id'], saved['version']), ('CUSA08014', '01.01'))
+            first.setPlayers(2)
             first.saveSettings()
             self.assertEqual(
                 config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']['status'], 'valid')
@@ -71,10 +72,10 @@ class ValidationAutoplayTests(unittest.TestCase):
 
             second = self.make_backend(data_dir, auto_play=True)
             launched = []
-            second.play = lambda: launched.append(True)
+            second.play = lambda: launched.append(second.players)
             self.validate(second)
             self.pump_until(lambda: bool(launched))
-            self.assertEqual(launched, [True])
+            self.assertEqual(launched, [2])
             second.shutdown()
 
     def test_direct_play_needs_prior_validation_even_when_current_check_passes(self):

@@ -905,7 +905,7 @@ class F3BTests(unittest.TestCase):
         restored = RealBackend(data_dir=self.backend.workspace)
         try:
             self.assertEqual(restored.uiLanguage, 'fr-FR')
-            self.assertEqual(restored.players, 1)
+            self.assertEqual(restored.players, 2)
         finally:
             restored.shutdown()
 
@@ -970,20 +970,95 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: not self.window.isVisible())
         self.assertTrue(session.closed)
 
-    def test_saved_settings_restore_but_never_restore_p2_or_trust_dump(self):
+    def test_saved_settings_restore_players_without_trusting_dump(self):
         self.validate()
         self.backend.setPlayers(2)
         self.backend.setSetting('vsync', False)
         self.backend.saveSettings()
-        restored = RealBackend(data_dir=self.backend.workspace)
+        restored = RealBackend(data_dir=self.backend.workspace,
+                               session_factory=self.backend._session_factory,
+                               validate_dump=self.backend._validate_dump)
         try:
-            self.assertEqual(restored.players, 1)
+            self.assertEqual(restored.players, 2)
             self.assertFalse(hasattr(restored, 'setP2UserId'))
             self.assertEqual(restored.settings['vsync'], '0')
             self.assertEqual(restored.gameDir, self.backend.gameDir)
             self.assertFalse(restored.canPlay)
+            restored.autoValidateSavedDump()
+            self.until(lambda: not restored.validating)
+            restored.play()
+            self.until(lambda: restored.state == 'RUNNING' and not restored._working())
+            session = self.sessions[-1].contract
+            self.assertEqual(session.local_users, 2)
+            command = session.build_command()
+            self.assertEqual(command[command.index('--p2-user-id') + 1], '4099')
+            self.assertTrue(session.out_dir.name.startswith('coop-'))
+            self.assertEqual(session.user_data, self.backend.workspace / 'profiles/shared/user')
+            restored.stop()
+            self.until(lambda: restored.state == 'FINISHED' and not restored._working())
         finally:
             restored.shutdown()
+
+    def test_qml_save_and_reopen_preserves_players_and_graphics(self):
+        self.window.setProperty('page', 1)
+        self.pump()
+        players = self.window.findChild(QObject, 'playerCount')
+        players.setProperty('currentIndex', 1)
+        players.activated.emit(1)
+        self.backend.applyGpuPreset('rx580_barriers')
+        self.backend.setSetting('vsync', False)
+        button = self.window.findChild(QObject, 'saveDemoSettings')
+        button.clicked.emit()
+        self.pump()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['players'], 2)
+        self.assertEqual(saved['settings']['vsync'], '0')
+        self.assertTrue(self.backend.requestClose())
+        restored = RealBackend(data_dir=path.parent)
+        engine, window, _ = create_window(restored)
+        try:
+            window.setProperty('page', 1)
+            self.pump()
+            self.assertEqual(restored.players, 2)
+            self.assertEqual(window.findChild(QObject, 'playerCount').property('currentIndex'), 1)
+            for language in ('en-US', 'ru-RU', 'pt-BR'):
+                restored.setUiLanguage(language)
+                self.pump()
+                self.assertEqual(window.findChild(QObject, 'playerCount').property('currentIndex'), 1)
+            self.assertEqual(restored.settings['vsync'], '0')
+            self.assertEqual(restored.gpuPresetId, 'rx580_barriers')
+            self.assertEqual(restored.settings['rx580_preset'], '1')
+            self.assertFalse(restored.canPlay)
+            restored.setPlayers(1)
+            restored.saveSettings()
+            self.assertEqual(config.load_launcher_settings(path)['players'], 1)
+        finally:
+            window.close()
+            restored.shutdown()
+            engine.deleteLater()
+            self.pump()
+
+    def test_missing_or_invalid_saved_players_falls_back_to_single_player(self):
+        path = self.backend.workspace / 'launcher_settings.json'
+        for value in (None, True, False, '2', 2.0, 0, 3, [], {}):
+            with self.subTest(value=value):
+                config.save_launcher_settings({'players': value}, path=path)
+                restored = RealBackend(data_dir=path.parent)
+                try:
+                    self.assertEqual(restored.players, 1)
+                finally:
+                    restored.shutdown()
+
+    def test_failed_settings_save_preserves_previous_player_preference(self):
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        before = path.read_bytes()
+        self.backend.setPlayers(2)
+        with patch.object(config, 'save_launcher_settings', side_effect=OSError('synthetic disk error')):
+            self.backend.saveSettings()
+        self.assertEqual(path.read_bytes(), before)
+        self.assertIn('synthetic disk error', self.backend.notification)
 
     def test_data_overlap_fails_before_writes(self):
         self.validate()
