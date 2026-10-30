@@ -8,6 +8,14 @@ from .i18n_errors import translate_error
 
 # Source Portuguese, followed by English, Latin American Spanish and French.
 MESSAGES = {
+    'Junta barreiras de imagem equivalentes e confere formatos de vértices. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': [
+        'Merges equivalent image barriers and checks vertex formats. Other settings are preserved. Save and restart the game to compare.',
+        'Combina barreras de imagen equivalentes y comprueba formatos de vértices. Conserva los demás ajustes. Guarda y reinicia el juego para comparar.',
+        'Regroupe les barrières d’image équivalentes et vérifie les formats de sommets. Les autres réglages sont conservés. Enregistrez et relancez le jeu pour comparer.'],
+    'Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão.': [
+        'Select the RX 580 preset to use its specific fixes. Switching presets disables them next session.',
+        'Selecciona el perfil RX 580 para usar sus correcciones. Cambiar de perfil las desactiva en la próxima sesión.',
+        'Sélectionnez le profil RX 580 pour ses corrections spécifiques. Changer de profil les désactive à la prochaine session.'],
     'RX 580: compatibilidade experimental': ['RX 580: experimental compatibility', 'RX 580: compatibilidad experimental', 'RX 580 : compatibilité expérimentale'],
     'Teste para o crash no carregamento relatado na issue #20. Correção no Knack ainda não confirmada.': [
         'Test for the loading crash reported in issue #20. A Knack fix has not been confirmed yet.',

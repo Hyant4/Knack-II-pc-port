@@ -33,6 +33,7 @@ GPU_DIAGNOSTIC_ENV = {
 
 # Keys that the Knack II launcher is authorized to modify in knack2.ini
 ALLOWED_MANAGED_KEYS = frozenset({
+    'rx580_preset',
     'display_mode',
     'window_resolution',
     'internal_resolution',
@@ -192,6 +193,10 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
     val = raw_val_str.strip()
 
     # Semantic domain validation per managed key
+    if key == 'rx580_preset':
+        if val not in ('0', '1'):
+            raise ValueError(f"Valor booleano inválido para '{key}': '{val}' (esperado 0/1)")
+        return key, val
     if key in GPU_DIAGNOSTIC_ENV:
         if val not in ('auto', '0', '1'):
             raise ValueError(f"Diagnóstico GPU inválido para '{key}': '{val}' (esperado auto/0/1)")
@@ -267,10 +272,15 @@ def sanitize_and_validate_key_value(raw_key: Any, raw_value: Any | None) -> tupl
 def gpu_diagnostic_environment(settings: Mapping[str, Any]) -> dict[str, str]:
     """Return only validated, explicit diagnostic overrides for the child runtime."""
     overrides = {}
+    _, rx580 = sanitize_and_validate_key_value('rx580_preset', settings.get('rx580_preset', '0'))
     for key, variable in GPU_DIAGNOSTIC_ENV.items():
         _, value = sanitize_and_validate_key_value(key, settings.get(key, 'auto'))
+        if key in ('barrier_merge', 'barrier_trace') and rx580 != '1':
+            continue
         if value not in (None, 'auto'):
             overrides[variable] = value
+    if rx580 == '1':
+        overrides['TLG_RX580_PRESET'] = '1'
     return overrides
 
 

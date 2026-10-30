@@ -45,6 +45,8 @@
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
+#include "video_core/renderer_vulkan/rx580_vertex_formats.h"
+#include "video_core/texture_cache/barrier_merge.h"
 
 namespace Vulkan {
 
@@ -1016,7 +1018,35 @@ const GraphicsPipeline* PipelineCache::TryPreparedPipeline(const PreparedDraw& p
         }
     }
     const auto it = graphics_pipelines.find(prepared.key);
-    return it != graphics_pipelines.end() ? it->second.get() : nullptr;
+    if (it == graphics_pipelines.end()) {
+        return nullptr;
+    }
+    if (VideoCore::Rx580PresetEnabled() && !instance.IsVertexInputDynamicState()) {
+        const auto& pipeline = *it->second;
+        const auto& fetch = pipeline.GetFetchShader();
+        const auto count = fetch ? fetch->attributes.size() : 0;
+        const bool matches = Rx580PreparedFormatsMatch(true, false,
+            std::span<const vk::Format>{prepared.key.vertex_buffer_formats}, count,
+            [&](std::size_t index) {
+                const auto buffer = fetch->attributes[index].GetSharp(
+                    pipeline.GetStage(Shader::SwStage::Vertex));
+                return LiverpoolToVK::SurfaceFormat(buffer.GetDataFmt(), buffer.GetNumberFmt());
+            });
+        if (!matches) {
+            // Fetch V# contents live outside the flattened constants validated above.
+            // Let the existing regular path recompute the key; never bind a stale format.
+            static const bool trace =
+                VideoCore::IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
+            static u32 reports = 0;
+            if (trace && reports < 16) {
+                std::printf("RX580 formats: rejected prepared pipeline #%u; static input changed\n",
+                            ++reports);
+                std::fflush(stdout);
+            }
+            return nullptr;
+        }
+    }
+    return it->second.get();
 }
 
 

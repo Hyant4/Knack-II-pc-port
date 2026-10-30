@@ -1,4 +1,31 @@
-# RX 580: comparação experimental de barreiras de imagem
+# RX 580: compatibilidade e diagnóstico experimentais
+
+## Ativação exclusiva do preset
+
+Os ajustes específicos são ativados somente pela seleção explícita de
+**RX 580: compatibilidade experimental**. Não há ativação automática por marca
+ou modelo da GPU. Fora desse preset, flags residuais de junção/diagnóstico são
+ignoradas e o caminho anterior do renderer permanece em uso.
+
+Ao trocar para outro preset, inclusive GTX 1060, os ajustes RX 580 são
+desativados na próxima sessão. Salve e reinicie para aplicar. A seleção RX 580
+salva por versões anteriores é migrada somente quando existe o metadado explícito
+do preset; uma chave de junção isolada não ativa o modo.
+
+Além da junção de barreiras, o preset verifica formatos de vértices antes de
+reutilizar pipelines preparados em GPUs sem entrada de vértices dinâmica. Se
+o formato atual divergir do capturado, a preparação é rejeitada e o caminho
+normal recalcula a chave. Formatos iguais e entrada dinâmica mantêm seu fluxo.
+Esse guard passou em cenário sintético; a correção visual na RX 580 ainda não
+foi confirmada. Builds anteriormente publicadas não contêm esse guard novo.
+
+O marcador `rx580_preset=1` é capturado no INI de cada lançamento e encaminhado
+como `TLG_RX580_PRESET=1`. É um estado do preset, não um controle de detecção de
+hardware. `session.json` registra `rx580_preset` e os diagnósticos efetivos.
+Não misture um launcher antigo com runtime novo: o pacote completo precisa
+fornecer o marcador de ativação. Downloads existentes não mudam automaticamente.
+
+## Contexto do crash
 
 A issue [#20](https://github.com/Hyant4/Knack-II-pc-port/issues/20) registra
 um crash no carregamento em `amdvlk64.dll+0xebbbb`, com RX 580 e driver Vulkan
@@ -20,26 +47,32 @@ publicados anteriormente não recebem o controle nem o workaround automaticament
 Não é necessário apagar cache, saves ou preferências.
 
 1. Mantenha resolução, FSR, precisão da GPU, cache e compilação iguais nas duas
-   sessões. Em **Configurações > Vídeo > Diagnóstico avançado > Mostrar ajustes**,
-   ligue **Diagnóstico de barreiras de imagem**.
+   sessões. Selecione o preset RX 580. Em **Configurações > Vídeo > Diagnóstico
+   avançado > Mostrar ajustes**, ligue **Diagnóstico de barreiras de imagem**.
 2. Selecione **Desligado** em **Junção de barreiras de imagem**, salve as
    configurações e reinicie o jogo. Repita o carregamento que falha. Guarde os
    três arquivos dessa sessão: `00-eboot.bin.log`, `01-game.elf.log` e `session.json`.
 3. Altere somente **Junção de barreiras de imagem** para **Ligado**, salve e
    reinicie. Repita o mesmo carregamento e guarde os arquivos da nova sessão
-   separadamente. O preset **RX 580: compatibilidade experimental** também liga
-   somente a junção; os outros ajustes são preservados.
+   separadamente. Essa comparação muda apenas a junção dentro do preset; o
+   guard de formatos continua ativo. Ela não é um A/B do guard novo.
 4. Informe se o carregamento chegou ao gameplay em cada sessão. Se a sessão
    ligada passar, isso confirma apenas o trecho testado; não certifica campanha,
    desempenho ou estabilidade contínua.
 5. Antes de anexar os logs publicamente, revise nomes e caminhos pessoais.
    Não envie saves, executáveis do jogo, assets ou dumps de memória. Ao terminar,
-   desligue o diagnóstico. **Padrão** desliga tanto junção quanto diagnóstico.
+   desligue o diagnóstico. Selecionar o preset **Padrão do port** desativa todas
+   as correções RX 580 na próxima sessão. Não apague cache ou saves.
 
 O `session.json` registra `barrier_merge` e `barrier_trace` em `gpu_diagnostics`
 quando houver escolha explícita. O log do supervisor também lista os overrides.
 A seleção é capturada para cada lançamento e preservada na transferência de
 `eboot.bin` para `game.elf`.
+
+Se um pipeline preparado for rejeitado pelo guard e diagnóstico estiver ligado,
+o log informa `RX580 formats: rejected prepared pipeline`. São no máximo 16
+mensagens por processo. Isso comprova que a condição ocorreu; não demonstra,
+isoladamente, que ela causava a deformação da imagem.
 
 Com diagnóstico ligado, `GPU barriers: generation` registra quantas barreiras
 foram geradas e quantas restaram após a junção. São registrados até 16 grupos

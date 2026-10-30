@@ -1,101 +1,75 @@
-# Knack II PC — V0.18
+# Knack II PC — 0.18.1 — Pré-release experimental (RX 580)
 
 ## Português
 
-A V0.18 reúne as novidades desde a última estável, **0.17.5**, incluindo
-recursos que apareceram nas pré-releases 0.17.7.
+A versão **0.18.1** é uma pré-release focada no teste de compatibilidade gráfica para a **Radeon RX 580** (issue #20), mantendo a **base atual da V0.18 consolidada e intacta**.
 
-### Novidades
+### O que há de novo na 0.18.1
 
-- **Linux nativo e AppImage experimental**, com launcher, supervisor, runtime,
-  Python, Qt e bibliotecas nativas.
-- **Base americana 01.00** no fluxo normal do launcher, sem exigir update.
-  A validação integral da instalação continua obrigatória.
-- **PKGs no Windows:** extração do jogo-base e instalação de update pela aba
-  Instalação, com verificações, backup e restauração do update.
-- **Antialiasing independente do FSR:** escolha entre nativo e desligado,
-  mantendo os controles de resolução interna e upscaling.
-- **Compatibilidade gráfica:** caminho de interpolação para GPUs sem suporte
-  baricêntrico nativo, trazido das RCs, e novos diagnósticos para superfícies
-  escuras e falhas de carregamento.
-- **Predefinições GTX 1060 e RX 580:** perfil GTX 1060 de desempenho e RX 580 de
-  compatibilidade experimental. Junção de barreiras é opcional e desligada por
-  padrão; não é uma correção confirmada para toda RX 580.
-- **Mensagens e identidade do launcher:** mais erros acompanham o idioma da
-  interface; versão exibida e ícones dos executáveis identificam o Knack.
-- **Áudio avançado opcional:** NGS2 com módulo de firmware fornecido pelo usuário,
-  somente com `--firmware-ngs2`. HLE continua padrão; firmware não é incluído.
+- **Guard de formatos estáticos de vértices (exclusivo do preset RX 580):**
+  - Implementado no atalho de preparação de pipelines (`TryPreparedPipeline`).
+  - Quando o preset **RX 580: compatibilidade experimental** está ativo e o driver não expõe entrada de vértice dinâmica, os formatos Vulkan atuais dos descritores V# são verificados contra a chave preparada.
+  - Se houver divergência de formato, a chave é recalculada pelo caminho normal, evitando polígonos/faces deformadas ou pretas no cenário do terraço.
+  - Mudanças isoladas de endereço/stride continuam aceitas sem rejeição desnecessária.
+- **Ativação estritamente opt-in pelo preset:**
+  - O guard, a junção de barreiras e o diagnóstico são condicionados estritamente por `rx580_preset=1` e `TLG_RX580_PRESET=1`.
+  - **Não há ativação automática por detecção de GPU AMD.**
+  - Trocar para qualquer outro preset remove completamente as flags e o comportamento RX na sessão seguinte.
+  - Preferências antigas só migram se houver seleção explícita anterior do preset RX.
+- **Caráter experimental:**
+  - O carregamento do jogo passou a funcionar na sessão enviada pelo relator, mas permanecem polígonos/faces incorretos.
+  - **Este novo guard ainda não possui confirmação visual no hardware do relator (RX 580).**
+  - **É obrigatório clicar em "Salvar configurações" e reiniciar o launcher** para que os novos ajustes entrem em vigor no processo.
+  - **Nenhum firmware de console é necessário para este teste.**
 
-QHD/4K internos, ultrawide experimental, cooperativo local, guia visual de
-controles e início direto com validação continuam disponíveis; já existiam
-na estável anterior.
+### Pacotes
 
-### Pacotes e atualização
+- **Windows:** `Knack-II-Windows-x64-V0.18.1.zip`
+  - Extraia tudo em uma pasta nova.
+  - Para teste isolado sem migrar saves ou preferências habituais, utilize **`Test RX 580.cmd`**.
+- **Linux (AppImage experimental):** `Knack-II-x86_64-0.18.1.AppImage`
+  - Compilado na base Ubuntu 26.04; requer **glibc 2.43+** e **Vulkan 1.3+** no sistema host. O AppImage não reduz esse requisito de glibc; distribuições com glibc anterior não são compatíveis. Não certificado no Linux Mint.
+  - Sem FUSE, execute com `./Knack-II-x86_64-0.18.1.AppImage --appimage-extract-and-run`.
+  - Abrir o launcher não inicia o jogo automaticamente. Selecione um dump próprio já extraído.
+- **Fontes:** `Knack-II-sources-V0.18.1.zip`, incluindo todas as dependências, licenças e bundle FSR.
 
-- **Windows:** `Knack-II-Windows-x64-V0.18.zip`. Extraia tudo em uma pasta nova
-  e abra `Knack II.exe`. Inclui o extrator PKG Windows.
-- **Linux:** `Knack-II-x86_64-0.18.0.AppImage`. Dê permissão de execução e abra.
-  Sem FUSE, use `--appimage-extract-and-run`. Use um dump já extraído.
-- **Fontes:** `Knack-II-sources-V0.18.zip`, com dependências e licenças.
+Dumps aceitos: **CUSA08014 01.00/01.01** e **CUSA07670 01.01**.
+Nenhum jogo, dump proprietário, firmware ou save acompanha os pacotes.
 
-Os dados de usuário ficam fora do pacote. Preserve saves e preferências;
-não é necessário apagar caches. Valide novamente a instalação do jogo.
-
-### Requisitos e limites
-
-**Vulkan 1.3+**. Dumps aceitos: **CUSA08014 01.00/01.01** e **CUSA07670 01.01**.
-
-Linux requer **glibc 2.43+**; o binário usa base Ubuntu 26.04. AppImage não reduz
-esse requisito. Drivers gráficos e glibc são externos; distribuições com glibc
-anterior não são atendidas por este pacote. Mint não foi certificado.
-
-Projeto, Linux e perfis de diagnóstico continuam experimentais. Não há promessa
-de FPS, campanha completa ou correção universal de `Device lost`. A correção
-RX 580 ainda depende de confirmação no hardware afetado. Testes automatizados
-e abertura do launcher não certificam gameplay completo.
-
-Nenhum jogo, firmware ou save acompanha os pacotes.
-
-### Créditos
-
-Obrigado a **SkippySteve** pelas contribuições Linux do
-[PR #19](https://github.com/Hyant4/Knack-II-pc-port/pull/19), preservadas com seus
-commits originais, e aos projetos HayatoG/iss_pc e shadPS4.
+---
 
 ## English
 
-V0.18 consolidates changes since stable **0.17.5**, including features from
-the 0.17.7 prereleases.
+Release **0.18.1** is an experimental pre-release dedicated to graphics compatibility testing on the **Radeon RX 580** (issue #20), while preserving the entire **consolidated V0.18 feature base intact**.
 
-- Native Linux launcher/runtime and an experimental AppImage with Python,
-  Qt and native libraries included.
-- US CUSA08014 01.00 base-game support without requiring an update.
-- Windows base-PKG extraction and update installation, with checks and
-  update backup/restore.
-- Native antialiasing or Off, independent of FSR controls.
-- The prereleases' interpolation path for GPUs without native barycentric
-  support, plus additional graphics diagnostics.
-- GTX 1060 performance and experimental RX 580 presets. Barrier merging is
-  optional and off by default; a fix on every affected RX 580 is unconfirmed.
-- More failures follow the UI language; corrected executable icons and version.
-- Optional user-supplied firmware NGS2 through `--firmware-ngs2`; HLE remains
-  the default and no firmware is included.
+### What's new in 0.18.1
 
-Native QHD/4K, experimental ultrawide, local co-op, the controller guide and
-validated direct Play were already in the previous stable release and remain available.
+- **Static vertex format guard (exclusive to the RX 580 preset):**
+  - Implemented in the pipeline preparation fast-path (`TryPreparedPipeline`).
+  - When the **RX 580: experimental compatibility** preset is selected and the driver does not expose dynamic vertex input, current Vulkan formats from V# descriptors are verified against the prepared pipeline key.
+  - If a format mismatch is detected, the key is recalculated through the normal path, preventing black or corrupt geometry in scenes such as the terrace.
+  - Address or stride changes alone without format differences do not trigger unnecessary rejection.
+- **Strictly opt-in preset activation:**
+  - The guard, barrier merging, and barrier diagnostics are conditioned strictly on `rx580_preset=1` and `TLG_RX580_PRESET=1`.
+  - **There is no automatic activation based on AMD GPU detection.**
+  - Switching to any other preset completely clears RX flags and behaviors for the subsequent session.
+  - Older preferences only migrate if an explicit RX preset was previously saved.
+- **Experimental status & testing instructions:**
+  - Game loading succeeded in the reporter's logs, but corrupt faces/polygons remained visible.
+  - **This new format guard has not yet been visually confirmed on the reporter's RX 580 hardware.**
+  - **You must click "Save settings" and restart the launcher/game** for the C++ runtime flags to take effect in a new process.
+  - **No console firmware is required for this test.**
 
-Extract the Windows ZIP into a new folder and open `Knack II.exe`. On Linux,
-make the AppImage executable; use `--appimage-extract-and-run` without FUSE and
-select an extracted dump. Preserve existing saves/preferences and validate again.
+### Packages
 
-Requires **Vulkan 1.3+** and **CUSA08014 01.00/01.01** or **CUSA07670 01.01**.
-The Linux binary uses Ubuntu 26.04 and requires **glibc 2.43+**. AppImage does
-not lower this requirement; graphics drivers and glibc stay external. Older-glibc
-distributions are not supported by this binary; Mint has not been certified.
+- **Windows:** `Knack-II-Windows-x64-V0.18.1.zip`
+  - Extract the entire archive into a clean folder.
+  - To test without touching your normal preferences or saves, run **`Test RX 580.cmd`**.
+- **Linux (Experimental AppImage):** `Knack-II-x86_64-0.18.1.AppImage`
+  - Built on Ubuntu 26.04; requires host **glibc 2.43+** and **Vulkan 1.3+**. The AppImage does not lower the glibc requirement; older distributions are not supported. Compatibility with Linux Mint has not been certified.
+  - If FUSE is unavailable, run with `./Knack-II-x86_64-0.18.1.AppImage --appimage-extract-and-run`.
+  - Opening the AppImage opens the launcher and never launches the game automatically. Select an already-extracted dump.
+- **Sources:** `Knack-II-sources-V0.18.1.zip`, including dependencies, licenses, and the FSR bundle.
 
-The project remains experimental. No FPS, full-campaign or universal
-`Device lost` fix is promised. Automated checks do not certify complete gameplay.
-No game, firmware or saves are included. Sources, dependencies and licenses are supplied.
-
-Thanks to **SkippySteve** for [PR #19](https://github.com/Hyant4/Knack-II-pc-port/pull/19),
-whose original commits were preserved, and to HayatoG/iss_pc and shadPS4.
+Supported dumps: **CUSA08014 01.00/01.01** and **CUSA07670 01.01**.
+No game files, firmware, saves, or proprietary assets are included.

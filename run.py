@@ -431,6 +431,7 @@ def _main(argv, lifetime):
               'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
               'shader_preload': env.get('TLG_BACKGROUND_WARMUP') == '0',
               'vulkan_validation_requested': args.vulkan_validation,
+              'rx580_preset': env.get('TLG_RX580_PRESET') == '1',
               'visual_verified': False, 'stages': []}
     diagnostic_choices = {key: env[variable] for key, variable in GPU_DIAGNOSTIC_ENV.items()
                           if variable in env}

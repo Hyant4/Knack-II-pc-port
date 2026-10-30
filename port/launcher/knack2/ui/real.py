@@ -13,7 +13,7 @@ from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 
 from .. import config, pkg_update
-from ..gpu_presets import matching_gpu_preset
+from ..gpu_presets import matching_gpu_preset, gpu_settings_for_preset, RX580_PRESET
 from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import KnackRunner, RunnerState
 from ..languages import BY_CODE, REGION_LANGUAGES
@@ -92,8 +92,16 @@ class RealBackend(Backend):
             except ValueError:
                 pass
         selected = saved.get('gpu_preset')
+        raw_settings = saved.get('settings') if isinstance(saved.get('settings'), dict) else {}
+        if selected == RX580_PRESET:
+            # Migrate only a previously explicit RX preset, never a lone stale merge flag.
+            if 'rx580_preset' not in raw_settings and self._settings['barrier_merge'] == '1':
+                self._settings['rx580_preset'] = '1'
+        else:
+            self._settings = gpu_settings_for_preset(self._settings, None)
         if isinstance(selected, str) and selected != 'custom' and matching_gpu_preset(self._settings, selected) == selected:
             self._selected_gpu_preset = selected
+        self._settings = gpu_settings_for_preset(self._settings, self.gpuPresetId)
         if self.gpuPresetId == GTX1060_PRESET:
             try:
                 self._gtx1060_diagnostic = validate_gtx1060_mode(saved.get('gtx1060_diagnostic', 'off'))
@@ -298,10 +306,11 @@ class RealBackend(Backend):
             return
         try:
             self._check_data_root()
-            config.update_knack2_ini(self._data_path('knack2.ini'), self._settings)
+            settings = gpu_settings_for_preset(self._settings, self.gpuPresetId)
+            config.update_knack2_ini(self._data_path('knack2.ini'), settings)
             path = self._data_path('launcher_settings.json')
             saved = config.load_launcher_settings(path)
-            saved.update({'game_dir': self._game_dir, 'settings': self._settings,
+            saved.update({'game_dir': self._game_dir, 'settings': settings,
                           'language': self._language, 'ui_language': self._ui_language,
                           'gpu_preset': self.gpuPresetId,
                           'gtx1060_diagnostic': self.gtx1060Diagnostic})
@@ -389,7 +398,9 @@ class RealBackend(Backend):
                 raise ValueError('Caminho do perfil de saves inválido.')
             settings_file = self._data_path(Path('launch-configs') / (token + '.ini'))
             log = self._data_path(Path('logs') / (token + '-supervisor.log'))
-            config.update_knack2_ini(settings_file, self._settings, header_comment=AUDIO_PROFILE)
+            config.update_knack2_ini(settings_file,
+                                     gpu_settings_for_preset(self._settings, self.gpuPresetId),
+                                     header_comment=AUDIO_PROFILE)
             log.parent.mkdir(parents=True, exist_ok=True)
             previous = self._runner
             build_options = {'experimental_build': True} if self._experimental_build else {}

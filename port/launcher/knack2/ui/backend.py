@@ -14,7 +14,7 @@ from PySide6.QtCore import (QAbstractListModel, QModelIndex, QObject, Property,
 from PySide6.QtGui import QGuiApplication
 
 from .. import config, validator
-from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset
+from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset, gpu_settings_for_preset
 from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import RunnerState
 from .demo import DemoRunnerPort, SimulatedRunner
@@ -30,6 +30,7 @@ DEFAULTS = {'display_mode': 'windowed', 'window_resolution': 'auto', 'vsync': '1
             'fsr1': '0', 'rcas': '0', 'rcas_strength': '50',
             'mouse_enabled': '0', 'mouse_invert_y': '0',
             'gpu_readbacks': '2', 'eager_readback': '0', 'shader_preload': '1',
+            'rx580_preset': '0',
             **{key: 'auto' for key in config.GPU_DIAGNOSTIC_ENV}}
 STATE_LABELS = {'IDLE': 'Pronto para simular', 'STARTING': 'Iniciando simulação',
                 'RUNNING': 'Simulação em execução', 'STOPPING': 'Encerrando simulação',
@@ -336,6 +337,7 @@ class Backend(QObject):
             if self.gpuPresetId != self._selected_gpu_preset:
                 self._selected_gpu_preset = None
                 self._gtx1060_diagnostic = 'off'
+            self._settings = gpu_settings_for_preset(self._settings, self.gpuPresetId)
         except ValueError as error:
             self._notice(str(error), True)
         self.settingsChanged.emit()
@@ -401,7 +403,8 @@ class Backend(QObject):
             return
         try:
             # Targets are private, generated paths. QML cannot supply a real path.
-            config.update_knack2_ini(self.workspace / 'knack2.ini', self._settings)
+            config.update_knack2_ini(self.workspace / 'knack2.ini',
+                                     gpu_settings_for_preset(self._settings, self.gpuPresetId))
             config.save_launcher_settings({'game_dir': self._game_dir, 'mode': 'demo'},
                                           path=self.workspace / 'launcher_settings.json')
         except (OSError, ValueError) as error:

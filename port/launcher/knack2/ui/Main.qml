@@ -657,12 +657,12 @@ ApplicationWindow {
                                                     return ["auto", "0", "1"].indexOf(backend.settings.barrier_merge)
                                                 })
                                             })
-                                            enabled: backend.editable
+                                            enabled: backend.editable && backend.gpuPresetId === "rx580_barriers"
                                             Accessible.name: qsTr("Junção de barreiras de imagem")
                                             onActivated: backend.setSetting("barrier_merge", ["auto", "0", "1"][currentIndex])
                                         }
                                     }
-                                    Hint { visible: window.gpuAdvanced; text: qsTr("Experimental para RX 580. Padrão deixa desligado. Salve e reinicie o jogo para comparar."); font.pixelSize: 11 }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão."); font.pixelSize: 11 }
                                     RowLayout {
                                         visible: window.gpuAdvanced
                                         SettingLabel { text: qsTr("Diagnóstico de barreiras de imagem") }
@@ -677,7 +677,7 @@ ApplicationWindow {
                                                     return ["auto", "0", "1"].indexOf(backend.settings.barrier_trace)
                                                 })
                                             })
-                                            enabled: backend.editable
+                                            enabled: backend.editable && backend.gpuPresetId === "rx580_barriers"
                                             Accessible.name: qsTr("Diagnóstico de barreiras de imagem")
                                             onActivated: backend.setSetting("barrier_trace", ["auto", "0", "1"][currentIndex])
                                         }
