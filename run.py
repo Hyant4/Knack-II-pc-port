@@ -30,7 +30,8 @@ from port.launcher.knack2.config import (load_knack2_ini, sanitize_and_validate_
                                        validate_graphics_settings, gpu_diagnostic_environment,
                                        GPU_DIAGNOSTIC_ENV)
 from port.launcher.knack2.validator import (default_profile_path, load_profile, profile_id, SUPPORTED_PROFILES,
-                                          executable_layout_for_hash, validate_executable_layout)
+                                          executable_layout_for_hash, validate_executable_layout,
+                                          validate_knack2_dump)
 
 
 def digest(path):
@@ -39,19 +40,10 @@ def digest(path):
 
 
 def validate_game(game, profile):
-    values = prepare.load_sfo(game / 'sce_sys/param.sfo')
-    if (values.get('TITLE_ID'), values.get('APP_VER')) != (profile['title_id'], profile['version']):
-        raise ValueError(f"This profile requires {profile['title_id']} version {profile['version']}")
-    for name, expected in profile['executables'].items():
-        actual = digest(prepare.executable_path(game, name))
-        if name == 'game.elf':
-            values = {**values, 'executable_layout': executable_layout_for_hash(profile, actual),
-                      'game_elf_sha256': actual}
-        elif actual != expected:
-            raise ValueError(f'{name}: SHA-256 differs from the supported dump')
-    for name in {m for modules in profile['modules'].values() for m in modules}:
-        link_modules.module(game / 'sce_module' / name)
-    return values
+    result = validate_knack2_dump(game, profile=profile)
+    return {**result['sfo_values'], **{key: result[key] for key in (
+        'executable_layout', 'game_elf_sha256', 'verification_status',
+        'unverified_executables', 'executable_hashes', 'executable_layout_verified')}}
 
 
 NGS2_MODULE = 'libSceNgs2.sprx'
@@ -388,6 +380,9 @@ def _main(argv, lifetime):
     profile_path = default_profile_path(ROOT, experimental_build=True) if args.experimental_build else None
     profile = load_profile(profile_path=profile_path, game_dir=game, repo_root=ROOT)
     validated = validate_game(game, profile)
+    if validated.get('verification_status') == 'unverified':
+        print('WARNING: Unverified game version. Quality, compatibility and stability have not '
+              'been verified for these executables.', flush=True)
     executable_layout = validated['executable_layout']
     if args.gtx1060_diagnostic in ('capture', 'capture_linear'):
         require_capture_runtime(probe)
@@ -435,6 +430,10 @@ def _main(argv, lifetime):
               'visual_verified': False, 'stages': []}
     diagnostic_choices = {key: env[variable] for key, variable in GPU_DIAGNOSTIC_ENV.items()
                           if variable in env}
+    report['verification_status'] = validated.get('verification_status', 'reference')
+    report['unverified_executables'] = validated.get('unverified_executables', [])
+    report['executable_hashes'] = validated.get('executable_hashes', {})
+    report['executable_layout_verified'] = validated.get('executable_layout_verified', True)
     report['gpu_diagnostics'] = diagnostic_choices
     if diagnostic_choices:
         print('GPU diagnostic overrides: ' + ', '.join(

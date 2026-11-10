@@ -1,3 +1,39 @@
+# Knack II PC — 0.18.3 — Versões não verificadas
+
+## Português
+
+Esta versão permite testar executáveis com hashes desconhecidos nos títulos e
+versões que já possuem perfil. A instalação continua exigindo metadados, módulos
+e estrutura ELF/SELF suportada. Executáveis desconhecidos recebem aviso explícito:
+qualidade, compatibilidade e estabilidade ainda não foram avaliadas.
+
+No launcher, clique em **Jogar mesmo assim** após ler o aviso. O atalho
+`Play Knack II.exe` continua com partida direta para versões de referência;
+para versões não verificadas, abre o launcher e aguarda início manual.
+
+O suporte aos perfis e recursos da 0.18.2 permanece. O aviso não significa que
+todas as variantes funcionarão: o caso relatado na issue #26 ainda precisa de
+teste do relator. Os binários nativos são os mesmos da 0.18.2.
+
+Linux x86-64 requer glibc 2.43+ e Vulkan 1.3+. O jogo não acompanha os pacotes.
+[Detalhes da validação](docs/VALIDACAO_DE_VERSOES.md).
+
+## English
+
+This release allows testing executables with unknown hashes for title IDs and
+versions that already have profiles. Valid metadata, required modules and a
+supported ELF/SELF structure remain necessary. Unknown executables show a clear
+warning that their quality, compatibility and stability have not been assessed.
+
+Use **Play anyway** after reading the warning. `Play Knack II.exe` keeps direct
+play for reference versions; unverified versions open the launcher and wait for
+a manual start. The reported case in issue #26 still needs the reporter's test.
+
+Linux x86-64 requires glibc 2.43+ and Vulkan 1.3+. The game is not included.
+Native runtime binaries are unchanged from 0.18.2.
+
+---
+
 # Knack II PC — 0.18.2 — Persistência de jogadores e base 0.18.1
 
 ## Português

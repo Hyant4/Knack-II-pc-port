@@ -23,7 +23,7 @@ class ExperimentalBuildTests(unittest.TestCase):
         experimental['executables']['game.elf'] = normal['executables']['game.elf']
         self.assertEqual(normal, experimental)
 
-    def test_experimental_validator_keeps_hash_version_and_module_checks(self):
+    def test_experimental_validator_keeps_structure_version_and_module_checks(self):
         profile = validator.load_profile(validator.default_profile_path(experimental_build=True))
         with tempfile.TemporaryDirectory() as temporary:
             game = Path(temporary)
@@ -49,7 +49,7 @@ class ExperimentalBuildTests(unittest.TestCase):
                 with self.assertRaises(validator.KnackModuleError):
                     validator.validate_knack2_dump(game, profile=profile)
             with patch.object(validator.prepare, 'load_sfo', return_value={'TITLE_ID': 'CUSA08014', 'APP_VER': '01.01'}), patch.object(validator, 'digest_file', return_value='0' * 64):
-                with self.assertRaises(validator.KnackHashMismatchError):
+                with self.assertRaises(validator.KnackExecutableError):
                     validator.validate_knack2_dump(game, profile=profile)
 
     def test_runner_option_selects_supervisor_profile(self):

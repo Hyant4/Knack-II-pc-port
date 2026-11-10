@@ -127,6 +127,37 @@ class ValidationAutoplayTests(unittest.TestCase):
             self.assertEqual(saved['status'], 'invalid')
             backend.shutdown()
 
+    def test_unverified_version_warns_and_requires_manual_play_even_with_saved_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_dir, game_dir = root / 'data', root / 'game'
+            data_dir.mkdir(); game_dir.mkdir()
+            config.save_launcher_settings({
+                'game_dir': str(game_dir),
+                'validation': {'schema': 1, 'status': 'valid', 'game_dir': str(game_dir.resolve()),
+                               'title_id': 'CUSA08014', 'version': '01.01'},
+            }, path=data_dir / 'launcher_settings.json')
+            result = {**self.result(), 'verification_status': 'unverified',
+                      'unverified_executables': ['eboot.bin']}
+            backend = self.make_backend(data_dir, result=result, auto_play=True)
+            launched = []
+            backend.play = lambda: launched.append(True)
+            try:
+                self.validate(backend)
+                self.assertEqual(launched, [])
+                self.assertTrue(backend.canPlay)
+                self.assertTrue(backend.unverifiedVersion)
+                for locale, phrase in (('pt-BR', 'qualidade, compatibilidade'),
+                                       ('en-US', 'quality, compatibility'),
+                                       ('ru-RU', 'качество, совместимость')):
+                    backend.setUiLanguage(locale)
+                    self.assertIn(phrase, backend.validationText)
+                backend.selectFolder(str(root / 'other'))
+                self.assertFalse(backend.unverifiedVersion)
+                self.assertFalse(backend.canPlay)
+            finally:
+                backend.shutdown()
+
 
 if __name__ == '__main__':
     unittest.main()

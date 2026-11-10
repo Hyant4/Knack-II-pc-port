@@ -192,7 +192,7 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 28; spacing: 28
                     ColumnLayout {
                         Layout.preferredWidth: 245; Layout.maximumWidth: 245; Layout.minimumWidth: 210; Layout.alignment: Qt.AlignTop; spacing: 12
-                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
+                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : backend.unverifiedVersion ? qsTr("Jogar mesmo assim") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
                         ActionButton { objectName: "stopButton"; Layout.fillWidth: true; visible: backend.canStop; text: backend.isDemo ? qsTr("Encerrar simulação") : qsTr("Encerrar sessão"); glyph: "stop"; danger: true; enabled: backend.canStop; onClicked: backend.stop() }
                         RowLayout {
                             Layout.fillWidth: true; visible: !backend.isDemo
@@ -215,7 +215,7 @@ ApplicationWindow {
                         Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: 10
                         RowLayout {
                             Layout.fillWidth: true
-                            Label { text: backend.validationState === "valid" && !backend.canStop ? qsTr("Instalação válida") : backend.stateLabel; font.pixelSize: 17; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                            Label { text: backend.validationState === "valid" && !backend.canStop ? (backend.unverifiedVersion ? qsTr("Versão não verificada") : qsTr("Instalação válida")) : backend.stateLabel; font.pixelSize: 17; font.weight: Font.DemiBold; Layout.fillWidth: true }
                             ActionButton { text: qsTr("Escolher pasta"); glyph: "folder"; enabled: backend.editable; onClicked: { window.page = 3; folderDialog.open(); } }
                         }
                         RowLayout {
@@ -224,6 +224,7 @@ ApplicationWindow {
                             SummaryItem { caption: qsTr("Modo de janela"); text: backend.settings.display_mode === "windowed" ? backend.settings.window_resolution : qsTr("Resolução do desktop"); detail: [qsTr("Janela"), qsTr("Sem bordas"), qsTr("Tela cheia")][["windowed","borderless","fullscreen"].indexOf(backend.settings.display_mode)]; onClicked: { window.settingsTab = 1; window.page = 1; } }
                             SummaryItem { caption: qsTr("Instalação"); text: backend.installationId || "—"; detail: backend.installationVersion; onClicked: window.page = 3 }
                         }
+                        Label { objectName: "unverifiedVersionNotice"; visible: backend.unverifiedVersion; Layout.fillWidth: true; text: qsTr("Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis."); color: "#e5c28a"; wrapMode: Text.WordWrap; font.pixelSize: 12 }
                         Rectangle { Layout.fillWidth: true; height: 1; color: "#424650" }
                         RowLayout {
                             Layout.fillWidth: true
@@ -755,7 +756,7 @@ ApplicationWindow {
             ColumnLayout {
                 Layout.margins: 32; spacing: 18
                 Heading { text: qsTr("Instalação") }
-                Hint { text: qsTr("América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados, hashes e módulos devem ser válidos para jogar.") }
+                Hint { text: qsTr("América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados e módulos devem ser válidos. Versões desconhecidas são identificadas como não verificadas.") }
                 RowLayout {
                     Layout.fillWidth: true
                     TextField {
@@ -773,7 +774,7 @@ ApplicationWindow {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 20; spacing: 12
                         Label { text: backend.installation; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Hint { objectName: "validationMessage"; text: backend.validationText; color: backend.validationState === "invalid" ? "#e3aba6" : "#b4c5ae" }
+                        Hint { objectName: "validationMessage"; text: backend.validationText; color: backend.validationState === "invalid" ? "#e3aba6" : backend.unverifiedVersion ? "#e5c28a" : "#b4c5ae" }
                     }
                 }
                 RowLayout {

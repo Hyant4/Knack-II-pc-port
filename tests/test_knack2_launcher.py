@@ -34,6 +34,7 @@ from knack2.validator import (
     KnackDumpError,
     KnackDumpNotFoundError,
     KnackHashMismatchError,
+    KnackExecutableError,
     KnackModuleError,
     KnackProfileError,
     KnackVersionMismatchError,
@@ -456,9 +457,9 @@ class TestKnack2Validator(unittest.TestCase):
             validate_knack2_dump(self.game_dir, profile=self.mock_profile)
 
     @patch('prepare.load_sfo', return_value={'TITLE_ID': 'CUSA08014', 'APP_VER': '01.01'})
-    def test_executable_hash_mismatch(self, mock_sfo) -> None:
+    def test_unknown_invalid_executable(self, mock_sfo) -> None:
         (self.game_dir / 'eboot.bin').write_bytes(b'Tampered content')
-        with self.assertRaises(KnackHashMismatchError):
+        with self.assertRaises(KnackExecutableError):
             validate_knack2_dump(self.game_dir, profile=self.mock_profile)
 
     @patch('prepare.load_sfo', return_value={'TITLE_ID': 'CUSA08014', 'APP_VER': '01.01'})

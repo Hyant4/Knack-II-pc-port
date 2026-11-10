@@ -3,13 +3,18 @@
 Port independente e experimental de Knack II para Windows e Linux x86-64.
 
 **[Downloads publicados](https://github.com/Hyant4/Knack-II-pc-port/releases/latest)** ·
-[Notas da V0.18](RELEASE-NOTES.md) · [Créditos e licenças](docs/CREDITS.md)
+[Notas da V0.18.3](RELEASE-NOTES.md) · [Créditos e licenças](docs/CREDITS.md)
 
 O jogo não acompanha o pacote. Use seu próprio dump completo de **CUSA08014
 01.00 ou 01.01**, ou **CUSA07670 01.01**, e driver com **Vulkan 1.3+**.
 A base americana 01.00 não exige update. A validação confere região, versão,
 executáveis e módulos; Europa 01.00 e outras versões não comprovadas continuam
 sem suporte. [Compatibilidade e evidências](docs/COMPATIBILIDADE_REGIONAL.md).
+
+Hashes conhecidos identificam as versões de referência. Executáveis desconhecidos
+com estrutura suportada podem iniciar com aviso de **versão não verificada**:
+qualidade, compatibilidade e estabilidade ainda não foram avaliadas para esses
+arquivos. O aviso exige início manual. [Política de validação](docs/VALIDACAO_DE_VERSOES.md).
 
 ## Windows
 
@@ -38,8 +43,8 @@ distribuições com glibc anterior não são atendidas por este pacote. Compatib
 com Mint não foi certificada.
 
 ```bash
-chmod +x Knack-II-x86_64-0.18.0.AppImage
-./Knack-II-x86_64-0.18.0.AppImage
+chmod +x Knack-II-x86_64-0.18.3.AppImage
+./Knack-II-x86_64-0.18.3.AppImage
 ```
 
 Sem FUSE, use `--appimage-extract-and-run`. Abrir o AppImage mostra o launcher;

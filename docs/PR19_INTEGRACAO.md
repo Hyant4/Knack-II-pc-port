@@ -1,5 +1,9 @@
 # Integração local do PR #19
 
+> Nota da 0.18.3: hashes desconhecidos com estrutura suportada podem ser
+> testados com aviso de versão não verificada. As descrições abaixo registram
+> o comportamento histórico. [Política atual](VALIDACAO_DE_VERSOES.md).
+
 Esta árvore consolida as alterações locais sobre os seis commits originais de
 [SkippySteve no PR #19](https://github.com/Hyant4/Knack-II-pc-port/pull/19), HEAD
 `12f0f60bf7f8529c8bea9de1cfa8483832ee6c88`. Os commits e seus autores/coautores

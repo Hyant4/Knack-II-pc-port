@@ -650,6 +650,27 @@ MESSAGES.update({
 
 
 MESSAGES.update({source: list(values[:3]) for source, values in UPDATE_MESSAGES.items()})
+_VERSION_MESSAGES = {
+    'Versão não verificada': ('Unverified version', 'Versión sin verificar', 'Version non vérifiée', 'Непроверенная версия'),
+    'Jogar mesmo assim': ('Play anyway', 'Jugar de todos modos', 'Jouer quand même', 'Запустить всё равно'),
+    'Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis.': (
+        'Unverified version: quality, compatibility and stability have not been assessed for these executables.',
+        'Versión sin verificar: no se han evaluado la calidad, compatibilidad ni estabilidad de estos ejecutables.',
+        'Version non vérifiée : la qualité, la compatibilité et la stabilité de ces exécutables n’ont pas été évaluées.',
+        'Непроверенная версия: качество, совместимость и стабильность этих исполняемых файлов не оценивались.'),
+    'Versão não verificada. Revise o aviso e clique em Jogar para continuar.': (
+        'Unverified version. Review the notice and click Play to continue.',
+        'Versión sin verificar. Revisa el aviso y pulsa Jugar para continuar.',
+        'Version non vérifiée. Consultez l’avertissement puis cliquez sur Jouer pour continuer.',
+        'Непроверенная версия. Прочитайте уведомление и нажмите «Играть», чтобы продолжить.'),
+    'América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados e módulos devem ser válidos. Versões desconhecidas são identificadas como não verificadas.': (
+        'America: CUSA08014 01.00 or 01.01. Europe: CUSA07670 01.01. Metadata and modules must be valid. Unknown versions are marked as unverified.',
+        'América: CUSA08014 01.00 o 01.01. Europa: CUSA07670 01.01. Los metadatos y módulos deben ser válidos. Las versiones desconocidas se indican como no verificadas.',
+        'Amérique : CUSA08014 01.00 ou 01.01. Europe : CUSA07670 01.01. Les métadonnées et modules doivent être valides. Les versions inconnues sont signalées comme non vérifiées.',
+        'Америка: CUSA08014 01.00 или 01.01. Европа: CUSA07670 01.01. Метаданные и модули должны быть корректны. Неизвестные версии отмечаются как непроверенные.'),
+}
+MESSAGES.update({source: list(values[:3]) for source, values in _VERSION_MESSAGES.items()})
+RUSSIAN.update({source: values[3] for source, values in _VERSION_MESSAGES.items()})
 MESSAGES['América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados, hashes e módulos devem ser válidos para jogar.'] = [
     'America: CUSA08014 01.00 or 01.01. Europe: CUSA07670 01.01. Metadata, hashes and modules must pass validation before playing.',
     'América: CUSA08014 01.00 o 01.01. Europa: CUSA07670 01.01. Los metadatos, hashes y módulos deben superar la validación para jugar.',

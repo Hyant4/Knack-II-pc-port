@@ -33,6 +33,11 @@ Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 3. Em **Configurações**, escolha idioma, jogadores e ajustes gráficos.
 4. Clique em **Jogar**. Para encerrar, use **Encerrar sessão**.
 
+Hashes desconhecidos não impedem o teste de executáveis com estrutura suportada.
+O launcher mostra aviso de versão não verificada e oferece **Jogar mesmo assim**.
+Nesse caso, `Play Knack II.exe` abre o launcher e aguarda início manual. O aviso
+significa que qualidade, compatibilidade e estabilidade ainda não foram avaliadas.
+
 Abrir o launcher não inicia o jogo. A pasta selecionada é salva automaticamente;
 na próxima abertura, o caminho reaparece, mas a validação continua obrigatória.
 Essa gravação não salva outros ajustes ainda não confirmados. Use **Salvar

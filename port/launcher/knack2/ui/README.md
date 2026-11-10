@@ -1,5 +1,9 @@
 # Knack II PC — launcher
 
+> Nota da 0.18.3: a política de hashes mudou. Veja
+> [validação de versões](../../../../docs/VALIDACAO_DE_VERSOES.md); os testes
+> descritos nas seções datadas abaixo registram comportamento histórico.
+
 ## Estado atual — executável Windows e pasta lembrada — 21/10/2026
 
 Abra **Knack II.exe** na raiz do projeto. A interface compilada inclui Qt/Python,

@@ -203,7 +203,7 @@ class RealBackend(Backend):
             self._validation = str(error)
             self._notice(str(error), True)
             return
-        if self._experimental_build:
+        if self._experimental_build and not self._unverified_version:
             self._installation += ' · Experimental'
             self._validation = 'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'
         regional = REGION_LANGUAGES.get(result.get('title_id'), ())
@@ -230,6 +230,9 @@ class RealBackend(Backend):
             return
         if error:
             self._notice('Não iniciou: a validação automática encontrou o erro acima.', True)
+            return
+        if self._unverified_version:
+            self._notice('Versão não verificada. Revise o aviso e clique em Jogar para continuar.')
             return
         if self._matches_saved_validation(previous, result):
             QTimer.singleShot(0, self.play)
