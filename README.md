@@ -1,13 +1,13 @@
 <h1 align="center">Knack II — Native PC Port</h1>
 <p align="center"><strong>An independent, experimental native port of Knack II for Windows and Linux (x86-64).</strong></p>
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18.4-0969da?style=flat-square" alt="Release v0.18.4" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18.5-0969da?style=flat-square" alt="Release v0.18.5" /></a>
   <img src="https://img.shields.io/badge/Windows-x64-555?style=flat-square" alt="Windows x64" />
   <img src="https://img.shields.io/badge/Linux-AppImage%20experimental-555?style=flat-square" alt="Linux experimental" />
   <img src="https://img.shields.io/badge/Vulkan-1.3%2B-555?style=flat-square" alt="Vulkan 1.3+" />
   <a href="https://buymeacoffee.com/hyant4"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000000" alt="Support on Buy Me a Coffee" /></a>
 </p>
-<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">Release notes for 0.18.4</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
+<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">Release notes for 0.18.5</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
 <p align="center"><strong>English</strong> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
 
 <p align="center">
@@ -36,7 +36,7 @@ See the [v0.18 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/
 
 ### Windows (x64)
 
-1. Download `Knack-II-Windows-x64-V0.18.4.zip` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest) and extract the **entire ZIP into a new folder**.
+1. Download `Knack-II-Windows-x64-V0.18.5.zip` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest) and extract the **entire ZIP into a new folder**.
 2. Launch **`Knack II.exe`** (do not run it from inside the ZIP). Python, Qt and the required runtime are bundled; you do not need to install Python or MSYS2.
 3. Select the folder of your extracted game containing `eboot.bin`, `game.elf`, `sce_sys` and `sce_module`.
 4. Click **Validate**, configure your preferences and click **Play**.
