@@ -287,8 +287,9 @@ static ABI int32_t playgo_dialog_term(void) { return 0; }
 #define NGS2_SEGMENT_LOG_LIMIT 64u
 #define NGS2_CODEC_LOG_LIMIT 96u
 #define NGS2_SEGMENT_ADDRESS_HISTORY 32u
-#define NGS2_ATRAC9_SEGMENT_LIMIT (16u*1024u*1024u)
-#define NGS2_ATRAC9_VOICE_BUDGET (16u*1024u*1024u)
+/* Long dialogue banks exceed 16 MiB; total compressed ownership stays capped below. */
+#define NGS2_ATRAC9_SEGMENT_LIMIT (32u*1024u*1024u)
+#define NGS2_ATRAC9_VOICE_BUDGET (32u*1024u*1024u)
 #define NGS2_ATRAC9_GLOBAL_BUDGET (128u*1024u*1024u)
 #define NGS2_ATRAC9_EVENT_CAPACITY 8u
 #define NGS2_ATRAC9_FIFO_CAPACITY 8u
