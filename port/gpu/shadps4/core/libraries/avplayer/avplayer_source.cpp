@@ -562,6 +562,7 @@ void AvPlayerSource::DemuxerThread(std::stop_token stop) {
     }
     LOG_INFO(Lib_AvPlayer, "Demuxer Thread started");
 
+    bool loop_waiting_for_packet = false;
     while (!stop.stop_requested()) {
         if (m_video_packets.Size() > 30 &&
             (!m_audio_stream_index.has_value() || m_audio_packets.Size() > 8)) {
@@ -573,21 +574,28 @@ void AvPlayerSource::DemuxerThread(std::stop_token stop) {
         if (res < 0) {
             if (res == AVERROR_EOF) {
                 if (m_is_looping) {
+                    // Rewind the demuxer once, not its AVIO independently. Moving
+                    // AVIO first leaves MOV sample/index state at EOF and can
+                    // reparse the MOOV atom without producing another packet.
+                    if (loop_waiting_for_packet) {
+                        LOG_ERROR(Lib_AvPlayer, "Loop restart reached EOF without a packet");
+                        m_state.OnError();
+                        return;
+                    }
+                    const auto loop_start = m_avformat_context->start_time == AV_NOPTS_VALUE
+                                                ? int64_t{0}
+                                                : m_avformat_context->start_time;
+                    const auto seek_result = avformat_seek_file(
+                        m_avformat_context.get(), -1, INT64_MIN, loop_start, INT64_MAX, 0);
+                    if (seek_result < 0) {
+                        LOG_ERROR(Lib_AvPlayer, "Could not restart looping source: error = {}",
+                                  seek_result);
+                        m_state.OnError();
+                        return;
+                    }
+                    loop_waiting_for_packet = true;
                     LOG_INFO(Lib_AvPlayer, "EOF reached in demuxer. Looping the source...");
                     m_state.OnWarning(ORBIS_AVPLAYER_ERROR_WAR_LOOPING_BACK);
-                    avio_seek(m_avformat_context->pb, 0, SEEK_SET);
-                    if (m_video_stream_index.has_value()) {
-                        const auto index = m_streams[m_video_stream_index.value()].ffmpeg_index;
-                        const auto stream = m_avformat_context->streams[index];
-                        avformat_seek_file(m_avformat_context.get(), index, 0, 0, stream->duration,
-                                           0);
-                    }
-                    if (m_audio_stream_index.has_value()) {
-                        const auto index = m_streams[m_audio_stream_index.value()].ffmpeg_index;
-                        const auto stream = m_avformat_context->streams[index];
-                        avformat_seek_file(m_avformat_context.get(), index, 0, 0, stream->duration,
-                                           0);
-                    }
                     continue;
                 } else {
                     LOG_INFO(Lib_AvPlayer, "EOF reached in demuxer. Exiting.");
@@ -600,6 +608,7 @@ void AvPlayerSource::DemuxerThread(std::stop_token stop) {
             }
             break;
         }
+        loop_waiting_for_packet = false;
         if (up_packet->stream_index == m_video_stream_index) {
             m_video_packets.Push(std::move(up_packet));
             m_video_packets_cv.Notify();
