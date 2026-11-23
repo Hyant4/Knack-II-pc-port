@@ -1,13 +1,13 @@
 <h1 align="center">Knack II — Native PC Port</h1>
 <p align="center"><strong>An independent, experimental native port of Knack II for Windows and Linux (x86-64).</strong></p>
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18-0969da?style=flat-square" alt="Release v0.18" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18.4-0969da?style=flat-square" alt="Release v0.18.4" /></a>
   <img src="https://img.shields.io/badge/Windows-x64-555?style=flat-square" alt="Windows x64" />
   <img src="https://img.shields.io/badge/Linux-AppImage%20experimental-555?style=flat-square" alt="Linux experimental" />
   <img src="https://img.shields.io/badge/Vulkan-1.3%2B-555?style=flat-square" alt="Vulkan 1.3+" />
   <a href="https://buymeacoffee.com/hyant4"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000000" alt="Support on Buy Me a Coffee" /></a>
 </p>
-<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">What's new in v0.18</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
+<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">Release notes for 0.18.4</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
 <p align="center"><strong>English</strong> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
 
 <p align="center">
@@ -30,13 +30,13 @@
 
 Existing features include independent window/internal resolutions, native QHD/4K rendering, FSR, experimental ultrawide, local two-player co-op, controller guide, shader preloading and validated direct launch.
 
-See the [complete v0.18 release notes](RELEASE-NOTES.md) for details and limitations.
+See the [v0.18 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.18) for details and limitations.
 
 ## Download & set up
 
 ### Windows (x64)
 
-1. Download `Knack-II-Windows-x64-V0.18.zip` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest) and extract the **entire ZIP into a new folder**.
+1. Download `Knack-II-Windows-x64-V0.18.4.zip` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest) and extract the **entire ZIP into a new folder**.
 2. Launch **`Knack II.exe`** (do not run it from inside the ZIP). Python, Qt and the required runtime are bundled; you do not need to install Python or MSYS2.
 3. Select the folder of your extracted game containing `eboot.bin`, `game.elf`, `sce_sys` and `sce_module`.
 4. Click **Validate**, configure your preferences and click **Play**.
@@ -47,14 +47,14 @@ After the first setup, **`Play Knack II.exe`** can launch using saved preference
 
 ### Linux (experimental, x86-64)
 
-Download `Knack-II-x86_64-0.18.0.AppImage` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest), then run:
+Download `Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage` from [Linux RC1](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.18.3-vulkan-loader-rc1), then run:
 
 ```bash
-chmod +x Knack-II-x86_64-0.18.0.AppImage
-./Knack-II-x86_64-0.18.0.AppImage
+chmod +x Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage
+./Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage
 ```
 
-Without FUSE, use `./Knack-II-x86_64-0.18.0.AppImage --appimage-extract-and-run`.
+Without FUSE, use `./Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage --appimage-extract-and-run`.
 
 **Linux requirements:** Vulkan 1.3+ and **glibc 2.43+**. This AppImage is built on Ubuntu 26.04; it does **not** bundle glibc or graphics drivers and does not support older-glibc systems. Linux Mint compatibility has not been certified. The Linux package opens the launcher but **does not include the Windows PKG extractor**: select your own already-extracted game dump.
 
@@ -68,7 +68,7 @@ See the [Linux development guide](docs/DESENVOLVIMENTO_LINUX.md) and [AppImage n
 | US | `CUSA08014` | `01.01` | Supported |
 | Europe | `CUSA07670` | `01.01` | Supported |
 
-**Europe 01.00 and unverified versions are not supported.** The launcher validates the region, version, executables and required modules. Do not mix updates from different regions. All builds require a GPU driver supporting **Vulkan 1.3+**.
+**Europe 01.00 is outside the supported profiles.** In the listed profiles, executables with unknown hashes can be launched manually after structural checks and an unverified-version warning. See the [validation policy](docs/VALIDACAO_DE_VERSOES.md). Do not mix updates from different regions. All builds require a GPU driver supporting **Vulkan 1.3+**.
 
 For details, see [regional compatibility and validation evidence](docs/COMPATIBILIDADE_REGIONAL.md).
 

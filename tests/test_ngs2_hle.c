@@ -134,7 +134,8 @@ int main(void) {
     command(cmd,0x10,0,UINT32_C(0x10000005)); put_float(cmd,8,1.25f);
     assert(!ngs2_voice_control(voice1,cmd) && voice_object(voice1)->pitch_ratio==1.25f);
     put_float(cmd,8,NAN); assert(ngs2_voice_control(voice1,cmd)==NGS2_INVALID);
-    put_float(cmd,8,0.0f); assert(ngs2_voice_control(voice1,cmd)==NGS2_INVALID);
+    put_float(cmd,8,0.0f); assert(!ngs2_voice_control(voice1,cmd) && voice_object(voice1)->pitch_ratio==0.f);
+    put_float(cmd,8,-1.0f); assert(ngs2_voice_control(voice1,cmd)==NGS2_INVALID);
 
     const uint32_t events[]={0,4,5,1,2};
     const uint32_t states[]={NGS2_VOICE_PLAYING,NGS2_VOICE_PAUSED,NGS2_VOICE_PLAYING,

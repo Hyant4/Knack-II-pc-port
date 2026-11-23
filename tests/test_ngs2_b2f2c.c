@@ -35,7 +35,7 @@ static void setup(uint32_t count,uint32_t zero_count,int pilot,int diag) {
     for(uint32_t i=0;i<count;++i){
         Ngs2Voice*v=&rack_test->voices[i];Ngs2Atrac9Voice*st=&states[i];
         v->rack=rack_test;v->handle=(Ngs2Handle*)(uintptr_t)(0x400000+i*16);
-        v->index=i;v->internal_state=NGS2_VOICE_PLAYING;v->atrac9=st;
+        v->index=i;v->pitch_ratio=1.f;v->internal_state=NGS2_VOICE_PLAYING;v->atrac9=st;
         v->waveform=(Ngs2Waveform){.valid=1,.format=NGS2_WAVEFORM_HEVAG,.channels=1,.sample_rate=48000};
         gain(v,i<zero_count?0.f:1.f);
         st->generation=1;st->pcm_count=1;st->fifo[0].generation=1;

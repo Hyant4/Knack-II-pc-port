@@ -949,7 +949,8 @@ void Runtime::FlushBarriers() {
         return;
     }
 
-    static const bool trace = VideoCore::IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
+    static const bool trace = VideoCore::Rx580PresetEnabled() &&
+                             VideoCore::IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
     static VideoCore::BarrierTraceBudget budget;
     const auto trace_id = trace ? budget.Claim(image_barriers.size()) : 0;
     if (trace_id) {

@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <vulkan/vulkan.hpp>
 
 namespace VideoCore {
@@ -13,6 +14,12 @@ namespace VideoCore {
 // Adapted from HayatoG/iss_pc #232/#278 (cde38af). Explicit opt-in only.
 inline bool IsBarrierMergeEnabled(const char* value) {
     return value && value[0] == '1' && value[1] == '\0';
+}
+
+// Supplied only by an explicit RX 580 preset snapshot, never by GPU detection.
+inline bool Rx580PresetEnabled() {
+    static const bool enabled = IsBarrierMergeEnabled(std::getenv("TLG_RX580_PRESET"));
+    return enabled;
 }
 
 // Independent budgets for generation and recording; no unbounded per-frame trace.

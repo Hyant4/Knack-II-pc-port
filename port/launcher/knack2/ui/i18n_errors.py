@@ -10,6 +10,10 @@ from string import Formatter
 # Source Portuguese, English, Russian. Named fields are opaque except for the
 # explicitly nested diagnostic fields listed in NESTED_FIELDS below.
 ERROR_MESSAGES = [
+    ('Um executável está incompleto ou possui estrutura não suportada pelo carregador.', 'An executable is incomplete or has a structure unsupported by the loader.', 'Исполняемый файл неполон или его структура не поддерживается загрузчиком.'),
+    ('{file}: estrutura ELF/SELF inválida ou não suportada: {detail}', '{file}: invalid or unsupported ELF/SELF structure: {detail}', '{file}: недопустимая или неподдерживаемая структура ELF/SELF: {detail}'),
+    ('Executável excede o limite de 512 MiB.', 'Executable exceeds the 512 MiB limit.', 'Исполняемый файл превышает ограничение в 512 МиБ.'),
+    ('Ponto de entrada fora dos segmentos executáveis.', 'Entry point is outside executable segments.', 'Точка входа находится вне исполняемых сегментов.'),
     ('Idioma inicial inválido', 'Invalid initial language', 'Недопустимый начальный язык'),
     ('Extraindo itens do jogo: {done}/{total}.', 'Extracting game items: {done}/{total}.', 'Извлечение элементов игры: {done}/{total}.'),
     ('Selecione um PKG do jogo-base; updates e DLC não são aceitos.', 'Select a base-game PKG; updates and DLC are not accepted.', 'Выберите PKG основной игры; обновления и DLC не принимаются.'),

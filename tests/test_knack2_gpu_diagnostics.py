@@ -12,7 +12,8 @@ import unittest
 from unittest.mock import patch
 
 from port.launcher.knack2 import config
-from port.launcher.knack2.gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset
+from port.launcher.knack2.gpu_presets import (GPU_PRESETS, gpu_preset_targets, matching_gpu_preset,
+                                            RX580_INACTIVE)
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('gpu_diagnostic_supervisor', ROOT / 'run.py')
@@ -45,9 +46,12 @@ class GpuDiagnosticsTests(unittest.TestCase):
         self.assertEqual(matching_gpu_preset(settings), 'default')
         self.assertEqual({key: settings[key] for key in CONTROLS}, dict.fromkeys(CONTROLS, 'auto'))
         self.assertEqual({key: value for key, value in settings.items() if key not in CONTROLS},
-                         {'window_resolution': '3440x1440', 'upscaler': 'fsr3', 'gpu_readbacks': '2'})
+                         {'window_resolution': '3440x1440', 'upscaler': 'fsr3', 'gpu_readbacks': '2',
+                          'rx580_preset': '0'})
         for profile in GPU_PRESETS:
             expected = set(profile['overrides']) if profile.get('preserve_diagnostics') else set(CONTROLS)
+            if profile['id'] != 'rx580_barriers':
+                expected.update(RX580_INACTIVE)
             self.assertEqual(set(gpu_preset_targets(profile['id'])), expected)
             self.assertTrue(all(profile[key] for key in ('label', 'when', 'changes')))
 
@@ -60,20 +64,22 @@ class GpuDiagnosticsTests(unittest.TestCase):
         self.assertEqual([p['id'] for p in gtx_profiles], ['gtx_1060_black_texture'])
         targets = gpu_preset_targets('gtx_1060_black_texture')
         self.assertEqual(targets, {'upscaler': 'off', 'internal_resolution': '1920x1080',
-                                   'gpu_readbacks': '0', 'eager_readback': '0'})
+                                   'gpu_readbacks': '0', 'eager_readback': '0', **RX580_INACTIVE})
         settings = {**original, **targets}
         self.assertEqual({k: v for k, v in settings.items() if k not in targets},
                          {k: v for k, v in original.items() if k not in targets})
         self.assertEqual(matching_gpu_preset(settings, 'gtx_1060_black_texture'), 'gtx_1060_black_texture')
         self.assertNotEqual(matching_gpu_preset(settings), 'gtx_1060_black_texture')
-        for key in targets:
+        for key in ('upscaler', 'internal_resolution', 'gpu_readbacks', 'eager_readback'):
             with self.subTest(key=key):
                 changed = {**settings, key: original[key]}
                 self.assertNotEqual(matching_gpu_preset(changed, 'gtx_1060_black_texture'),
                                     'gtx_1060_black_texture')
         ini = self.root / 'performance.ini'
         config.update_knack2_ini(ini, settings)
-        self.assertEqual(config.load_knack2_ini(ini), settings)
+        self.assertEqual(config.load_knack2_ini(ini),
+                         {k: v for k, v in settings.items()
+                          if not (k in CONTROLS and v == 'auto')})
         env = supervisor.runtime_environment(self.root, config_file=ini)
         self.assertEqual(env['TLG_UPSCALER'], 'off')
         self.assertEqual(env['TLG_INTERNAL_RESOLUTION'], '1920x1080')
@@ -91,9 +97,9 @@ class GpuDiagnosticsTests(unittest.TestCase):
         original = {'internal_resolution': '2560x1440', 'gpu_readbacks': '2', 'upscaler': 'fsr3',
                     'bp06': '1', 'compute_async_build': '0', 'barrier_trace': '1'}
         targets = gpu_preset_targets('rx580_barriers')
-        self.assertEqual(targets, {'barrier_merge': '1'})
+        self.assertEqual(targets, {'rx580_preset': '1', 'barrier_merge': '1'})
         settings = {**original, **targets}
-        self.assertEqual({k: v for k, v in settings.items() if k != 'barrier_merge'}, original)
+        self.assertEqual({k: v for k, v in settings.items() if k not in targets}, original)
         self.assertEqual(matching_gpu_preset(settings, 'rx580_barriers'), 'rx580_barriers')
         ini = self.root / 'rx580.ini'
         for choice in ('1', '0', 'auto'):
@@ -104,6 +110,7 @@ class GpuDiagnosticsTests(unittest.TestCase):
             else:
                 self.assertEqual(env['TLG_BARRIER_MERGE'], choice)
             self.assertEqual(env['TLG_BARRIER_TRACE'], '1')
+            self.assertEqual(env['TLG_RX580_PRESET'], '1')
             self.assertEqual(env['TLG_READBACKS'], '2')
             self.assertEqual(env['TLG_INTERNAL_RESOLUTION'], '2560x1440')
         settings.update(gpu_preset_targets('default'))
@@ -125,6 +132,7 @@ class GpuDiagnosticsTests(unittest.TestCase):
     def test_defaults_and_foreign_overrides_leave_runtime_defaults_intact(self):
         inherited = {variable: '0' for variable in CONTROLS.values()}
         inherited.update(ISS_PIPELINE_BINARIES='1', TLG_BP08='0')
+        inherited['TLG_RX580_PRESET'] = '1'
         with patch.dict(os.environ, inherited):
             for contents in ('', ''.join(f'{key}=auto\n' for key in CONTROLS)):
                 ini = self.root / 'settings.ini'
@@ -143,7 +151,8 @@ class GpuDiagnosticsTests(unittest.TestCase):
         for key, variable in CONTROLS.items():
             for value in ('0', '1'):
                 with self.subTest(key=key, value=value):
-                    ini.write_text(f'{key}={value}\n', encoding='utf-8')
+                    selection = 'rx580_preset=1\n' if key in ('barrier_merge', 'barrier_trace') else ''
+                    ini.write_text(f'{selection}{key}={value}\n', encoding='utf-8')
                     with patch.dict(os.environ, {variable: str(1 - int(value))}):
                         env = supervisor.runtime_environment(self.root, config_file=ini)
                     self.assertEqual(env[variable], value)
@@ -208,7 +217,7 @@ class GpuDiagnosticsTests(unittest.TestCase):
         ini = self.root / 'settings.ini'
         config.update_knack2_ini(ini, {'pipeline_binaries': '0', 'bp06': '1',
                                       'compute_async_build': '0', 'barrier_merge': '1',
-                                      'barrier_trace': '1'})
+                                      'barrier_trace': '1', 'rx580_preset': '1'})
         ini.chmod(0o700)  # Synthetic runtime_path fixture; the subprocess itself is mocked.
         profile = json.loads((ROOT / 'profiles/CUSA07670-01.01.json').read_text(encoding='utf-8'))
         calls = []
@@ -244,10 +253,27 @@ class GpuDiagnosticsTests(unittest.TestCase):
         self.assertEqual(evidence['gpu_diagnostics'],
                          {'pipeline_binaries': '0', 'bp06': '1', 'compute_async_build': '0',
                           'barrier_merge': '1', 'barrier_trace': '1'})
+        self.assertTrue(evidence['rx580_preset'])
         self.assertEqual([stage['exit_code'] for stage in evidence['stages']], [75, 3])
         self.assertIn('GPU diagnostic overrides: pipeline_binaries=0, bp06=1, compute_async_build=0',
                       output.getvalue())
 
-
+    def test_residual_rx_flags_and_inherited_marker_cannot_enable_preset(self):
+        ini = self.root / 'residual.ini'
+        for marker in ('0', None):
+            settings = {'barrier_merge': '1', 'barrier_trace': '1'}
+            if marker is not None:
+                settings['rx580_preset'] = marker
+            config.update_knack2_ini(ini, settings)
+            with patch.dict(os.environ, {'TLG_RX580_PRESET': '1', 'TLG_BARRIER_MERGE': '1',
+                                         'TLG_BARRIER_TRACE': '1'}):
+                env = supervisor.runtime_environment(self.root, config_file=ini)
+            for name in ('TLG_RX580_PRESET', 'TLG_BARRIER_MERGE', 'TLG_BARRIER_TRACE'):
+                self.assertNotIn(name, env)
+        before = ini.read_bytes()
+        for value in ('auto', 'yes', '2', '1\nTLG_RX580_PRESET=1'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                config.update_knack2_ini(ini, {'rx580_preset': value})
+            self.assertEqual(ini.read_bytes(), before)
 if __name__ == '__main__':
     unittest.main()

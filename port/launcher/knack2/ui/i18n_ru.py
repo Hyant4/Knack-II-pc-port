@@ -2,6 +2,8 @@
 """Russian launcher catalog; runtime and external errors remain verbatim."""
 
 RUSSIAN = {
+    'Junta barreiras de imagem equivalentes e confere formatos de vértices. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': 'Объединяет эквивалентные барьеры изображений и проверяет форматы вершин. Остальные настройки сохраняются. Сохраните настройки и перезапустите игру для сравнения.',
+    'Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão.': 'Выберите профиль RX 580 для его исправлений. Смена профиля отключает их в следующем сеансе.',
     'RX 580: compatibilidade experimental': 'RX 580: экспериментальная совместимость',
     'Teste para o crash no carregamento relatado na issue #20. Correção no Knack ainda não confirmada.': 'Тест сбоя при загрузке из issue #20. Исправление в Knack пока не подтверждено.',
     'Junta barreiras de imagem equivalentes. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': 'Объединяет эквивалентные барьеры изображений. Остальные настройки сохраняются. Сохраните настройки и перезапустите игру для сравнения.',

@@ -1,5 +1,14 @@
 # Compatibilidade regional do Knack II
 
+## Política atual de validação — 0.18.3
+
+Hashes conhecidos identificam executáveis de referência. Para os perfis
+existentes, hashes desconhecidos com estrutura suportada podem ser testados com
+aviso explícito de qualidade e compatibilidade não verificadas. Metadados e
+módulos seguem obrigatórios; títulos e versões sem perfil continuam bloqueados.
+As seções datadas abaixo registram decisões anteriores à 0.18.3. Consulte a
+[política atual](VALIDACAO_DE_VERSOES.md).
+
 ## Americana 01.00 integrada ao launcher principal local — 28/10/2026
 
 CUSA08014/01.00 usa o fluxo normal de seleção, validação, Jogar e início direto

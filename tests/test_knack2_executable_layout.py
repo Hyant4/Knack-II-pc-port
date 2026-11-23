@@ -42,9 +42,9 @@ class ExecutableLayoutTests(unittest.TestCase):
         self.assertEqual(result['game_elf_sha256'], alternate)
         self.assertEqual(supervisor_result['executable_layout'], result['executable_layout'])
         (game / 'game.elf').write_bytes(b'unknown variant')
-        with self.assertRaises(validator.KnackHashMismatchError):
+        with self.assertRaises(validator.KnackExecutableError):
             validator.validate_knack2_dump(game, repo_root=self.repo)
-        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+        with self.assertRaises(validator.KnackExecutableError):
             run.validate_game(game, profile)
 
     def test_variant_schema_rejects_unknown_layout_duplicate_and_wrong_version(self):

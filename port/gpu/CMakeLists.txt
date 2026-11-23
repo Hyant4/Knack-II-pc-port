@@ -485,6 +485,17 @@ add_executable(async-fetch-snapshot-test EXCLUDE_FROM_ALL ../tests/test_async_fe
 target_compile_options(async-fetch-snapshot-test PRIVATE -UNDEBUG)
 target_include_directories(async-fetch-snapshot-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(async-fetch-snapshot-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
+add_executable(rx580-vertex-formats-test EXCLUDE_FROM_ALL ../tests/test_rx580_vertex_formats.cpp
+    shadps4/common/number_utils.cpp
+    shadps4/video_core/amdgpu/pixel_format.cpp
+    shadps4/shader_recompiler/frontend/fetch_shader.cpp
+    shadps4/shader_recompiler/frontend/decode.cpp
+    shadps4/shader_recompiler/frontend/format.cpp
+    shadps4/video_core/renderer_vulkan/liverpool_to_vk.cpp)
+target_compile_options(rx580-vertex-formats-test PRIVATE -UNDEBUG)
+target_include_directories(rx580-vertex-formats-test PRIVATE shim shadps4 third_party/gcn/include
+    third_party/half/include)
+target_link_libraries(rx580-vertex-formats-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
 target_compile_options(depth-stencil-state-test PRIVATE -UNDEBUG)
 target_include_directories(depth-stencil-state-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(depth-stencil-state-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)

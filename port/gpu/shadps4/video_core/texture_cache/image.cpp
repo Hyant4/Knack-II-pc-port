@@ -409,8 +409,10 @@ void Image::GetBarriers(Barriers& barriers, vk::ImageLayout dst_layout, vk::Acce
         });
     }
 
-    static const bool merge = IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_MERGE"));
-    static const bool trace = IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
+    static const bool merge = Rx580PresetEnabled() &&
+                              IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_MERGE"));
+    static const bool trace = Rx580PresetEnabled() &&
+                              IsBarrierMergeEnabled(std::getenv("TLG_BARRIER_TRACE"));
     const auto generated = barriers.size() - first_new_barrier;
     if (merge) {
         MergeAdjacentBarriers(barriers, first_new_barrier);

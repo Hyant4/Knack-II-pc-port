@@ -379,7 +379,16 @@ typedef struct {
     /* Host-only, generation-scoped input sample frames actually consumed by render.
      * SoundX reads Sampler state +0x10 through its cached polling-slot alias. */
     uint64_t samples_consumed;
+    uint32_t pcm_frame_offset;
+    double pcm_fraction;
 } Ngs2Atrac9Voice;
+
+/* Host-only HEVAG telemetry; independent of playback and ATRAC9 capture history. */
+typedef struct {
+    uint64_t generation,calls,hash,summary_us;
+    uint32_t words,channels,raw_nonzero,finite_count,effective_nonzero,last_action,flags;
+    uint8_t identity_valid,observed,post_action,action_valid,flags_valid;
+} Ngs2HevagMatrixDiag;
 
 struct Ngs2Voice {
     Ngs2Handle *handle;
@@ -402,6 +411,7 @@ struct Ngs2Voice {
     uint64_t matrix_diag_calls,matrix_diag_hash,matrix_diag_summary_us;
     uint32_t matrix_diag_words,matrix_diag_last_action,matrix_diag_flags;
     uint8_t matrix_diag_seen,matrix_diag_post_action,matrix_diag_action_valid,matrix_diag_flags_valid;
+    Ngs2HevagMatrixDiag hevag_matrix_diag;
     /* B0: diagnostic-only per-voice history, never controls playback. */
     uint64_t diag_onset_sequence;
     uint32_t diag_waveforms_seen;
@@ -448,6 +458,12 @@ struct Ngs2System {
     uint64_t diag_last_us,diag_calls,diag_cnt1_master,diag_cnt1_other,diag_multi_master,diag_multi_other;
     uint64_t diag_hevag_mix,diag_at9_mix,diag_voice_queries[4],diag_cmd6[6],diag_cmd2,diag_cmd3;
     uint64_t diag_hevag_fifo_drop,diag_at9_fifo_drop;
+    /* Passive pitch requests survive detailed-trace budgets; no playback policy. */
+    uint64_t diag_pitch_requests,diag_pitch_zero,diag_pitch_nonunity,diag_pitch_rejected;
+    uint64_t diag_pitch_event_us,diag_pitch_generation,diag_pitch_samples,diag_pitch_zero_us;
+    Ngs2Handle *diag_pitch_voice,*diag_pitch_zero_voice;
+    uint32_t diag_pitch_requested,diag_pitch_stored,diag_pitch_format;
+    int32_t diag_pitch_result;
     float diag_peak_interval;
     unsigned diag_mask_interval;
     int diag_hevag_matrix_logged;
@@ -525,6 +541,22 @@ static int ngs2_matrix_diag_enabled(void) {
     if (value>=0) return value;
     value=ngs2_ini_enabled("ngs2_matrix_diag");
     atomic_store_explicit(&ngs2_matrix_diag_setting,value,memory_order_release);
+    return value;
+}
+static _Atomic int ngs2_hevag_matrix_diag_setting=-1;
+static int ngs2_hevag_matrix_diag_enabled(void) {
+    int value=atomic_load_explicit(&ngs2_hevag_matrix_diag_setting,memory_order_acquire);
+    if (value>=0) return value;
+    value=ngs2_ini_enabled("ngs2_hevag_matrix_diag");
+    atomic_store_explicit(&ngs2_hevag_matrix_diag_setting,value,memory_order_release);
+    return value;
+}
+static _Atomic int ngs2_pitch_diag_setting=-1;
+static int ngs2_pitch_diag_enabled(void) {
+    int value=atomic_load_explicit(&ngs2_pitch_diag_setting,memory_order_acquire);
+    if (value>=0) return value;
+    value=ngs2_ini_enabled("ngs2_pitch_diag");
+    atomic_store_explicit(&ngs2_pitch_diag_setting,value,memory_order_release);
     return value;
 }
 static uint64_t ngs2_trace_command_sequence;
@@ -1017,6 +1049,7 @@ static void ngs2_atrac9_clear_pending_locked(Ngs2Voice *voice,int count_cancella
     state->stream_end_requested=state->stream_finished=state->stream_completion_blocked=0;
     state->sample_carry_frames=0;
     state->samples_consumed=0;
+    state->pcm_frame_offset=0; state->pcm_fraction=0;
     voice->diag_onset_pending=0;
     voice->diag_terminal_reported=0;
     ++state->generation;
@@ -1702,6 +1735,78 @@ static void ngs2_b2f1_snapshot_locked(Ngs2System *system,
  * populations are rejected before any commit instead of silently dropping PCM.
  * The explicitly selected B2-F2A experiment retains its legacy 32-slot policy. */
 #define NGS2_RENDER_MAX_VIRTUAL_VOICES 512u
+/* Host-only read/commit plan. Source positions are sample frames, not output
+ * quanta. The bounded FIFO limits work even at rates above available input. */
+typedef struct {
+    uint32_t read,offset,grain_count,available,consumed,dropped,end_offset;
+    double fraction,end_fraction;
+    float ratio;
+    uint64_t generations[NGS2_ATRAC9_FIFO_CAPACITY];
+    uint32_t frames[NGS2_ATRAC9_FIFO_CAPACITY];
+} Ngs2PlaybackPlan;
+
+static int ngs2_playback_plan_locked(const Ngs2Voice *voice,Ngs2PlaybackPlan *plan) {
+    const Ngs2Atrac9Voice *st=voice->atrac9;
+    if (!st || !st->pcm_count || voice->pitch_ratio==0) return 0;
+    memset(plan,0,sizeof(*plan));
+    plan->read=st->pcm_read; plan->offset=st->pcm_frame_offset;
+    plan->fraction=st->pcm_fraction; plan->ratio=voice->pitch_ratio;
+    uint32_t total=0;
+    for (uint32_t i=0;i<st->pcm_count;++i) {
+        const Ngs2PcmGrain *g=&st->fifo[(st->pcm_read+i)%NGS2_ATRAC9_FIFO_CAPACITY];
+        if (g->generation!=st->generation || !g->frames ||
+            g->frames>NGS2_ATRAC9_MAX_FRAME_SAMPLES || g->channels!=voice->waveform.channels)
+            return 0;
+        total+=g->frames;
+    }
+    if (plan->offset>=st->fifo[st->pcm_read].frames) return 0;
+    plan->available=total;
+    double start=plan->offset+plan->fraction;
+    double end=fmin(start+256.0*plan->ratio,(double)total);
+    plan->consumed=(uint32_t)end-plan->offset;
+    double remaining=end;
+    for (uint32_t i=0;i<st->pcm_count;++i) {
+        uint32_t frames=st->fifo[(st->pcm_read+i)%NGS2_ATRAC9_FIFO_CAPACITY].frames;
+        if (remaining<frames) break;
+        remaining-=frames; ++plan->dropped;
+    }
+    plan->end_offset=(uint32_t)remaining;
+    plan->end_fraction=remaining-plan->end_offset;
+    /* Include interpolation lookahead, but keep 1x to one copied grain. */
+    double last=fmin(start+255.0*plan->ratio,(double)(total-1));
+    uint32_t need=(uint32_t)ceil(end);
+    uint32_t lookahead=(uint32_t)last+1u+(last!=floor(last));
+    if (lookahead>need) need=lookahead;
+    uint32_t covered=0;
+    for (uint32_t i=0;i<st->pcm_count && covered<need;++i) {
+        const Ngs2PcmGrain *g=&st->fifo[(st->pcm_read+i)%NGS2_ATRAC9_FIFO_CAPACITY];
+        plan->generations[i]=g->generation; plan->frames[i]=g->frames;
+        covered+=g->frames; ++plan->grain_count;
+    }
+    return 1;
+}
+
+static int ngs2_playback_matches_locked(const Ngs2Voice *voice,const Ngs2PlaybackPlan *plan) {
+    const Ngs2Atrac9Voice *st=voice->atrac9;
+    if (voice->pitch_ratio!=plan->ratio || st->pcm_read!=plan->read ||
+        st->pcm_frame_offset!=plan->offset || st->pcm_fraction!=plan->fraction ||
+        st->pcm_count<plan->grain_count) return 0;
+    for (uint32_t i=0;i<plan->grain_count;++i) {
+        const Ngs2PcmGrain *g=&st->fifo[(st->pcm_read+i)%NGS2_ATRAC9_FIFO_CAPACITY];
+        if (g->generation!=plan->generations[i] || g->frames!=plan->frames[i]) return 0;
+    }
+    return 1;
+}
+
+static void ngs2_playback_commit_locked(Ngs2Voice *voice,const Ngs2PlaybackPlan *plan) {
+    Ngs2Atrac9Voice *st=voice->atrac9;
+    st->samples_consumed+=plan->consumed;
+    st->pcm_read=(st->pcm_read+plan->dropped)%NGS2_ATRAC9_FIFO_CAPACITY;
+    st->pcm_count-=plan->dropped;
+    st->pcm_frame_offset=plan->end_offset; st->pcm_fraction=plan->end_fraction;
+    ngs2_complete_voice_locked(voice);
+}
+
 typedef struct {
     Ngs2Handle *voice_handle;
     uint64_t generation;
@@ -1714,9 +1819,10 @@ typedef struct {
     float diag_onset_peak;
     uint32_t matrix_words;
     float matrix[NGS2_MAX_DESCRIPTOR_WORDS];
-    Ngs2PcmGrain grain;
     int active;
     uint8_t diag_f2b_matrix_audible;
+    Ngs2PlaybackPlan playback;
+    Ngs2PcmGrain grains[NGS2_ATRAC9_FIFO_CAPACITY];
 } Ngs2RenderSnapshot;
 typedef struct {
     Ngs2Handle *rack_handle,*voice_handle;
@@ -1725,6 +1831,7 @@ typedef struct {
     uint64_t diag_onset_sequence;
     uint8_t diag_f2b_matrix_audible;
     uint8_t f2c_zero_bypass; /* Revalidated/consumed only on successful publication. */
+    Ngs2PlaybackPlan playback;
 } Ngs2VirtualSnapshot;
 
 /* The render gate protects both fixed workspaces; no heap allocation in render. */
@@ -1736,7 +1843,7 @@ static float ngs2_render_stage[256*8];
 static int ngs2_b2f2a_eligible_locked(const Ngs2Voice *voice) {
     const Ngs2Atrac9Voice *st=voice->atrac9;
     return voice->internal_state==NGS2_VOICE_PLAYING && st &&
-           !st->closing && !st->faulted && st->pcm_count &&
+           !st->closing && !st->faulted && voice->pitch_ratio>0 && st->pcm_count &&
            st->fifo[st->pcm_read].generation==st->generation;
 }
 static int ngs2_b2f2a_has(const Ngs2B2F2AKey *keys,uint32_t count,
@@ -1920,6 +2027,7 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
     char diag_b2_line[650]={0},diag_b2f2a_line[180]={0};
     char diag_f2b_line[620]={0},diag_f2c_line[180]={0};
     char diag_b2f1_line[768]={0},diag_b2f1_top[1600]={0};
+    char diag_pitch_line[600]={0};
     Ngs2RenderBuffer master={0};
     for (uint32_t i=0;i<count;++i) {
         Ngs2RenderBuffer descriptor;
@@ -1946,6 +2054,21 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
         uint64_t now=ngs2_now_us();
         if (!system->diag_last_us || now-system->diag_last_us>=UINT64_C(1000000)) {
             system->diag_last_us=now;
+            if (ngs2_pitch_diag_enabled()) {
+                snprintf(diag_pitch_line,sizeof(diag_pitch_line),
+                    "NGS2-PITCH-HB: host_utc_us=%llu sys=%p requests=%llu zero_requests=%llu "
+                    "nonunity_requests=%llu rejected=%llu last_event_us=%llu voice=%p format=%#x "
+                    "generation=%llu samples_consumed=%llu requested_bits=%08x stored_bits=%08x result=%d "
+                    "last_zero_us=%llu last_zero_voice=%p\n",
+                    (unsigned long long)now,(void *)system->handle,
+                    (unsigned long long)system->diag_pitch_requests,(unsigned long long)system->diag_pitch_zero,
+                    (unsigned long long)system->diag_pitch_nonunity,(unsigned long long)system->diag_pitch_rejected,
+                    (unsigned long long)system->diag_pitch_event_us,(void *)system->diag_pitch_voice,
+                    system->diag_pitch_format,(unsigned long long)system->diag_pitch_generation,
+                    (unsigned long long)system->diag_pitch_samples,system->diag_pitch_requested,
+                    system->diag_pitch_stored,system->diag_pitch_result,
+                    (unsigned long long)system->diag_pitch_zero_us,(void *)system->diag_pitch_zero_voice);
+            }
             snprintf(diag_hb_line,sizeof(diag_hb_line),
                 "NGS2-HB: calls=%llu cnt1master=%llu cnt1other=%llu multimaster=%llu multiother=%llu "
                 "render_main=%llu ignored=%llu limit32=%llu virt_grains=%llu virt_untracked=%llu "
@@ -2098,7 +2221,7 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
         if (rack->rack_id==0x2000 || rack->rack_id==0x3000) continue;
         for (uint32_t i=0;i<rack->capacity;++i) {
             Ngs2Voice *voice=&rack->voices[i];
-            if (voice->internal_state==NGS2_VOICE_PLAYING && voice->atrac9 &&
+            if (voice->internal_state==NGS2_VOICE_PLAYING && voice->pitch_ratio>0 && voice->atrac9 &&
                 !voice->atrac9->closing && !voice->atrac9->faulted) {
                 if (voice->atrac9->pcm_count>0) {
                     Ngs2PcmGrain *head=&voice->atrac9->fifo[voice->atrac9->pcm_read];
@@ -2166,7 +2289,10 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
 
     Ngs2RenderSnapshot *snapshots=ngs2_render_snapshots;
     Ngs2VirtualSnapshot *virtual=ngs2_render_virtual;
-    memset(snapshots,0,(size_t)total_eligible*sizeof(*snapshots));
+    /* PCM is copied only for the required source window; do not clear the
+     * enlarged eight-grain capacity on every quantum. */
+    for (uint32_t i=0;i<total_eligible;++i)
+        memset(&snapshots[i],0,offsetof(Ngs2RenderSnapshot,grains));
     uint32_t active_snapshots=0,virtual_count=0,seen=0;
     uint32_t start=total_eligible ? system->render_voice_cursor%total_eligible : 0;
     const int b2f2a_pilot=legacy_cohort && total_eligible>mix_capacity;
@@ -2180,12 +2306,14 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
         if (rack->rack_id==0x2000 || rack->rack_id==0x3000) continue;
         for (uint32_t i=0;i<rack->capacity;++i) {
             Ngs2Voice *voice=&rack->voices[i];
-            if (voice->internal_state!=NGS2_VOICE_PLAYING || !voice->atrac9) continue;
+            if (voice->internal_state!=NGS2_VOICE_PLAYING || voice->pitch_ratio==0 || !voice->atrac9) continue;
             Ngs2Atrac9Voice *state=voice->atrac9;
             if (state->closing || state->faulted || !state->pcm_count) continue;
 
             Ngs2PcmGrain *head=&state->fifo[state->pcm_read];
             if (head->generation!=state->generation) continue;
+            Ngs2PlaybackPlan playback;
+            if (!ngs2_playback_plan_locked(voice,&playback)) continue;
 
             /* Normal renders include every eligible source. Ordinal selection
              * is retained only for the explicit legacy B2-F2A experiment. */
@@ -2205,7 +2333,7 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
                         head->generation,i,state->pcm_read,
                         diag_on && voice->diag_onset_pending ? voice->diag_onset_sequence : 0,
                         diag_on ? (uint8_t)ngs2_b2f2b_matrix_audible_locked(voice) : 0,
-                        (uint8_t)f2c_zero};
+                        (uint8_t)f2c_zero,playback};
                 } else {
                     ++system->virtual_overflow_untracked;
                 }
@@ -2250,7 +2378,9 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
                 union { uint32_t u; float f; } cvt={voice->descriptors[w]};
                 snapshots[active_snapshots].matrix[w]=cvt.f;
             }
-            snapshots[active_snapshots].grain=*head;
+            snapshots[active_snapshots].playback=playback;
+            for (uint32_t g=0;g<playback.grain_count;++g)
+                snapshots[active_snapshots].grains[g]=state->fifo[(state->pcm_read+g)%NGS2_ATRAC9_FIFO_CAPACITY];
             snapshots[active_snapshots].active=1;
             ++active_snapshots;
         }
@@ -2272,11 +2402,25 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
         if (!snapshots[s].active) continue;
         uint32_t num_ch=snapshots[s].channels;
         if (!num_ch || num_ch>8) continue;
-        const int16_t *pcm=snapshots[s].grain.pcm;
+        const Ngs2PlaybackPlan *playback=&snapshots[s].playback;
         const float *mat=snapshots[s].matrix;
         uint32_t words=snapshots[s].matrix_words;
 
         for (uint32_t f=0;f<256;++f) {
+            double position=playback->offset+playback->fraction+(double)f*playback->ratio;
+            if (position>=playback->available) break;
+            uint32_t frame=(uint32_t)position,g=0;
+            double fraction=position-frame;
+            while (g<playback->grain_count && frame>=snapshots[s].grains[g].frames)
+                frame-=snapshots[s].grains[g++].frames;
+            if (g>=playback->grain_count) break;
+            const Ngs2PcmGrain *grain=&snapshots[s].grains[g];
+            const Ngs2PcmGrain *next=grain;
+            uint32_t next_frame=frame+1;
+            if (next_frame>=grain->frames) {
+                if (g+1<playback->grain_count) { next=&snapshots[s].grains[g+1]; next_frame=0; }
+                else next_frame=frame; /* Bounded tail: hold last available input. */
+            }
             for (uint32_t dst=0;dst<8;++dst) {
                 float sum=0.0f;
                 for (uint32_t src=0;src<num_ch;++src) {
@@ -2284,7 +2428,10 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
                     if (idx<words) {
                         float gain=mat[idx];
                         if (isfinite(gain) && gain>=-64.0f && gain<=64.0f) {
-                            float s_val=(float)pcm[f*num_ch+src]*(1.0f/32768.0f);
+                            float sample=(float)grain->pcm[frame*num_ch+src];
+                            if (fraction!=0)
+                                sample+=(float)fraction*((float)next->pcm[next_frame*num_ch+src]-sample);
+                            float s_val=sample*(1.0f/32768.0f);
                             sum+=s_val*gain;
                         }
                     }
@@ -2342,7 +2489,8 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
             voice->atrac9->generation!=snapshots[s].generation ||
             !voice->atrac9->pcm_count ||
             voice->atrac9->pcm_read!=snapshots[s].expected_pcm_read ||
-            voice->atrac9->fifo[snapshots[s].expected_pcm_read].generation!=snapshots[s].expected_grain_generation) {
+            voice->atrac9->fifo[snapshots[s].expected_pcm_read].generation!=snapshots[s].expected_grain_generation ||
+            !ngs2_playback_matches_locked(voice,&snapshots[s].playback)) {
             any_cancelled=1;
             break;
         }
@@ -2380,11 +2528,8 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
         for (uint32_t s=0;s<active_snapshots;++s) {
             Ngs2Voice *voice=ngs2_voice_locked(snapshots[s].voice_handle);
             Ngs2Atrac9Voice *state=voice->atrac9;
-            state->samples_consumed+=state->fifo[state->pcm_read].frames;
-            state->pcm_read=(state->pcm_read+1u)%NGS2_ATRAC9_FIFO_CAPACITY;
-            --state->pcm_count;
-            ngs2_complete_voice_locked(voice);
-            ++system->grains_consumed;
+            ngs2_playback_commit_locked(voice,&snapshots[s].playback);
+            system->grains_consumed+=snapshots[s].playback.dropped;
             if (diag_on) {
                 if (!snapshots[s].diag_f2b_matrix_audible) {
                     ++system->diag_f2b_silent_mixed;
@@ -2431,13 +2576,11 @@ static ABI int32_t ngs2_render(Ngs2Handle *handle,const Ngs2RenderBuffer *buffer
             if (state->closing || state->faulted ||
                 state->generation!=candidate->generation || !state->pcm_count ||
                 state->pcm_read!=candidate->expected_pcm_read ||
-                state->fifo[state->pcm_read].generation!=candidate->expected_grain_generation)
+                state->fifo[state->pcm_read].generation!=candidate->expected_grain_generation ||
+                !ngs2_playback_matches_locked(voice,&candidate->playback))
                 continue;
-            state->samples_consumed+=state->fifo[state->pcm_read].frames;
-            state->pcm_read=(state->pcm_read+1u)%NGS2_ATRAC9_FIFO_CAPACITY;
-            --state->pcm_count;
-            ngs2_complete_voice_locked(voice);
-            ++system->virtualized_grains;
+            ngs2_playback_commit_locked(voice,&candidate->playback);
+            system->virtualized_grains+=candidate->playback.dropped;
             if (diag_on && candidate->f2c_zero_bypass) {
                 ++system->diag_f2c_bypassed;
                 ++f2c_zero_drain;
@@ -2510,6 +2653,7 @@ render_done:
     atomic_store_explicit(&ngs2_render_owner,0,memory_order_release);
     /* Print diagnostics only after releasing NGS2 locks and the render gate. */
     if (diag_hb_line[0]) fputs(diag_hb_line,stdout);
+    if (diag_pitch_line[0]) fputs(diag_pitch_line,stdout);
     if (diag_b0_line[0]) fputs(diag_b0_line,stdout);
     if (diag_b2_line[0]) fputs(diag_b2_line,stdout);
     if (diag_b2f2a_line[0]) fputs(diag_b2f2a_line,stdout);
@@ -2939,7 +3083,7 @@ static int32_t ngs2_control_locked(Ngs2Voice *voice,const void *params,uint16_t 
     case UINT32_C(0x10000005): {
         if (size<0x10) return NGS2_INVALID;
         float ratio=ngs2_float(params,8);
-        if (!isfinite(ratio) || ratio<=0.0f || ratio>16.0f) return NGS2_INVALID;
+        if (!isfinite(ratio) || ratio<0.0f || ratio>16.0f) return NGS2_INVALID;
         voice->pitch_ratio=ratio; return 0;
     }
     default:
@@ -3000,8 +3144,95 @@ static void ngs2_route_diag_locked(const Ngs2Voice *voice,const void *params,
 #define NGS2_MATRIX_DIAG_STATE_LIMIT 1024u
 static uint32_t ngs2_matrix_diag_changes,ngs2_matrix_diag_states;
 static uint64_t ngs2_matrix_diag_sequence;
+static uint32_t ngs2_hevag_matrix_diag_changes,ngs2_hevag_matrix_diag_states;
+static uint64_t ngs2_hevag_matrix_diag_sequence;
+typedef struct {
+    uint64_t hash;
+    uint32_t words,raw_nonzero,finite_count,effective_nonzero;
+} Ngs2MatrixDiagMetrics;
+static Ngs2MatrixDiagMetrics ngs2_matrix_diag_metrics_locked(const Ngs2Voice *voice) {
+    Ngs2MatrixDiagMetrics result={.hash=UINT64_C(14695981039346656037)};
+    result.words=voice->descriptor_words;
+    if (result.words>NGS2_MAX_DESCRIPTOR_WORDS) result.words=NGS2_MAX_DESCRIPTOR_WORDS;
+    uint32_t effective=voice->waveform.channels<=8u ? 8u*voice->waveform.channels : 0;
+    if (effective>result.words) effective=result.words;
+    for (uint32_t i=0;i<result.words;++i) {
+        union { uint32_t u; float f; } value={voice->descriptors[i]};
+        result.raw_nonzero+=value.u!=0; result.finite_count+=(uint32_t)isfinite(value.f);
+        if (i<effective && isfinite(value.f) && value.f>=-64.f && value.f<=64.f && value.f!=0.f)
+            ++result.effective_nonzero;
+        for (unsigned b=0;b<4;++b) {
+            result.hash^=(uint8_t)(value.u>>(8u*b)); result.hash*=UINT64_C(1099511628211);
+        }
+    }
+    return result;
+}
+static void ngs2_hevag_matrix_diag_locked(Ngs2Voice *voice,uint32_t command,uint32_t action,
+                                         uint32_t flags,const Ngs2MatrixDiagMetrics *m,
+                                         char *line,size_t cap) {
+    if (ngs2_hevag_matrix_diag_changes>NGS2_MATRIX_DIAG_CHANGE_LIMIT &&
+        ngs2_hevag_matrix_diag_states>NGS2_MATRIX_DIAG_STATE_LIMIT) return;
+    const Ngs2Atrac9Voice *audio=voice->atrac9;
+    uint64_t generation=audio ? audio->generation : 0,now=ngs2_now_us();
+    Ngs2HevagMatrixDiag *d=&voice->hevag_matrix_diag;
+    int reset=!d->identity_valid || d->generation!=generation;
+    if (reset) *d=(Ngs2HevagMatrixDiag){.identity_valid=1,.generation=generation};
+    int prior_valid=d->observed,post_action=d->post_action;
+    uint64_t prior_hash=d->hash;
+    int gain_changed=prior_valid && (!!d->effective_nonzero!=!!m->effective_nonzero);
+    const char *transition=!prior_valid ? "initial" : !gain_changed ? "none" :
+                           m->effective_nonzero ? "to_audible" : "to_silent";
+    int classification_changed=prior_valid &&
+        (d->words!=m->words || d->channels!=voice->waveform.channels ||
+         d->raw_nonzero!=m->raw_nonzero || d->finite_count!=m->finite_count);
+    int due=!d->summary_us || now<d->summary_us || now-d->summary_us>=UINT64_C(2000000);
+    int flags_changed=!d->flags_valid || d->flags!=flags;
+    int emit=reset || !prior_valid || gain_changed || classification_changed || command==6 ||
+             (command==1 && (post_action || (prior_hash!=m->hash && due))) ||
+             (!command && (flags_changed || due));
+    if (command==1) { ++d->calls; d->post_action=0; }
+    if (command==6) {
+        d->last_action=action; d->action_valid=1;
+        if (action==4 || action==5) d->post_action=1;
+    }
+    if (!command) { d->flags=flags; d->flags_valid=1; }
+    d->observed=1; d->hash=m->hash; d->words=m->words;
+    d->channels=voice->waveform.channels; d->raw_nonzero=m->raw_nonzero;
+    d->finite_count=m->finite_count; d->effective_nonzero=m->effective_nonzero;
+    if (!emit) return;
+    uint32_t *budget=command==1 ? &ngs2_hevag_matrix_diag_changes : &ngs2_hevag_matrix_diag_states;
+    uint32_t limit=command==1 ? NGS2_MATRIX_DIAG_CHANGE_LIMIT : NGS2_MATRIX_DIAG_STATE_LIMIT;
+    if (*budget>limit) return;
+    uint64_t seq=++ngs2_hevag_matrix_diag_sequence;
+    if ((*budget)++==limit) {
+        snprintf(line,cap,"NGS2-HEVAG-MATRIX: seq=%llu codec=HEVAG budget=%s limit=%u trace_incomplete=1\n",
+                 (unsigned long long)seq,command==1 ? "changes" : "state",limit);
+        return;
+    }
+    d->summary_us=now;
+    snprintf(line,cap,
+        "NGS2-HEVAG-MATRIX: seq=%llu host_utc_us=%llu event=%s codec=HEVAG "
+        "generation_reset=%d transition=%s sys=%p rack=%#x/%u voice=%u handle=%p "
+        "generation=%llu calls=%llu channels=%u words=%u raw_nonzero=%u finite=%u effective_nonzero=%u "
+        "hash=%016llx prior_valid=%d prior_hash=%016llx post_action=%d last_action_valid=%u "
+        "last_action=%u state=%u query_flags_valid=%d query_flags=%#x samples_consumed=%llu fifo=%u\n",
+        (unsigned long long)seq,(unsigned long long)now,command==1 ? "cmd1" : command==6 ? "action" : "query",
+        reset,transition,(void *)voice->rack->system->handle,voice->rack->rack_id,voice->rack->instance,
+        voice->index,(void *)voice->handle,(unsigned long long)generation,(unsigned long long)d->calls,
+        voice->waveform.channels,m->words,m->raw_nonzero,m->finite_count,m->effective_nonzero,
+        (unsigned long long)m->hash,prior_valid,(unsigned long long)prior_hash,post_action,
+        (unsigned)d->action_valid,d->last_action,voice->internal_state,command==0,flags,
+        (unsigned long long)(audio ? audio->samples_consumed : 0),audio ? audio->pcm_count : 0);
+}
 static void ngs2_matrix_diag_locked(Ngs2Voice *voice,uint32_t command,uint32_t action,
                                     uint32_t flags,char *line,size_t cap) {
+    if (voice->rack->rack_id==0x1000 && ngs2_hevag_waveform(&voice->waveform)) {
+        if (ngs2_hevag_matrix_diag_enabled()) {
+            Ngs2MatrixDiagMetrics m=ngs2_matrix_diag_metrics_locked(voice);
+            ngs2_hevag_matrix_diag_locked(voice,command,action,flags,&m,line,cap);
+        }
+        return;
+    }
     if (!ngs2_matrix_diag_enabled() || voice->rack->rack_id!=0x1000 ||
         !ngs2_atrac9_waveform(&voice->waveform)) return;
     uint64_t now=ngs2_now_us();
@@ -3016,21 +3247,9 @@ static void ngs2_matrix_diag_locked(Ngs2Voice *voice,uint32_t command,uint32_t a
         voice->matrix_diag_last_action=action; voice->matrix_diag_action_valid=1;
         if (action==4 || action==5) voice->matrix_diag_post_action=1;
     }
-    uint32_t words=voice->descriptor_words;
-    if (words>NGS2_MAX_DESCRIPTOR_WORDS) words=NGS2_MAX_DESCRIPTOR_WORDS;
-    uint32_t effective=voice->waveform.channels<=8u ? 8u*voice->waveform.channels : 0;
-    if (effective>words) effective=words;
-    uint64_t hash=UINT64_C(14695981039346656037);
-    uint32_t raw_nonzero=0,finite_count=0,effective_nonzero=0;
-    for (uint32_t i=0;i<words;++i) {
-        union { uint32_t u; float f; } value={voice->descriptors[i]};
-        raw_nonzero+=value.u!=0; finite_count+=(uint32_t)isfinite(value.f);
-        if (i<effective && isfinite(value.f) && value.f>=-64.f && value.f<=64.f && value.f!=0.f)
-            ++effective_nonzero;
-        for (unsigned b=0;b<4;++b) {
-            hash^=(uint8_t)(value.u>>(8u*b)); hash*=UINT64_C(1099511628211);
-        }
-    }
+    Ngs2MatrixDiagMetrics m=ngs2_matrix_diag_metrics_locked(voice);
+    uint32_t words=m.words,raw_nonzero=m.raw_nonzero,finite_count=m.finite_count;
+    uint32_t effective_nonzero=m.effective_nonzero; uint64_t hash=m.hash;
     uint32_t prior_words=voice->matrix_diag_words;
     uint64_t prior_hash=voice->matrix_diag_hash;
     int prior_valid=voice->matrix_diag_seen,post_action=voice->matrix_diag_post_action;
@@ -3078,6 +3297,26 @@ static ABI int32_t ngs2_voice_control(Ngs2Handle *handle,const void *params) {
     uint64_t prior_sequence=voice ? voice->trace_last_command_sequence : 0;
     int32_t result=voice ? ngs2_control_locked(voice,params,size,command,trace_sequence,
                                                prior_command,prior_sequence) : NGS2_INVALID;
+    if (voice && command==UINT32_C(0x10000005) && size>=0x10 && ngs2_pitch_diag_enabled()) {
+        Ngs2System *system=voice->rack->system;
+        float requested=ngs2_float(params,8);
+        ++system->diag_pitch_requests;
+        if (requested==0.0f) {
+            ++system->diag_pitch_zero; system->diag_pitch_zero_us=ngs2_now_us();
+            system->diag_pitch_zero_voice=voice->handle;
+        }
+        if (requested!=1.0f) ++system->diag_pitch_nonunity;
+        if (result) ++system->diag_pitch_rejected;
+        if (requested!=1.0f || result) {
+            system->diag_pitch_event_us=ngs2_now_us(); system->diag_pitch_voice=voice->handle;
+            system->diag_pitch_format=voice->waveform.format;
+            system->diag_pitch_generation=voice->atrac9 ? voice->atrac9->generation : 0;
+            system->diag_pitch_samples=voice->atrac9 ? voice->atrac9->samples_consumed : 0;
+            system->diag_pitch_requested=ngs2_u32(params,8);
+            memcpy(&system->diag_pitch_stored,&voice->pitch_ratio,sizeof(system->diag_pitch_stored));
+            system->diag_pitch_result=result;
+        }
+    }
     if (voice && trace_sequence && !result) {
         voice->trace_last_command=command; voice->trace_last_command_sequence=trace_sequence;
     }

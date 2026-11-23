@@ -30,7 +30,7 @@ static void setup(void){
   for(uint32_t i=0;i<live;i++){
     Ngs2Voice *v=&rack->voices[i];Ngs2Atrac9Voice *s=&states[i];
     v->rack=rack;v->handle=(Ngs2Handle*)(uintptr_t)(0xa00000+i*16);
-    v->index=i;v->internal_state=NGS2_VOICE_PLAYING;v->atrac9=s;
+    v->index=i;v->pitch_ratio=1.f;v->internal_state=NGS2_VOICE_PLAYING;v->atrac9=s;
     v->waveform=(Ngs2Waveform){.valid=1,.format=i<40?NGS2_WAVEFORM_ATRAC9:NGS2_WAVEFORM_HEVAG,
       .channels=i<40?2:1,.sample_rate=48000,.codec_config=i<40?1:0};
     s->generation=1;s->pcm_count=1;

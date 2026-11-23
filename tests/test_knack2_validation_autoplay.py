@@ -64,6 +64,7 @@ class ValidationAutoplayTests(unittest.TestCase):
             self.assertEqual(saved['status'], 'valid')
             self.assertEqual(saved['game_dir'], str(game_dir.resolve()))
             self.assertEqual((saved['title_id'], saved['version']), ('CUSA08014', '01.01'))
+            first.setPlayers(2)
             first.saveSettings()
             self.assertEqual(
                 config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']['status'], 'valid')
@@ -71,10 +72,10 @@ class ValidationAutoplayTests(unittest.TestCase):
 
             second = self.make_backend(data_dir, auto_play=True)
             launched = []
-            second.play = lambda: launched.append(True)
+            second.play = lambda: launched.append(second.players)
             self.validate(second)
             self.pump_until(lambda: bool(launched))
-            self.assertEqual(launched, [True])
+            self.assertEqual(launched, [2])
             second.shutdown()
 
     def test_direct_play_needs_prior_validation_even_when_current_check_passes(self):
@@ -125,6 +126,37 @@ class ValidationAutoplayTests(unittest.TestCase):
             saved = config.load_launcher_settings(data_dir / 'launcher_settings.json')['validation']
             self.assertEqual(saved['status'], 'invalid')
             backend.shutdown()
+
+    def test_unverified_version_warns_and_requires_manual_play_even_with_saved_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data_dir, game_dir = root / 'data', root / 'game'
+            data_dir.mkdir(); game_dir.mkdir()
+            config.save_launcher_settings({
+                'game_dir': str(game_dir),
+                'validation': {'schema': 1, 'status': 'valid', 'game_dir': str(game_dir.resolve()),
+                               'title_id': 'CUSA08014', 'version': '01.01'},
+            }, path=data_dir / 'launcher_settings.json')
+            result = {**self.result(), 'verification_status': 'unverified',
+                      'unverified_executables': ['eboot.bin']}
+            backend = self.make_backend(data_dir, result=result, auto_play=True)
+            launched = []
+            backend.play = lambda: launched.append(True)
+            try:
+                self.validate(backend)
+                self.assertEqual(launched, [])
+                self.assertTrue(backend.canPlay)
+                self.assertTrue(backend.unverifiedVersion)
+                for locale, phrase in (('pt-BR', 'qualidade, compatibilidade'),
+                                       ('en-US', 'quality, compatibility'),
+                                       ('ru-RU', 'качество, совместимость')):
+                    backend.setUiLanguage(locale)
+                    self.assertIn(phrase, backend.validationText)
+                backend.selectFolder(str(root / 'other'))
+                self.assertFalse(backend.unverifiedVersion)
+                self.assertFalse(backend.canPlay)
+            finally:
+                backend.shutdown()
 
 
 if __name__ == '__main__':

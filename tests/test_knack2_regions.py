@@ -73,7 +73,7 @@ class RegionTests(unittest.TestCase):
         (game / 'sce_sys/param.sfo').write_bytes(sfo_bytes('CUSA08014'))
         selected = validator.load_profile(game_dir=game, repo_root=self.repo)
         self.assertEqual(selected['title_id'], 'CUSA08014')
-        with self.assertRaises(validator.KnackHashMismatchError):
+        with self.assertRaises(validator.KnackExecutableError):
             validator.validate_knack2_dump(game, repo_root=self.repo)
 
     def test_foreign_ids_and_versions_fail_before_profile_reads(self):
@@ -91,12 +91,12 @@ class RegionTests(unittest.TestCase):
         with self.assertRaises(validator.KnackProfileError):
             validator.load_profile(game_dir=self.games['CUSA07670'], repo_root=self.repo)
 
-    def test_mixed_executable_cannot_pass_hash_validation(self):
+    def test_unrecognized_non_executable_cannot_pass_structural_validation(self):
         eu, us = self.games['CUSA07670'], self.games['CUSA08014']
         (eu / 'game.elf').write_bytes((us / 'game.elf').read_bytes())
-        with self.assertRaises(validator.KnackHashMismatchError):
+        with self.assertRaises(validator.KnackExecutableError):
             validator.validate_knack2_dump(eu, repo_root=self.repo)
-        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+        with self.assertRaises(validator.KnackExecutableError):
             run.validate_game(eu, self.profiles['CUSA07670'])
 
     def test_explicit_wrong_profile_cannot_override_sfo(self):

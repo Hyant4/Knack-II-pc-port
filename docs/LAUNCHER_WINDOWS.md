@@ -33,6 +33,11 @@ Na instalação local, abra **Knack II.exe**, na raiz do projeto. Em PowerShell:
 3. Em **Configurações**, escolha idioma, jogadores e ajustes gráficos.
 4. Clique em **Jogar**. Para encerrar, use **Encerrar sessão**.
 
+Hashes desconhecidos não impedem o teste de executáveis com estrutura suportada.
+O launcher mostra aviso de versão não verificada e oferece **Jogar mesmo assim**.
+Nesse caso, `Play Knack II.exe` abre o launcher e aguarda início manual. O aviso
+significa que qualidade, compatibilidade e estabilidade ainda não foram avaliadas.
+
 Abrir o launcher não inicia o jogo. A pasta selecionada é salva automaticamente;
 na próxima abertura, o caminho reaparece, mas a validação continua obrigatória.
 Essa gravação não salva outros ajustes ainda não confirmados. Use **Salvar
@@ -74,7 +79,9 @@ reaplique o único preset GTX para adotar os novos ajustes de desempenho.
 
 O padrão é um jogador, P1=1. Para cooperativo, selecione explicitamente dois
 jogadores e conecte dois controles. P2 usa o ID interno fixo 4099; não há campo
-de ID na interface. A opção de dois jogadores não é restaurada automaticamente.
+de ID na interface. Clique em **Salvar configurações** para lembrar a seleção
+de um ou dois jogadores na próxima abertura, inclusive pelo atalho de jogo
+direto. Preferências antigas sem essa seleção continuam abrindo com um jogador.
 
 Partidas iniciadas pelo launcher não têm limite de duração. Ele envia
 `--timeout 0` ao supervisor e mantém o controle de encerramento dos filhos.
