@@ -47,14 +47,14 @@ Após configurar o jogo, **`Play Knack II.exe`** pode iniciar com as preferênci
 
 ### Linux (experimental, x86-64)
 
-Baixe `Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage` em [Linux RC1](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.18.3-vulkan-loader-rc1) e execute:
+Baixe `Knack-II-x86_64-0.18.7.AppImage` em [Linux AppImage](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.18.7) e execute:
 
 ```bash
-chmod +x Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage
-./Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage
+chmod +x Knack-II-x86_64-0.18.7.AppImage
+./Knack-II-x86_64-0.18.7.AppImage
 ```
 
-Se não houver FUSE, use `./Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage --appimage-extract-and-run`.
+Se não houver FUSE, use `./Knack-II-x86_64-0.18.7.AppImage --appimage-extract-and-run`.
 
 **Requisitos Linux:** Vulkan 1.3+ e **glibc 2.43+**. O AppImage foi compilado em Ubuntu 26.04; não inclui glibc ou drivers gráficos, nem funciona em sistemas com glibc anterior. A compatibilidade com Linux Mint não foi certificada. O pacote abre o launcher, mas **não inclui o extrator PKG do Windows**: selecione um dump próprio já extraído.
 
