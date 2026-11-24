@@ -1,3 +1,11 @@
+## Windows 0.18.8.1
+
+Corrige a falha `verification_status` que interrompia o supervisor antes de abrir o jogo. O ZIP da 0.18.8 incluía uma cópia antiga de `run.py`. Este pacote inclui o script correspondente ao supervisor e ao launcher.
+
+Baixe e extraia o ZIP inteiro em uma pasta nova. O launcher continua usando os dados de usuário da instalação anterior.
+
+A abertura do launcher e a preparação dos dois executáveis foram verificadas no Windows com um dump americano. A edição chinesa CUSA08096 01.01 ainda aguarda reteste de boot, legendas e voz na [issue #32](https://github.com/Hyant4/Knack-II-pc-port/issues/32).
+
 ## 0.18.8 — Edição chinesa e validação regional
 
 - Perfil experimental CUSA08096 01.01 e launcher em chinês simplificado.

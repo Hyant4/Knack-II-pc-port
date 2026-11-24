@@ -29,7 +29,8 @@ def main():
     application_version = display_version(root)
     if application_version == 'dev':
         raise ValueError('A semantic application version is required in VERSION before packaging.')
-    major, minor, patch = map(int, application_version.split('-', 1)[0].split('.'))
+    parts = tuple(map(int, application_version.split('-', 1)[0].split('.')))
+    major, minor, patch, revision = (parts + (0,))[:4]
     from port.launcher.knack2.identity import identity_assets
     icon = identity_assets() / 'Knack.ico'
     if not icon.is_file():
@@ -59,11 +60,11 @@ def main():
                 raise ValueError('PKG helper bundle differs from its manifest.')
     version = build / 'launcher-version.txt'
     version.write_text(f"""VSVersionInfo(
-ffi=FixedFileInfo(filevers=({major},{minor},{patch},0),prodvers=({major},{minor},{patch},0),mask=0x3f,flags=2,OS=0x40004,fileType=1,subtype=0,date=(0,0)),
+ffi=FixedFileInfo(filevers=({major},{minor},{patch},{revision}),prodvers=({major},{minor},{patch},{revision}),mask=0x3f,flags=2,OS=0x40004,fileType=1,subtype=0,date=(0,0)),
 kids=[StringFileInfo([StringTable('040904B0',[
 StringStruct('CompanyName','Knack II PC Port contributors'),
 StringStruct('FileDescription','Knack II PC Launcher'),
-StringStruct('FileVersion','{major}.{minor}.{patch}.0'),StringStruct('InternalName','KnackII.Launcher'),
+StringStruct('FileVersion','{major}.{minor}.{patch}.{revision}'),StringStruct('InternalName','KnackII.Launcher'),
 StringStruct('OriginalFilename','Knack II.exe'),StringStruct('ProductName','Knack II PC Port'),
 StringStruct('ProductVersion','{application_version}'),StringStruct('LegalCopyright','See README.md and upstream licenses.')])]),
 VarFileInfo([VarStruct('Translation',[1033,1200])])])""", encoding='utf-8')
