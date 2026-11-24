@@ -92,16 +92,24 @@ jobs:
         run: |
           dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
           dnf install -y libavcodec-freeworld
-      - name: Build Linux runtime and run native tests
+      - name: Build Linux runtime and native test targets
+        shell: bash
         run: |
-          compiler="$(mktemp -d)/gcc-posix"
-          # Match the POSIX API level of the Linux CMake runtime target.
-          cat > "$compiler" <<'EOF'
-          #!/usr/bin/env bash
-          exec gcc -D_POSIX_C_SOURCE=200809L "$@"
-          EOF
-          chmod +x "$compiler"
-          CC="$compiler" bash port/build.sh --test
+          export TLG_BUILD_COMMIT="${GITHUB_SHA:0:12}"
+          cmake -S port/gpu -B port/out-linux -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTLG_PGO=off -DTLG_LTO="$TLG_LTO"
+          cmake --build port/out-linux --parallel "$TLG_BUILD_JOBS" --target \
+            tlg-probe runtime-test sema-test freeze-test videodec-test isa-sse4a-test isa-f16c-test
+      - name: Run Linux native contracts
+        shell: bash
+        run: |
+          export KNACK2_TEST_BUILD_DIR="$PWD/port/out-linux"
+          python3 -B -m unittest discover -s port/tests -p test_runtime.py -v
+          python3 -B -m unittest discover -s port/tests -p test_sema.py -v
+          timeout 15 "$KNACK2_TEST_BUILD_DIR/freeze-test"
+          timeout 60 "$KNACK2_TEST_BUILD_DIR/videodec-test" port/tests/data/tiny.h264
+          timeout 60 "$KNACK2_TEST_BUILD_DIR/isa-sse4a-test"
+          timeout 60 "$KNACK2_TEST_BUILD_DIR/isa-f16c-test"
       - name: Check Knack II LoadExec handoff
         run: |
           mkdir -p out
