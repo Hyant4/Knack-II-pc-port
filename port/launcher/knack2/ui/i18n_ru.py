@@ -277,3 +277,5 @@ RUSSIAN = {
     'Idioma do jogo aplicado na próxima sessão. Valide a pasta para conferir os idiomas instalados.': 'Язык игры применяется в следующем сеансе. Проверьте папку, чтобы узнать доступные языки.',
     'Use o seletor no topo para trocar o idioma do launcher.': 'Выберите язык лаунчера в верхней части окна.',
 }
+
+RUSSIAN.update({'Junta barreiras de imagem equivalentes e confere formatos de vértices. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': 'Объединяет эквивалентные барьеры изображений и проверяет форматы вершин. Остальные настройки сохраняются. Сохраните настройки и перезапустите игру для сравнения.', 'Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão.': 'Выберите профиль RX 580 для его исправлений. Смена профиля отключает их в следующем сеансе.'})

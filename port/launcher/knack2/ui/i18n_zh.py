@@ -300,3 +300,5 @@ CHINESE = {
     'Selecione a pasta do jogo antes de escolher o update.': '请选择游戏文件夹，再选择更新。',
     'América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. China: CUSA08096 01.01 (experimental).': '美洲版：CUSA08014 01.00 或 01.01。欧洲版：CUSA07670 01.01。中国版：CUSA08096 01.01（实验性支持）。',
 }
+
+CHINESE.update({'Junta barreiras de imagem equivalentes e confere formatos de vértices. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': '合并等效图像屏障并检查顶点格式。请保存并重启游戏。', 'Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão.': '选择 RX 580 预设以应用专用修正。切换预设后下次启动时将停用修正。'})

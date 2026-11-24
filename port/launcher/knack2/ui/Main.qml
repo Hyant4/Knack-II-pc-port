@@ -206,7 +206,7 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 28; spacing: 28
                     ColumnLayout {
                         Layout.preferredWidth: 245; Layout.maximumWidth: 245; Layout.minimumWidth: 210; Layout.alignment: Qt.AlignTop; spacing: 12
-                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : backend.unverifiedVersion ? qsTr("Jogar mesmo assim") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
+                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
                         ActionButton { objectName: "stopButton"; Layout.fillWidth: true; visible: backend.canStop; text: backend.isDemo ? qsTr("Encerrar simulação") : qsTr("Encerrar sessão"); glyph: "stop"; danger: true; enabled: backend.canStop; onClicked: backend.stop() }
                         RowLayout {
                             Layout.fillWidth: true; visible: !backend.isDemo
@@ -250,7 +250,6 @@ ApplicationWindow {
                             }
                             SummaryItem { caption: qsTr("Instalação"); text: backend.installationId || "—"; detail: backend.installationVersion; onClicked: window.page = 3 }
                         }
-                        Label { objectName: "unverifiedVersionNotice"; visible: backend.unverifiedVersion; Layout.fillWidth: true; text: qsTr("Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis."); color: "#e5c28a"; wrapMode: Text.WordWrap; font.pixelSize: 12 }
                         Rectangle { Layout.fillWidth: true; height: 1; color: "#424650" }
                         RowLayout {
                             Layout.fillWidth: true
