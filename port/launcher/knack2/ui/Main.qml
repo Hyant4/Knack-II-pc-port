@@ -206,7 +206,7 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 28; spacing: 28
                     ColumnLayout {
                         Layout.preferredWidth: 245; Layout.maximumWidth: 245; Layout.minimumWidth: 210; Layout.alignment: Qt.AlignTop; spacing: 12
-                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
+                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : backend.unverifiedVersion ? qsTr("Jogar mesmo assim") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
                         ActionButton { objectName: "stopButton"; Layout.fillWidth: true; visible: backend.canStop; text: backend.isDemo ? qsTr("Encerrar simulação") : qsTr("Encerrar sessão"); glyph: "stop"; danger: true; enabled: backend.canStop; onClicked: backend.stop() }
                         RowLayout {
                             Layout.fillWidth: true; visible: !backend.isDemo
@@ -250,6 +250,7 @@ ApplicationWindow {
                             }
                             SummaryItem { caption: qsTr("Instalação"); text: backend.installationId || "—"; detail: backend.installationVersion; onClicked: window.page = 3 }
                         }
+                        Label { objectName: "unverifiedVersionNotice"; visible: backend.unverifiedVersion; Layout.fillWidth: true; text: qsTr("Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis."); color: "#e5c28a"; wrapMode: Text.WordWrap; font.pixelSize: 12 }
                         Rectangle { Layout.fillWidth: true; height: 1; color: "#424650" }
                         RowLayout {
                             Layout.fillWidth: true
@@ -683,12 +684,12 @@ ApplicationWindow {
                                                     return ["auto", "0", "1"].indexOf(backend.settings.barrier_merge)
                                                 })
                                             })
-                                            enabled: backend.editable
+                                            enabled: backend.editable && backend.gpuPresetId === "rx580_barriers"
                                             Accessible.name: qsTr("Junção de barreiras de imagem")
                                             onActivated: backend.setSetting("barrier_merge", ["auto", "0", "1"][currentIndex])
                                         }
                                     }
-                                    Hint { visible: window.gpuAdvanced; text: qsTr("Experimental para RX 580. Padrão deixa desligado. Salve e reinicie o jogo para comparar."); font.pixelSize: 11 }
+                                    Hint { visible: window.gpuAdvanced; text: qsTr("Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão."); font.pixelSize: 11 }
                                     RowLayout {
                                         visible: window.gpuAdvanced
                                         SettingLabel { text: qsTr("Diagnóstico de barreiras de imagem") }
@@ -703,7 +704,7 @@ ApplicationWindow {
                                                     return ["auto", "0", "1"].indexOf(backend.settings.barrier_trace)
                                                 })
                                             })
-                                            enabled: backend.editable
+                                            enabled: backend.editable && backend.gpuPresetId === "rx580_barriers"
                                             Accessible.name: qsTr("Diagnóstico de barreiras de imagem")
                                             onActivated: backend.setSetting("barrier_trace", ["auto", "0", "1"][currentIndex])
                                         }

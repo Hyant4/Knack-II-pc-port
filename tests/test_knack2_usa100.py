@@ -74,15 +74,15 @@ class Usa100Tests(unittest.TestCase):
             self.assertEqual(run.validate_game(self.game, selected)['APP_VER'], '01.00')
             self.assertEqual(module.call_count, 6)
 
-    def test_both_executable_hashes_and_modules_remain_mandatory(self):
+    def test_unknown_executables_still_require_valid_structure_and_modules(self):
         with patch.object(validator.link_modules, 'module'):
             for name in self.profile['executables']:
                 path = self.game / name
                 original = path.read_bytes()
                 path.write_bytes(original + b'changed')
-                with self.subTest(executable=name), self.assertRaises(validator.KnackHashMismatchError):
+                with self.subTest(executable=name), self.assertRaises(validator.KnackExecutableError):
                     validator.validate_knack2_dump(self.game, repo_root=self.repo)
-                with self.assertRaisesRegex(ValueError, 'SHA-256'):
+                with self.assertRaises(validator.KnackExecutableError):
                     run.validate_game(self.game, self.profile)
                 path.write_bytes(original)
             (self.game / 'sce_module/libSceJobManager.prx').unlink()

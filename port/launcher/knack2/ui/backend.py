@@ -14,7 +14,7 @@ from PySide6.QtCore import (QAbstractListModel, QModelIndex, QObject, Property,
 from PySide6.QtGui import QGuiApplication
 
 from .. import config, validator
-from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset
+from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset, gpu_settings_for_preset
 from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import RunnerState
 from .demo import DemoRunnerPort, SimulatedRunner
@@ -30,6 +30,7 @@ DEFAULTS = {'display_mode': 'windowed', 'window_resolution': 'auto', 'vsync': '1
             'fsr1': '0', 'rcas': '0', 'rcas_strength': '50',
             'mouse_enabled': '0', 'mouse_invert_y': '0',
             'gpu_readbacks': '2', 'eager_readback': '0', 'shader_preload': '1',
+            'rx580_preset': '0',
             **{key: 'auto' for key in config.GPU_DIAGNOSTIC_ENV}}
 STATE_LABELS = {'IDLE': 'Pronto para simular', 'STARTING': 'Iniciando simulação',
                 'RUNNING': 'Simulação em execução', 'STOPPING': 'Encerrando simulação',
@@ -96,6 +97,7 @@ class Backend(QObject):
         self._game_dir = ''
         self._validation = 'Nenhuma pasta selecionada.'
         self._validation_state = 'empty'
+        self._unverified_version = False
         self._installation = 'Knack II'
         self._installation_id = ''
         self._installation_version = ''
@@ -148,6 +150,7 @@ class Backend(QObject):
     validationText = Property(str, lambda self: (self._translate_error if self._validation_state == 'invalid'
                                                else self._translate)(self._validation), notify=changed)
     validationState = Property(str, lambda self: self._validation_state, notify=changed)
+    unverifiedVersion = Property(bool, lambda self: self._unverified_version, notify=changed)
     installation = Property(str, lambda self: self._installation, notify=changed)
     installationId = Property(str, lambda self: self._installation_id, notify=changed)
     installationVersion = Property(str, lambda self: self._installation_version, notify=changed)
@@ -269,8 +272,11 @@ class Backend(QObject):
         else:
             self._validating = False
             self._validation_state = 'invalid' if error else 'valid'
+            self._unverified_version = bool(not error and result.get('verification_status') == 'unverified')
             error_text = validator.describe_validation_failure(error) if error else ''
             self._validation = error_text or 'Instalação válida: metadados, executáveis e módulos conferidos.'
+            if self._unverified_version:
+                self._validation = 'Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis.'
             if not error:
                 self._installation = f"{result['app_title']} · {result['title_id']} · {result['version']}"
                 self._installation_id = result['title_id']
@@ -288,6 +294,7 @@ class Backend(QObject):
         url = QUrl(text)
         self._game_dir = str(Path(url.toLocalFile())) if url.isLocalFile() else text.strip()
         self._validation_state = 'empty'
+        self._unverified_version = False
         self._validation = 'Pasta selecionada. Valide a instalação.' if self._game_dir else 'Nenhuma pasta selecionada.'
         self._installation = 'Knack II'
         self._installation_id = ''
@@ -308,6 +315,7 @@ class Backend(QObject):
             return
         self._validating = True
         self._validation_state = 'checking'
+        self._unverified_version = False
         self._validation = 'Conferindo instalação em segundo plano…'
         path = self._game_dir
         self.changed.emit()
@@ -336,6 +344,7 @@ class Backend(QObject):
             if self.gpuPresetId != self._selected_gpu_preset:
                 self._selected_gpu_preset = None
                 self._gtx1060_diagnostic = 'off'
+            self._settings = gpu_settings_for_preset(self._settings, self.gpuPresetId)
         except ValueError as error:
             self._notice(str(error), True)
         self.settingsChanged.emit()
@@ -401,7 +410,8 @@ class Backend(QObject):
             return
         try:
             # Targets are private, generated paths. QML cannot supply a real path.
-            config.update_knack2_ini(self.workspace / 'knack2.ini', self._settings)
+            config.update_knack2_ini(self.workspace / 'knack2.ini',
+                                     gpu_settings_for_preset(self._settings, self.gpuPresetId))
             config.save_launcher_settings({'game_dir': self._game_dir, 'mode': 'demo'},
                                           path=self.workspace / 'launcher_settings.json')
         except (OSError, ValueError) as error:

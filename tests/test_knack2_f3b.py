@@ -627,6 +627,8 @@ class F3BTests(unittest.TestCase):
         self.assertFalse(set(stored) & set(config.GPU_DIAGNOSTIC_ENV))
 
     def test_gpu_diagnostic_widgets_persistence_and_session_snapshot(self):
+        self.backend.applyGpuPreset('rx580_barriers')
+        self.backend.setSetting('barrier_merge', 'auto')
         self.window.setProperty('page', 1)
         self.window.setProperty('settingsTab', 1)
         self.window.setProperty('gpuAdvanced', True)
@@ -663,6 +665,7 @@ class F3BTests(unittest.TestCase):
             self.backend.setSetting(key, 'auto')
         self.assertEqual(session.contract.config_file.read_bytes(), snapshot)
         self.finish()
+        self.backend.applyGpuPreset('default')
         next_session = self.launch()
         env = supervisor.runtime_environment(self.root / 'supervisor', config_file=next_session.contract.config_file)
         for key, variable in config.GPU_DIAGNOSTIC_ENV.items():
@@ -680,7 +683,7 @@ class F3BTests(unittest.TestCase):
         self.assertEqual(self.backend.settings['barrier_trace'], 'auto')
         before = dict(self.backend.settings)
         self.backend.applyGpuPreset('rx580_barriers')
-        self.assertEqual(self.backend.settings, {**before, 'barrier_merge': '1'})
+        self.assertEqual(self.backend.settings, {**before, 'barrier_merge': '1', 'rx580_preset': '1'})
         self.assertEqual(self.backend.gpuPresetId, 'rx580_barriers')
         self.backend.saveSettings()
         restored = RealBackend(data_dir=self.backend.workspace)
@@ -708,12 +711,74 @@ class F3BTests(unittest.TestCase):
             self.assertEqual(self.backend.settings['barrier_merge'], '1')
             self.assertEqual(self.backend.settings['barrier_trace'], '0')
         self.backend.setSetting('barrier_merge', '0')
-        self.assertNotEqual(self.backend.gpuPresetId, 'rx580_barriers')
+        self.assertEqual(self.backend.gpuPresetId, 'rx580_barriers')
         self.backend.applyGpuPreset('default')
         self.assertEqual(self.backend.settings['barrier_merge'], 'auto')
         for locale in ('es-419', 'fr-FR'):
             for key in ('label', 'when', 'changes'):
                 self.assertNotEqual(translate(locale, profile[key]), profile[key])
+
+    def test_leaving_rx580_disables_every_specific_flag_in_next_session(self):
+        from port.launcher.knack2.gpu_presets import gpu_preset_targets
+        self.validate()
+        self.window.setProperty('page', 1)
+        self.window.setProperty('settingsTab', 1)
+        self.window.setProperty('gpuAdvanced', True)
+        for destination in ('default', 'amd_compat', 'conservative', 'gtx_1060_black_texture'):
+            with self.subTest(destination=destination):
+                self.backend.applyGpuPreset('rx580_barriers')
+                self.backend.setSetting('barrier_trace', '1')
+                active = self.launch()
+                active_bytes = active.contract.config_file.read_bytes()
+                env = supervisor.runtime_environment(self.root, config_file=active.contract.config_file)
+                self.assertEqual(env['TLG_RX580_PRESET'], '1')
+                self.assertEqual(env['TLG_BARRIER_MERGE'], '1')
+                self.finish()
+                before = dict(self.backend.settings)
+                self.backend.applyGpuPreset(destination)
+                targets = gpu_preset_targets(destination)
+                self.assertEqual(self.backend.settings, {**before, **targets})
+                self.backend.saveSettings()
+                stored = config.load_launcher_settings(self.backend.workspace / 'launcher_settings.json')
+                self.assertEqual(stored['settings']['rx580_preset'], '0')
+                self.assertEqual(stored['gpu_preset'], destination)
+                self.pump()
+                for name in ('gpuDiagnosticBarrierMerge', 'gpuDiagnosticBarrierTrace'):
+                    self.assertFalse(self.window.findChild(QObject, name).property('enabled'))
+                next_session = self.launch()
+                env = supervisor.runtime_environment(self.root, config_file=next_session.contract.config_file)
+                for variable in ('TLG_RX580_PRESET', 'TLG_BARRIER_MERGE', 'TLG_BARRIER_TRACE'):
+                    self.assertNotIn(variable, env)
+                self.assertEqual(active.contract.config_file.read_bytes(), active_bytes)
+                self.finish()
+
+    def test_rx580_restore_requires_explicit_preset_metadata(self):
+        cases = [
+            ({'gpu_preset': 'rx580_barriers', 'settings': {'barrier_merge': '1'}}, True),
+            ({'gpu_preset': 'rx580_barriers', 'settings': {'rx580_preset': '1',
+               'barrier_merge': '0', 'barrier_trace': '1'}}, True),
+            ({'settings': {'rx580_preset': '1', 'barrier_merge': '1', 'barrier_trace': '1'}}, False),
+            ({'gpu_preset': 'custom', 'settings': {'rx580_preset': '1', 'barrier_merge': '1'}}, False),
+            ({'gpu_preset': 'gtx_1060_black_texture', 'settings': {'rx580_preset': '1',
+               'barrier_merge': '1', 'barrier_trace': '1'}}, False),
+            ({'gpu_preset': 'rx580_barriers', 'settings': {'rx580_preset': '0',
+               'barrier_merge': '1'}}, False),
+        ]
+        for index, (saved, active) in enumerate(cases):
+            with self.subTest(index=index):
+                data = self.root / f'restore-rx580-{index}'
+                config.save_launcher_settings(saved, path=data / 'launcher_settings.json')
+                restored = RealBackend(data_dir=data)
+                try:
+                    self.assertEqual(restored.settings['rx580_preset'], '1' if active else '0')
+                    restored.saveSettings()
+                    env = supervisor.runtime_environment(self.root, config_file=data / 'knack2.ini')
+                    self.assertEqual(env.get('TLG_RX580_PRESET'), '1' if active else None)
+                    if not active:
+                        self.assertNotIn('TLG_BARRIER_MERGE', env)
+                        self.assertNotIn('TLG_BARRIER_TRACE', env)
+                finally:
+                    restored.shutdown()
 
     def test_gpu_diagnostic_labels_follow_launcher_language(self):
         from port.launcher.knack2.ui.i18n import translate
@@ -853,7 +918,7 @@ class F3BTests(unittest.TestCase):
         restored = RealBackend(data_dir=self.backend.workspace)
         try:
             self.assertEqual(restored.uiLanguage, 'fr-FR')
-            self.assertEqual(restored.players, 1)
+            self.assertEqual(restored.players, 2)
         finally:
             restored.shutdown()
 
@@ -918,20 +983,95 @@ class F3BTests(unittest.TestCase):
         self.until(lambda: not self.window.isVisible())
         self.assertTrue(session.closed)
 
-    def test_saved_settings_restore_but_never_restore_p2_or_trust_dump(self):
+    def test_saved_settings_restore_players_without_trusting_dump(self):
         self.validate()
         self.backend.setPlayers(2)
         self.backend.setSetting('vsync', False)
         self.backend.saveSettings()
-        restored = RealBackend(data_dir=self.backend.workspace)
+        restored = RealBackend(data_dir=self.backend.workspace,
+                               session_factory=self.backend._session_factory,
+                               validate_dump=self.backend._validate_dump)
         try:
-            self.assertEqual(restored.players, 1)
+            self.assertEqual(restored.players, 2)
             self.assertFalse(hasattr(restored, 'setP2UserId'))
             self.assertEqual(restored.settings['vsync'], '0')
             self.assertEqual(restored.gameDir, self.backend.gameDir)
             self.assertFalse(restored.canPlay)
+            restored.autoValidateSavedDump()
+            self.until(lambda: not restored.validating)
+            restored.play()
+            self.until(lambda: restored.state == 'RUNNING' and not restored._working())
+            session = self.sessions[-1].contract
+            self.assertEqual(session.local_users, 2)
+            command = session.build_command()
+            self.assertEqual(command[command.index('--p2-user-id') + 1], '4099')
+            self.assertTrue(session.out_dir.name.startswith('coop-'))
+            self.assertEqual(session.user_data, self.backend.workspace / 'profiles/shared/user')
+            restored.stop()
+            self.until(lambda: restored.state == 'FINISHED' and not restored._working())
         finally:
             restored.shutdown()
+
+    def test_qml_save_and_reopen_preserves_players_and_graphics(self):
+        self.window.setProperty('page', 1)
+        self.pump()
+        players = self.window.findChild(QObject, 'playerCount')
+        players.setProperty('currentIndex', 1)
+        players.activated.emit(1)
+        self.backend.applyGpuPreset('rx580_barriers')
+        self.backend.setSetting('vsync', False)
+        button = self.window.findChild(QObject, 'saveDemoSettings')
+        button.clicked.emit()
+        self.pump()
+        path = self.backend.workspace / 'launcher_settings.json'
+        saved = config.load_launcher_settings(path)
+        self.assertEqual(saved['players'], 2)
+        self.assertEqual(saved['settings']['vsync'], '0')
+        self.assertTrue(self.backend.requestClose())
+        restored = RealBackend(data_dir=path.parent)
+        engine, window, _ = create_window(restored)
+        try:
+            window.setProperty('page', 1)
+            self.pump()
+            self.assertEqual(restored.players, 2)
+            self.assertEqual(window.findChild(QObject, 'playerCount').property('currentIndex'), 1)
+            for language in ('en-US', 'ru-RU', 'pt-BR'):
+                restored.setUiLanguage(language)
+                self.pump()
+                self.assertEqual(window.findChild(QObject, 'playerCount').property('currentIndex'), 1)
+            self.assertEqual(restored.settings['vsync'], '0')
+            self.assertEqual(restored.gpuPresetId, 'rx580_barriers')
+            self.assertEqual(restored.settings['rx580_preset'], '1')
+            self.assertFalse(restored.canPlay)
+            restored.setPlayers(1)
+            restored.saveSettings()
+            self.assertEqual(config.load_launcher_settings(path)['players'], 1)
+        finally:
+            window.close()
+            restored.shutdown()
+            engine.deleteLater()
+            self.pump()
+
+    def test_missing_or_invalid_saved_players_falls_back_to_single_player(self):
+        path = self.backend.workspace / 'launcher_settings.json'
+        for value in (None, True, False, '2', 2.0, 0, 3, [], {}):
+            with self.subTest(value=value):
+                config.save_launcher_settings({'players': value}, path=path)
+                restored = RealBackend(data_dir=path.parent)
+                try:
+                    self.assertEqual(restored.players, 1)
+                finally:
+                    restored.shutdown()
+
+    def test_failed_settings_save_preserves_previous_player_preference(self):
+        self.backend.saveSettings()
+        path = self.backend.workspace / 'launcher_settings.json'
+        before = path.read_bytes()
+        self.backend.setPlayers(2)
+        with patch.object(config, 'save_launcher_settings', side_effect=OSError('synthetic disk error')):
+            self.backend.saveSettings()
+        self.assertEqual(path.read_bytes(), before)
+        self.assertIn('synthetic disk error', self.backend.notification)
 
     def test_data_overlap_fails_before_writes(self):
         self.validate()
