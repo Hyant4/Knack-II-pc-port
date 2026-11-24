@@ -45,6 +45,23 @@ jobs:
           sudo apt-get install -y libegl1
       - name: Install existing Python test dependencies
         run: python -m pip install iced-x86==1.21.0 PySide6-Essentials==6.12.0
+      - name: Set up CLANG64 for Windows tests
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@3c51bf698df1e37b2261f53cb67797b97761185c # v2.34.0
+        id: msys2
+        with:
+          msystem: CLANG64
+          release: false
+          install: mingw-w64-clang-x86_64-clang
+      - name: Configure Windows test paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLANG64_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "MSYS2_ROOT=$env:CLANG64_ROOT" >> $env:GITHUB_ENV
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - name: Knack II launcher and supervisor
         run: python -B -m unittest discover -s tests -p 'test_knack2*.py' -v
       - name: Preparation and linker
