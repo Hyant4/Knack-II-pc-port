@@ -18,11 +18,12 @@ class Usa100Tests(unittest.TestCase):
     def test_installation_hint_names_supported_base_in_all_launcher_languages(self):
         from port.launcher.knack2.ui.i18n import translate
         source = ('América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. '
-                  'Metadados, hashes e módulos devem ser válidos para jogar.')
-        for language in ('pt-BR', 'en-US', 'ru-RU'):
+                  'China: CUSA08096 01.01 (experimental).')
+        for language in ('pt-BR', 'en-US', 'ru-RU', 'zh-CN'):
             message = translate(language, source)
             self.assertIn('CUSA08014 01.00', message)
             self.assertIn('CUSA07670 01.01', message)
+            self.assertIn('CUSA08096 01.01', message)
             self.assertNotIn('CUSA07670 01.00', message)
             if language != 'pt-BR':
                 self.assertNotEqual(message, source)
@@ -73,15 +74,15 @@ class Usa100Tests(unittest.TestCase):
             self.assertEqual(run.validate_game(self.game, selected)['APP_VER'], '01.00')
             self.assertEqual(module.call_count, 6)
 
-    def test_unknown_executables_still_require_valid_structure_and_modules(self):
+    def test_both_executable_hashes_and_modules_remain_mandatory(self):
         with patch.object(validator.link_modules, 'module'):
             for name in self.profile['executables']:
                 path = self.game / name
                 original = path.read_bytes()
                 path.write_bytes(original + b'changed')
-                with self.subTest(executable=name), self.assertRaises(validator.KnackExecutableError):
+                with self.subTest(executable=name), self.assertRaises(validator.KnackHashMismatchError):
                     validator.validate_knack2_dump(self.game, repo_root=self.repo)
-                with self.assertRaises(validator.KnackExecutableError):
+                with self.assertRaisesRegex(ValueError, 'SHA-256'):
                     run.validate_game(self.game, self.profile)
                 path.write_bytes(original)
             (self.game / 'sce_module/libSceJobManager.prx').unlink()

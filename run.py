@@ -30,8 +30,9 @@ from port.launcher.knack2.config import (load_knack2_ini, sanitize_and_validate_
                                        validate_graphics_settings, gpu_diagnostic_environment,
                                        GPU_DIAGNOSTIC_ENV)
 from port.launcher.knack2.validator import (default_profile_path, load_profile, profile_id, SUPPORTED_PROFILES,
-                                          executable_layout_for_hash, validate_executable_layout,
-                                          validate_knack2_dump)
+                                          CHINESE_PROFILE, UNVERIFIED_LAYOUT, UNVERIFIED_WARNING,
+                                          KnackHashMismatchError, KnackVersionMismatchError, validate_knack2_dump,
+                                          executable_layout_for_hash, validate_executable_layout)
 
 
 def digest(path):
@@ -40,10 +41,19 @@ def digest(path):
 
 
 def validate_game(game, profile):
-    result = validate_knack2_dump(game, profile=profile)
-    return {**result['sfo_values'], **{key: result[key] for key in (
-        'executable_layout', 'game_elf_sha256', 'verification_status',
-        'unverified_executables', 'executable_hashes', 'executable_layout_verified')}}
+    values = prepare.load_sfo(game / 'sce_sys/param.sfo')
+    if (values.get('TITLE_ID'), values.get('APP_VER')) != (profile['title_id'], profile['version']):
+        raise ValueError(f"This profile requires {profile['title_id']} version {profile['version']}")
+    for name, expected in profile['executables'].items():
+        actual = digest(prepare.executable_path(game, name))
+        if name == 'game.elf':
+            values = {**values, 'executable_layout': executable_layout_for_hash(profile, actual),
+                      'game_elf_sha256': actual}
+        elif actual != expected:
+            raise KnackHashMismatchError(f'{name}: SHA-256 differs from the supported dump')
+    for name in {m for modules in profile['modules'].values() for m in modules}:
+        link_modules.module(game / 'sce_module' / name)
+    return values
 
 
 NGS2_MODULE = 'libSceNgs2.sprx'
@@ -78,11 +88,18 @@ def with_system_modules(profile, ngs2):
 
 
 def prepare_image(game, profile, executable, out, *, executable_layout=None):
-    # Preserve American cache paths; European images never replace those images.
-    cache = out if profile_id(profile) == 'CUSA08014-01.01' else out / profile_id(profile)
-    layout = validate_executable_layout(profile_id(profile), executable_layout)
-    if layout != validate_executable_layout(profile_id(profile)):
-        cache = out / profile_id(profile) / layout
+    if executable_layout == UNVERIFIED_LAYOUT:
+        hashes = profile['executables']
+        identity = f'{profile["title_id"]}-{profile["version"]}:{hashes["eboot.bin"]}:{hashes["game.elf"]}'
+        dump_key = hashlib.sha256(identity.encode('ascii')).hexdigest()
+        cache = out / 'unverified' / dump_key
+    else:
+        selected_profile = profile_id(profile)
+        # Preserve the original American cache path.
+        cache = out if selected_profile == 'CUSA08014-01.01' else out / selected_profile
+        layout = validate_executable_layout(selected_profile, executable_layout)
+        if layout != validate_executable_layout(selected_profile):
+            cache = out / selected_profile / layout
     folder = cache / executable.replace('.', '_')
     folder.mkdir(parents=True, exist_ok=True)
     modules = profile['modules'][executable]
@@ -100,16 +117,25 @@ def prepare_image(game, profile, executable, out, *, executable_layout=None):
     return folder
 
 
-def require_runtime_layout(probe, layout):
-    """Older runtimes must not silently ignore an alternative code identity."""
+def require_runtime_layout(probe, layout, *, chinese_profile=False):
+    """Check that the runtime implements the code mode before image preparation."""
     try:
         result = subprocess.run([str(probe), '--cpu-features'], capture_output=True, text=True,
                                 encoding='utf-8', errors='replace', timeout=10, check=False)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise ValueError('Não foi possível conferir suporte do runtime ao layout do executável') from error
+    lines = result.stdout.splitlines()
+    if layout == UNVERIFIED_LAYOUT:
+        if result.returncode != 0 or 'KNACK2_UNVERIFIED_DUMPS_V1=1' not in lines:
+            raise ValueError('Atualize o runtime para executar dumps ainda não validados.')
+        return
     prefix = 'KNACK2_EXECUTABLE_LAYOUTS_V1='
-    supported = {item for line in result.stdout.splitlines() if line.startswith(prefix)
+    supported = {item for line in lines if line.startswith(prefix)
                  for item in line[len(prefix):].split(',')}
+    if chinese_profile and (result.returncode != 0 or
+                            f'KNACK2_CHINESE_PROFILE_V1={CHINESE_PROFILE}' not in lines):
+        raise ValueError(f'Runtime instalado não oferece suporte ao perfil {CHINESE_PROFILE}. '
+                         'Use um runtime correspondente ao launcher atualizado.')
     if result.returncode != 0 or layout not in supported:
         raise ValueError('Runtime instalado não oferece suporte a esta variante de game.elf. '
                          'Use um runtime correspondente ao launcher atualizado.')
@@ -174,9 +200,11 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
                         vulkan_validation='off', ngs2=False):
     if vulkan_validation not in ('off', 'core', 'sync'):
         raise ValueError('Unsupported Vulkan validation mode')
-    if profile not in SUPPORTED_PROFILES:
-        raise ValueError('Unsupported Knack II runtime profile')
-    executable_layout = validate_executable_layout(profile, executable_layout)
+    unverified = profile == executable_layout == UNVERIFIED_LAYOUT
+    if not unverified:
+        if profile not in SUPPORTED_PROFILES:
+            raise ValueError('Unsupported Knack II runtime profile')
+        executable_layout = validate_executable_layout(profile, executable_layout)
     users = local_user_environment(local_users, second_user)
     locale = language_environment(language)
     if config_file is not None:
@@ -194,6 +222,8 @@ def runtime_environment(out, *, pad_file=None, capture_dir=None, local_users=1, 
     preset = sanitize_and_validate_key_value('preset', settings.get('preset', '0'))[1]
     internal = sanitize_and_validate_key_value('internal_resolution',
                                               settings.get('internal_resolution', 'auto'))[1]
+    if unverified:
+        antialiasing, upscaler, internal = 'native', 'off', 'auto'
     # Old launchers' title-specific overrides must not bleed into this profile.
     env = {k: v for k, v in os.environ.items()
            if k == 'TLG_TOGGLE_FILE' or not k.startswith(('TLG_', 'ISS_', 'GR2_', 'GOW3_', 'BB_'))}
@@ -378,17 +408,36 @@ def _main(argv, lifetime):
         if sys.platform != 'win32' and not os.access(probe, os.X_OK):
             parser.error(f'Runtime is not executable: {probe}')
     profile_path = default_profile_path(ROOT, experimental_build=True) if args.experimental_build else None
-    profile = load_profile(profile_path=profile_path, game_dir=game, repo_root=ROOT)
-    validated = validate_game(game, profile)
-    if validated.get('verification_status') == 'unverified':
-        print('WARNING: Unverified game version. Quality, compatibility and stability have not '
-              'been verified for these executables.', flush=True)
+    unverified = False
+    try:
+        profile = load_profile(profile_path=profile_path, game_dir=game, repo_root=ROOT)
+        validated = validate_game(game, profile)
+    except (KnackHashMismatchError, KnackVersionMismatchError):
+        if profile_path is not None:
+            raise
+        validated = validate_knack2_dump(game, repo_root=ROOT, allow_unverified=True)
+        profile = validated.get('launch_profile')
+        if profile is None:
+            raise
+        unverified = True
+        print(UNVERIFIED_WARNING, flush=True)
     executable_layout = validated['executable_layout']
+    selected_profile = (f'{profile["title_id"]}-{profile["version"]}' if unverified else profile_id(profile))
+    chinese_profile = selected_profile == CHINESE_PROFILE
+    default_layout = UNVERIFIED_LAYOUT if unverified else validate_executable_layout(selected_profile)
+    language = args.language
+    if language is None and chinese_profile and not unverified:
+        language = 'zh-CN'
     if args.gtx1060_diagnostic in ('capture', 'capture_linear'):
         require_capture_runtime(probe)
-    if not args.analyze and executable_layout != validate_executable_layout(profile_id(profile)):
+    if not args.analyze and unverified:
         require_runtime_layout(probe, executable_layout)
-    if args.language is not None and args.language not in discover_languages(game, title_id=profile['title_id']):
+    elif not args.analyze and chinese_profile:
+        require_runtime_layout(probe, executable_layout, chinese_profile=True)
+    elif not args.analyze and executable_layout != default_layout:
+        require_runtime_layout(probe, executable_layout)
+    if language is not None and language not in discover_languages(
+            game, title_id=None if unverified else profile['title_id']):
         raise ValueError('--language is not installed in this dump')
     if args.user_data is not None and not args.analyze:
         lifetime.enter_context(user_data_lock(user))
@@ -397,14 +446,15 @@ def _main(argv, lifetime):
         print(f'Audio: firmware NGS2 {ngs2}', flush=True)
     profile = with_system_modules(profile, ngs2)
     preparation = ({'executable_layout': executable_layout}
-                   if executable_layout != validate_executable_layout(profile_id(profile)) else {})
+                   if unverified or executable_layout != default_layout else {})
     images = {name: prepare_image(game, profile, name, out, **preparation) for name in profile['executables']}
     if args.analyze:
         print(f'Analysis complete: {out}. Execution and visual boot remain unverified.')
         return 0
+    runtime_profile = UNVERIFIED_LAYOUT if unverified else selected_profile
     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                               local_users=args.local_users, second_user=args.p2_user_id,
-                              config_file=args.config, language=args.language, profile=profile_id(profile),
+                              config_file=args.config, language=language, profile=runtime_profile,
                               executable_layout=executable_layout, vulkan_validation=args.vulkan_validation, ngs2=bool(ngs2))
     user.mkdir(parents=True, exist_ok=True)
     if not args.check_imports:
@@ -418,22 +468,18 @@ def _main(argv, lifetime):
     session.mkdir()
     diagnostic_env = gtx1060_environment(args.gtx1060_diagnostic, session)
     env.update(diagnostic_env)
-    report = {'profile': profile_id(profile), 'experimental_build': args.experimental_build,
+    report = {'profile': selected_profile, 'experimental_build': args.experimental_build,
+              'dump_verified': not unverified,
               'firmware_ngs2': bool(ngs2), 'mode': 'imports' if args.check_imports else 'run',
               'executable_layout': executable_layout, 'game_elf_sha256': validated['game_elf_sha256'],
-              'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': args.language,
+              'local_users': args.local_users, 'p2_user_id': args.p2_user_id, 'language': language,
               'user_data': str(user),
               'gpu_readbacks': int(env['TLG_READBACKS']), 'eager_readback': env['TLG_EAGER_READBACK'] == '1',
               'shader_preload': env.get('TLG_BACKGROUND_WARMUP') == '0',
               'vulkan_validation_requested': args.vulkan_validation,
-              'rx580_preset': env.get('TLG_RX580_PRESET') == '1',
               'visual_verified': False, 'stages': []}
     diagnostic_choices = {key: env[variable] for key, variable in GPU_DIAGNOSTIC_ENV.items()
                           if variable in env}
-    report['verification_status'] = validated.get('verification_status', 'reference')
-    report['unverified_executables'] = validated.get('unverified_executables', [])
-    report['executable_hashes'] = validated.get('executable_hashes', {})
-    report['executable_layout_verified'] = validated.get('executable_layout_verified', True)
     report['gpu_diagnostics'] = diagnostic_choices
     if diagnostic_choices:
         print('GPU diagnostic overrides: ' + ', '.join(
@@ -496,8 +542,8 @@ def _main(argv, lifetime):
                         return 124
                     env = runtime_environment(out, pad_file=args.pad_file, capture_dir=args.capture_dir,
                                               local_users=args.local_users, second_user=args.p2_user_id,
-                                              config_file=args.config, language=args.language,
-                                              profile=profile_id(profile), executable_layout=executable_layout,
+                                              config_file=args.config, language=language,
+                                              profile=runtime_profile, executable_layout=executable_layout,
                                               vulkan_validation=args.vulkan_validation)
                     env.update(diagnostic_env)
                     continue

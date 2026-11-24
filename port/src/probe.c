@@ -1201,6 +1201,8 @@ int main(int argc, char **argv) {
         if (cpu_missing_sets) printf("CPU: missing %s\n", missing);
         else puts("CPU: complete");
         puts("KNACK2_EXECUTABLE_LAYOUTS_V1=elf-80ccc228,elf-0b7843d3");
+        puts("KNACK2_CHINESE_PROFILE_V1=CUSA08096-01.01");
+        puts("KNACK2_UNVERIFIED_DUMPS_V1=1");
         puts("KNACK2_BOUNDED_CAPTURE_V1=128MiB,13images,1frame");
         return 0;
     }
@@ -1245,6 +1247,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: %s boot.bin [--cpu-only] [--strict-imports] [--check-imports] [--content-profile file] [--app0 dir] [--user dir] [--patches file] [--isa-rewrite file] [--mount guest=host]... [--timeout seconds] | --vulkan-only | --cpu-features | --gamepad\n", argv[0]);
         return 1;
     }
+    const char *layout=getenv("KNACK2_EXECUTABLE_LAYOUT");
+    const char *knack_profile=getenv("KNACK2_PROFILE");
+    const int unverified_knack=layout && !strcmp(layout,"unverified") &&
+                               knack_profile && !strcmp(knack_profile,"unverified");
     {
         /* The first log line says which build and which game this is (players often can't tell
          * which zip they ran, or which dump: only CUSA00223 1.07 is supported). */
@@ -1252,8 +1258,10 @@ int main(int argc, char **argv) {
         snprintf(path, sizeof(path), "%s/sce_sys/param.sfo", app0 ? app0 : ".");
         sfo_value(path, "TITLE_ID", serial, sizeof(serial), NULL);
         sfo_value(path, "APP_VER", version, sizeof(version), NULL);
-        const char *layout=getenv("KNACK2_EXECUTABLE_LAYOUT");
-        if (layout) {
+        if (unverified_knack) {
+            if (patch_file) fail("unverified Knack dump cannot use address-based patches");
+            printf("Knack: unverified dump %s %s; regional patches disabled\n",serial,version);
+        } else if (layout) {
             const char *code_serial=NULL,*code_version=NULL;
             if (!knack_code_profile(serial,version,layout,&code_serial,&code_version))
                 fail("unknown or incompatible Knack executable layout");
@@ -1597,12 +1605,14 @@ int main(int argc, char **argv) {
         runtime_set_report_hook(isa_report_hook);
         protect(stubs, stub_area + red_zone_area, 5);
     }
-    install_knack_ultrawide(app0,segments,ns,size);
-    install_knack_native_resolution(app0,guest_executable,guest_args,guest_argc,segments,ns,size);
-    install_knack_native_aa(app0,guest_executable,segments,ns,size);
-    install_dialogue_gain(app0,segments,ns,size);
-    install_factor_probe(app0,segments,ns,size);
-    install_sync_probe(segments,ns,size);
+    if (!unverified_knack) {
+        install_knack_ultrawide(app0,segments,ns,size);
+        install_knack_native_resolution(app0,guest_executable,guest_args,guest_argc,segments,ns,size);
+        install_knack_native_aa(app0,guest_executable,segments,ns,size);
+        install_dialogue_gain(app0,segments,ns,size);
+        install_factor_probe(app0,segments,ns,size);
+        install_sync_probe(segments,ns,size);
+    }
     protect(traps, round_page((import_count + 1) * 32), 5);
     if (trace_stubs) protect(trace_stubs, round_page((import_count + 1) * TRACE_STUB_SIZE), 5);
     protect(image, round_page(size), 0);

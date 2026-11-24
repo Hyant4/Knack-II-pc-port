@@ -1,3 +1,10 @@
+## 0.18.8 — Edição chinesa e validação regional
+
+- Perfil experimental CUSA08096 01.01 e launcher em chinês simplificado.
+- Dumps reconhecidos com versão ou hashes novos podem iniciar com aviso, sem patches específicos de versão.
+- Foram executados testes automatizados e verificação do pacote Windows. Boot, legendas e voz ainda precisam de teste com o dump chinês real.
+- Esta prévia inclui Windows e fontes. O AppImage 0.18.7 segue disponível na release anterior.
+
 # Knack II PC 0.18.7
 
 ## Português

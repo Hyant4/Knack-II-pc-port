@@ -7,16 +7,16 @@ import queue
 import threading
 import uuid
 from functools import partial
-from ..validator import default_profile_path, validate_knack2_dump
+from ..validator import default_profile_path, validate_knack2_dump, UNVERIFIED_WARNING
 
 from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 
 from .. import config, pkg_update
-from ..gpu_presets import matching_gpu_preset, gpu_settings_for_preset, RX580_PRESET
+from ..gpu_presets import matching_gpu_preset
 from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import KnackRunner, RunnerState
-from ..languages import BY_CODE, REGION_LANGUAGES
+from ..languages import BY_CODE, REGION_LANGUAGES, UI_LANGUAGES
 from ..identity import runtime_path
 from ..storage import application_data_root, profile_user
 from ..paths import project_root
@@ -39,13 +39,16 @@ class RealBackend(Backend):
     closeReady = Signal()
     _stateTokenArrived = Signal(str, object, str, str)
 
-    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, experimental_build=False, initial_language=None, **kwargs):
+    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False,
+                 experimental_build=False, initial_language=None, initial_ui_language=None, **kwargs):
         if initial_language is not None and initial_language not in BY_CODE:
             raise ValueError('Idioma inicial inválido')
         self._experimental_build = bool(experimental_build)
         if self._experimental_build:
             kwargs['validate_dump'] = partial(validate_knack2_dump,
                 profile_path=default_profile_path(experimental_build=True))
+        else:
+            kwargs.setdefault('validate_dump', partial(validate_knack2_dump, allow_unverified=True))
         super().__init__(**kwargs)
         self._real_mode = True
         self._workspace.cleanup()
@@ -81,13 +84,10 @@ class RealBackend(Backend):
         self._language = initial_language if initial_language is not None else saved.get('language', 'pt-BR')
         if not isinstance(self._language, str) or self._language not in BY_CODE:
             self._language = 'pt-BR'
-        ui_language = saved.get('ui_language')
-        if isinstance(ui_language, str) and ui_language in ('pt-BR', 'en-US', 'ru-RU'):
+        ui_language = initial_ui_language or saved.get('ui_language')
+        if ui_language in UI_LANGUAGES:
             self._ui_language = ui_language
-        # Restore only an explicitly saved launcher preference, never a guest user ID.
-        players = saved.get('players')
-        if type(players) is int and players in (1, 2):
-            self._players = players
+        # P2 is deliberately never restored. Every opt-in is explicit for this UI session.
         for key, value in saved.get('settings', {}).items() if isinstance(saved.get('settings'), dict) else ():
             try:
                 if key in DEFAULTS:
@@ -95,16 +95,8 @@ class RealBackend(Backend):
             except ValueError:
                 pass
         selected = saved.get('gpu_preset')
-        raw_settings = saved.get('settings') if isinstance(saved.get('settings'), dict) else {}
-        if selected == RX580_PRESET:
-            # Migrate only a previously explicit RX preset, never a lone stale merge flag.
-            if 'rx580_preset' not in raw_settings and self._settings['barrier_merge'] == '1':
-                self._settings['rx580_preset'] = '1'
-        else:
-            self._settings = gpu_settings_for_preset(self._settings, None)
         if isinstance(selected, str) and selected != 'custom' and matching_gpu_preset(self._settings, selected) == selected:
             self._selected_gpu_preset = selected
-        self._settings = gpu_settings_for_preset(self._settings, self.gpuPresetId)
         if self.gpuPresetId == GTX1060_PRESET:
             try:
                 self._gtx1060_diagnostic = validate_gtx1060_mode(saved.get('gtx1060_diagnostic', 'off'))
@@ -121,7 +113,7 @@ class RealBackend(Backend):
             return None
         required = ('schema', 'status', 'game_dir', 'title_id', 'version')
         if (value.get('schema') != VALIDATION_RECORD_SCHEMA or
-                value.get('status') not in ('valid', 'invalid') or
+                value.get('status') not in ('valid', 'unverified', 'invalid') or
                 not all(isinstance(value.get(key), str) and value[key] for key in required[2:])):
             return None
         return {key: value[key] for key in required}
@@ -129,7 +121,7 @@ class RealBackend(Backend):
     def _validation_record(self, result, error):
         record = {
             'schema': VALIDATION_RECORD_SCHEMA,
-            'status': 'invalid' if error else 'valid',
+            'status': 'invalid' if error else self._validation_state,
             'game_dir': self._canonical_game_dir(self._game_dir),
             'title_id': str((result or {}).get('title_id') or 'unknown'),
             'version': str((result or {}).get('version') or 'unknown'),
@@ -152,7 +144,7 @@ class RealBackend(Backend):
             self._notice(f'Validação concluída, mas não foi possível registrar o resultado: {exc}', True)
 
     def _matches_saved_validation(self, record, result):
-        return bool(record and record.get('status') == 'valid' and
+        return bool(record and record.get('status') == self._validation_state and
                     record.get('game_dir') == self._canonical_game_dir(self._game_dir) and
                     record.get('title_id') == str(result.get('title_id')) and
                     record.get('version') == str(result.get('version')))
@@ -175,7 +167,7 @@ class RealBackend(Backend):
                 self._state in ('IDLE', 'FINISHED', 'FAILED'))
 
     def _can_play(self):
-        return (self.editable and not self._closing and self._validation_state == 'valid' and
+        return (self.editable and not self._closing and self._validation_state in ('valid', 'unverified') and
                 (self._runner is None or not self._runner.is_running))
 
     def _language_codes(self):
@@ -183,7 +175,7 @@ class RealBackend(Backend):
 
     @Slot(str)
     def setUiLanguage(self, code):
-        if self._closed or code not in ('pt-BR', 'en-US', 'ru-RU'):
+        if self._closed or code not in UI_LANGUAGES:
             return
         super().setUiLanguage(code)
         try:
@@ -203,16 +195,20 @@ class RealBackend(Backend):
             self._validation = str(error)
             self._notice(str(error), True)
             return
-        if self._experimental_build and not self._unverified_version:
+        if self._experimental_build:
             self._installation += ' · Experimental'
             self._validation = 'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'
-        regional = REGION_LANGUAGES.get(result.get('title_id'), ())
+        if result.get('verified') is False:
+            self._validation_state = 'unverified'
+            self._validation = UNVERIFIED_WARNING
+        regional = (result.get('languages', ()) if self._validation_state == 'unverified'
+                    else REGION_LANGUAGES.get(result.get('title_id'), ()))
         self._available_languages = tuple(code for code in regional
                                           if code in result.get('languages', regional))
-        if not self._available_languages:
+        if not self._available_languages and self._validation_state != 'unverified':
             self._validation_state = 'invalid'
             self._validation = 'Nenhum idioma compatível encontrado no dump.'
-        elif self._language not in self._available_languages:
+        elif self._available_languages and self._language not in self._available_languages:
             regional = {'pt-BR': 'pt-PT', 'pt-PT': 'pt-BR', 'en-US': 'en-GB',
                         'en-GB': 'en-US', 'es-419': 'es-ES', 'es-ES': 'es-419'}
             fallback = next((code for code in (regional.get(self._language), 'en-US', 'en-GB')
@@ -230,9 +226,6 @@ class RealBackend(Backend):
             return
         if error:
             self._notice('Não iniciou: a validação automática encontrou o erro acima.', True)
-            return
-        if self._unverified_version:
-            self._notice('Versão não verificada. Revise o aviso e clique em Jogar para continuar.')
             return
         if self._matches_saved_validation(previous, result):
             QTimer.singleShot(0, self.play)
@@ -312,12 +305,10 @@ class RealBackend(Backend):
             return
         try:
             self._check_data_root()
-            settings = gpu_settings_for_preset(self._settings, self.gpuPresetId)
-            config.update_knack2_ini(self._data_path('knack2.ini'), settings)
+            config.update_knack2_ini(self._data_path('knack2.ini'), self._settings)
             path = self._data_path('launcher_settings.json')
             saved = config.load_launcher_settings(path)
-            saved.update({'game_dir': self._game_dir, 'settings': settings,
-                          'players': self._players,
+            saved.update({'game_dir': self._game_dir, 'settings': self._settings,
                           'language': self._language, 'ui_language': self._ui_language,
                           'gpu_preset': self.gpuPresetId,
                           'gtx1060_diagnostic': self.gtx1060Diagnostic})
@@ -405,9 +396,7 @@ class RealBackend(Backend):
                 raise ValueError('Caminho do perfil de saves inválido.')
             settings_file = self._data_path(Path('launch-configs') / (token + '.ini'))
             log = self._data_path(Path('logs') / (token + '-supervisor.log'))
-            config.update_knack2_ini(settings_file,
-                                     gpu_settings_for_preset(self._settings, self.gpuPresetId),
-                                     header_comment=AUDIO_PROFILE)
+            config.update_knack2_ini(settings_file, self._settings, header_comment=AUDIO_PROFILE)
             log.parent.mkdir(parents=True, exist_ok=True)
             previous = self._runner
             build_options = {'experimental_build': True} if self._experimental_build else {}
@@ -415,7 +404,8 @@ class RealBackend(Backend):
                                   if self.gtx1060Diagnostic != 'off' else {})
             runner = self._session_factory(self._game_dir, timeout=0, out_dir=out,
                                           **diagnostic_options, **build_options,
-                                          config_file=settings_file, local_users=self._players, language=self._language,
+                                          config_file=settings_file, local_users=self._players,
+                                          language=self._language if self._available_languages else None,
                                           second_user=second_user,
                                           user_data=user,
                                           on_state_change=lambda state: self._stateTokenArrived.emit(
@@ -431,7 +421,10 @@ class RealBackend(Backend):
         self._generation = token
         self._state, self._session = 'STARTING', ''
         self._out, self._log_path = out, log
-        self._notice('Preparando sessão pelo supervisor oficial. Aguarde os registros de execução.')
+        if self._validation_state == 'unverified':
+            self._notice(UNVERIFIED_WARNING)
+        else:
+            self._notice('Preparando sessão pelo supervisor oficial. Aguarde os registros de execução.')
 
         def launch():
             if previous is not None:

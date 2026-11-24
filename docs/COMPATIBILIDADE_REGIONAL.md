@@ -1,13 +1,62 @@
 # Compatibilidade regional do Knack II
 
-## Política atual de validação — 0.18.3
+## Identificação de dumps e execução experimental
 
-Hashes conhecidos identificam executáveis de referência. Para os perfis
-existentes, hashes desconhecidos com estrutura suportada podem ser testados com
-aviso explícito de qualidade e compatibilidade não verificadas. Metadados e
-módulos seguem obrigatórios; títulos e versões sem perfil continuam bloqueados.
-As seções datadas abaixo registram decisões anteriores à 0.18.3. Consulte a
-[política atual](VALIDACAO_DE_VERSOES.md).
+O launcher mostra o CUSA, a versão e os idiomas encontrados. Se os hashes
+baterem com um perfil cadastrado, o dump aparece como validado. Essa indicação
+confere a identidade dos arquivos.
+
+Uma instalação de Knack II com versão ou hashes ainda não cadastrados pode
+ser executada com o aviso **Dump ainda não validado pelo desenvolvedor**.
+O modo experimental exige metadados coerentes de Knack II, executáveis
+legíveis e os módulos essenciais. Ele usa cache separado por identidade e
+hashes, sem os patches de endereço de uma edição conhecida. A seleção do
+idioma usa os arquivos presentes em `data/lang`. A validação estrita dos
+perfis e de atualização por PKG continua disponível.
+
+## Edição chinesa CUSA08096 — issue #32
+
+O [registro do disco Redump](https://redump.info/disc/136702) identifica a edição
+chinesa original PCCS 75004, CUSA08096, versão 01.00 e Content ID
+`HP9000-CUSA08096_00-KNACK20000000000`. O registro marca a cópia como não
+verificada e lista estes valores para a ISO de 43.387.650.048 bytes:
+
+- CRC-32: `0f06044a`
+- MD5: `0c27daf8ef1269b5f081dd663bb255e3`
+- SHA-1: `a3b0937d21ecf1e6c6bf4dc6c89f0b7a31d0c020`
+
+A verificação da ISO e a validação de executáveis são etapas distintas. Cada
+SHA-256 do perfil precisa ser calculado a partir do respectivo arquivo extraído.
+
+O [autor da issue #32](https://github.com/Hyant4/Knack-II-pc-port/issues/32#issuecomment-7122286409)
+reportou `TITLE_ID=CUSA08096`, o mesmo `CONTENT_ID` do disco,
+`APP_VER=01.01` e `VERSION=01.00` no `param.sfo`. O perfil experimental é
+`CUSA08096-01.01`, pois a seleção usa `APP_VER`.
+
+| Arquivo | Bytes reportados | SHA-256 reportado |
+| --- | ---: | --- |
+| `eboot.bin` | 37.006 | `e2dd3ebd0873e04baa21019c7e60167d8372eb60990c24ac93a581d7fdfbb09a` |
+| `game.elf` | 20.205.026 | `0b7843d39d11c5630a72727f286cde563aa74b7f6b22941bcbe05d907fbadf8b` |
+
+O hash reportado de `game.elf` coincide integralmente com o perfil europeu
+`CUSA07670-01.01`, cujo layout é `elf-0b7843d3`. O hash de `eboot.bin` é
+diferente. O inventário lista `libc.prx`, `libSceFios2.prx` e
+`libSceJobManager.prx`. Em `data/lang`, lista apenas `zhs`, com 1.043 entradas,
+incluindo fontes, textos e arquivos de voz. O [enum OpenOrbis](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/blob/master/include/orbis/_types/sys_service.h)
+define 11 para chinês simplificado.
+
+O launcher valida ambos os hashes e os módulos exigidos. O runtime exige
+`elf-0b7843d3` para selecionar os patches dessa edição. O título de conteúdo e
+dos saves continua `CUSA08096` e o cache preparado usa `CUSA08096-01.01`.
+O supervisor rejeita runtimes antigos antes de preparar as imagens.
+
+O launcher oferece chinês simplificado no jogo quando encontra `data/lang/zhs`.
+O supervisor também usa esse idioma por padrão para a edição chinesa em linha
+de comando. O idioma do launcher pode ser escolhido independentemente do dump.
+A inicialização com o `eboot.bin` distinto, a transição a `game.elf`, as
+legendas e a voz ainda precisam ser verificadas com o dump real. O disco
+CUSA08096 01.00 continua sem perfil validado e entra no modo experimental
+quando a instalação satisfaz os requisitos desse modo.
 
 ## Americana 01.00 integrada ao launcher principal local — 28/10/2026
 

@@ -36,7 +36,8 @@ class UnlimitedTests(unittest.TestCase):
                 user.mkdir()
                 (user / 'save.sentinel').write_bytes(b'original progress')
             calls = []
-            title='CUSA07670' if language is not None and language not in REGION_LANGUAGES['CUSA08014'] else 'CUSA08014'
+            title = 'CUSA08014' if language is None else next(
+                title for title, codes in REGION_LANGUAGES.items() if language in codes)
             profile=run.load_profile(ROOT/'profiles'/f'{title}-01.01.json')
             if language is not None:
                 assets = root / 'dump/data/lang' / BY_CODE[language]['asset']
@@ -90,7 +91,10 @@ class UnlimitedTests(unittest.TestCase):
                     'game_elf_sha256': '0' * 64}), \
                  patch.object(run, 'load_profile', return_value=profile), \
                  patch.object(run, 'prepare_image', side_effect=lambda g, p, name, o: o / name), \
-                 patch.object(run.subprocess, 'run'), patch.object(run, 'run_child', side_effect=child), \
+                 patch.object(run.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout=
+                    'KNACK2_EXECUTABLE_LAYOUTS_V1=elf-80ccc228,elf-0b7843d3\n'
+                    'KNACK2_CHINESE_PROFILE_V1=CUSA08096-01.01\n')), \
+                 patch.object(run, 'run_child', side_effect=child), \
                  patch.object(run.time, 'monotonic', side_effect=times), \
                  patch.dict(os.environ, {'TLG_LOCAL_USERS': '2', 'TLG_LOCAL_P2_USER_ID': '999',
                                          'TLG_GPU_USER_DIR': 'habitual saves', 'TLG_LANGUAGE': '999',

@@ -4,7 +4,7 @@
 Guarantees strict functional equivalence with `run.py`'s `validate_game()`:
 1. Validates profile schema (rejects malformed, non-string, or incomplete profiles).
 2. Selects an allowlisted profile from param.sfo TITLE_ID and APP_VER.
-3. Classifies known hashes and structurally checks unverified executables.
+3. Confirms official SHA-256 digests for `eboot.bin` and `game.elf`.
 4. Verifies required modules in `sce_module/` using link_modules.
 5. Fail-closed behavior if prepare or link_modules components are unavailable.
 """
@@ -17,7 +17,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import struct
 import sys
 from typing import Any, Mapping
 
@@ -35,11 +34,15 @@ except ImportError:
     link_modules = None  # type: ignore[assignment]
 
 _HEX_64_RE = re.compile(r'^[0-9a-fA-F]{64}$')
-SUPPORTED_PROFILES = ('CUSA08014-01.01', 'CUSA07670-01.01', 'CUSA08014-01.00')
+CHINESE_PROFILE = 'CUSA08096-01.01'
+UNVERIFIED_LAYOUT = 'unverified'
+UNVERIFIED_WARNING = 'Dump ainda não validado pelo desenvolvedor. A execução é experimental e pode apresentar falhas.'
+SUPPORTED_PROFILES = ('CUSA08014-01.01', 'CUSA07670-01.01', 'CUSA08014-01.00', CHINESE_PROFILE)
 EXECUTABLE_LAYOUTS = {
     'CUSA08014-01.01': ('elf-80ccc228', 'elf-0b7843d3'),
     'CUSA07670-01.01': ('elf-0b7843d3',),
     'CUSA08014-01.00': ('elf-80ccc228',),
+    CHINESE_PROFILE: ('elf-0b7843d3',),
 }
 
 
@@ -63,10 +66,6 @@ class KnackHashMismatchError(KnackDumpError, ValueError):
     """Executable SHA-256 digest differs from the official dump."""
 
 
-class KnackExecutableError(KnackDumpError, ValueError):
-    """An unverified executable is malformed, incomplete, or unsupported."""
-
-
 class KnackModuleError(KnackDumpError, ValueError):
     """Required sce_module file missing or invalid ELF structure."""
 
@@ -80,8 +79,6 @@ def describe_validation_failure(error: BaseException) -> str:
         reason = 'O título ou a versão instalada não pertence a um perfil suportado pelo launcher.'
     elif isinstance(error, KnackHashMismatchError):
         reason = 'Um executável não corresponde ao dump validado para este perfil.'
-    elif isinstance(error, KnackExecutableError):
-        reason = 'Um executável está incompleto ou possui estrutura não suportada pelo carregador.'
     elif isinstance(error, KnackModuleError):
         reason = 'Um módulo obrigatório está ausente, corrompido ou não pôde ser lido.'
     elif isinstance(error, KnackProfileError):
@@ -97,25 +94,6 @@ def digest_file(path: Path | str) -> str:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def validate_unverified_executable(path: Path, name: str) -> None:
-    """Use the existing loader parser before allowing an unknown fingerprint."""
-    try:
-        limit = 512 * 1024 * 1024
-        with path.open('rb') as stream:
-            source = stream.read(limit + 1)
-        if len(source) > limit:
-            raise ValueError('Executável excede o limite de 512 MiB.')
-        _, header, segments, _, _ = prepare.parse_self(source)
-        if header[1] not in (0xfe00, 0xfe10) or not any(
-                segment['type'] == 1 and segment['flags'] & 1 and
-                segment['vaddr'] <= header[4] < segment['vaddr'] + segment['memsz']
-                for segment in segments):
-            raise ValueError('Ponto de entrada fora dos segmentos executáveis.')
-    except (OSError, ValueError, OverflowError, struct.error) as error:
-        raise KnackExecutableError(
-            f'{name}: estrutura ELF/SELF inválida ou não suportada: {error}') from error
-
-
 def default_profile_path(repo_root: Path | None = None, *, experimental_build: bool = False) -> Path:
     """Return the default path to the CUSA08014 01.01 profile JSON."""
     root = repo_root or _REPO_ROOT
@@ -127,6 +105,8 @@ def profile_id(profile: Mapping[str, Any]) -> str:
     """Return an exact allowlisted profile ID; never derive arbitrary file paths."""
     name = f"{profile.get('title_id')}-{profile.get('version')}"
     if name not in SUPPORTED_PROFILES:
+        if name == 'CUSA08096-01.00':
+            raise KnackProfileError('CUSA08096 01.00: a edição chinesa ainda não tem perfil validado nesta versão do port.')
         raise KnackProfileError(f'Perfil não suportado: {name}')
     return name
 
@@ -162,8 +142,7 @@ def validate_profile_schema(profile: Any) -> dict[str, Any]:
     """Validate that the profile dictionary contains the required schema and hashes.
 
     Ensures type safety without unexpected TypeErrors:
-    - title_id: string exactly 'CUSA08014' or 'CUSA07670'
-    - version: '01.00' or '01.01' for CUSA08014; only '01.01' for CUSA07670
+    - title_id and version: an exact pair listed in SUPPORTED_PROFILES
     - executables: dict containing 'eboot.bin' and 'game.elf' with string 64-char hex SHA-256
     - modules: dict containing module requirements for executables
     """
@@ -262,7 +241,8 @@ def validate_knack2_dump(game_dir: Path | str,
                          profile: Mapping[str, Any] | None = None,
                          profile_path: Path | str | None = None,
                          repo_root: Path | None = None, *,
-                         overlay_dir: Path | str | None = None) -> dict[str, Any]:
+                         overlay_dir: Path | str | None = None,
+                         allow_unverified: bool = False) -> dict[str, Any]:
     """Validate a Knack II dump folder with strict functional equivalence to run.py.
 
     Raises:
@@ -278,6 +258,7 @@ def validate_knack2_dump(game_dir: Path | str,
     """
     game = Path(game_dir).resolve()
     overlay = Path(overlay_dir).resolve() if overlay_dir is not None else None
+    allow_unverified = allow_unverified and profile is None and profile_path is None and overlay is None
 
     def effective(name):
         # Update validation reads the future view without copying the base game.
@@ -290,8 +271,13 @@ def validate_knack2_dump(game_dir: Path | str,
     if profile is not None:
         active_profile = validate_profile_schema(profile)
     else:
-        active_profile = load_profile(profile_path, repo_root,
-                                      game_dir=overlay if overlay is not None else game_dir)
+        try:
+            active_profile = load_profile(profile_path, repo_root,
+                                          game_dir=overlay if overlay is not None else game_dir)
+        except KnackVersionMismatchError:
+            if not allow_unverified:
+                raise
+            active_profile = None
 
     # Fail-closed checks on required tooling
     if prepare is None:
@@ -314,19 +300,18 @@ def validate_knack2_dump(game_dir: Path | str,
 
     title_id = sfo_values.get('TITLE_ID')
     app_ver = sfo_values.get('APP_VER')
-    expected_id = active_profile['title_id']
-    expected_ver = active_profile['version']
-
-    if (title_id, app_ver) != (expected_id, expected_ver):
+    if active_profile is not None and (title_id, app_ver) != (active_profile['title_id'], active_profile['version']):
         raise KnackVersionMismatchError(
-            f'Este perfil requer {expected_id} versão {expected_ver} (obtido: {title_id} {app_ver})'
+            f'Este perfil requer {active_profile["title_id"]} versão {active_profile["version"]} '
+            f'(obtido: {title_id} {app_ver})'
         )
 
-    # 2. Fingerprints identify reference builds; unknown files require parser checks.
-    executables = active_profile['executables']
-    unverified = []
-    executable_hashes = {}
-    layout_verified = True
+    # 2. Executables Validation (eboot.bin and game.elf)
+    verified = active_profile is not None
+    executable_layout = UNVERIFIED_LAYOUT
+    executables = active_profile['executables'] if active_profile else {'eboot.bin': None, 'game.elf': None}
+    actual_hashes = {}
+    executable_paths = {}
     for name, expected_hash in executables.items():
         try:
             exe_path = effective(name)
@@ -336,24 +321,42 @@ def validate_knack2_dump(game_dir: Path | str,
         if not exe_path.is_file():
             raise KnackDumpNotFoundError(f'Executável ausente no dump: {exe_path}')
 
-        actual_hash = digest_file(exe_path)
-        executable_hashes[name] = actual_hash
+        actual_hash = actual_hashes[name] = digest_file(exe_path)
+        executable_paths[name] = exe_path
+        if active_profile is None:
+            continue
         if name == 'game.elf':
             try:
                 executable_layout = executable_layout_for_hash(active_profile, actual_hash)
             except KnackHashMismatchError:
-                validate_unverified_executable(exe_path, name)
-                unverified.append(name)
-                # This is the profile's reference layout, not a claim of byte equivalence.
-                executable_layout = validate_executable_layout(profile_id(active_profile))
-                layout_verified = False
-            game_elf_sha256 = actual_hash.lower()
+                if not allow_unverified:
+                    raise
+                verified = False
         elif actual_hash.lower() != expected_hash.lower():
-            validate_unverified_executable(exe_path, name)
-            unverified.append(name)
+            if not allow_unverified:
+                raise KnackHashMismatchError(
+                    f'{name}: SHA-256 difere do dump suportado. '
+                    f'Encontrado: {actual_hash}. Esperado: {expected_hash}.')
+            verified = False
 
     # 3. Modules Validation (libc.prx, libSceFios2.prx, libSceJobManager.prx, etc.)
-    modules_map = active_profile['modules']
+    if not verified:
+        content_id = sfo_values.get('CONTENT_ID', '')
+        if (not all(isinstance(value, str) for value in (title_id, app_ver, content_id)) or
+                not re.fullmatch(r'CUSA[0-9]{5}', title_id) or
+                not re.fullmatch(r'[0-9]{2}\.[0-9]{2}', app_ver) or
+                not re.fullmatch(rf'[A-Z]{{2}}[0-9]{{4}}-{title_id}_00-KNACK20000000000', content_id)):
+            raise KnackVersionMismatchError('Os metadados não identificam um dump de Knack II.')
+        for name, path in executable_paths.items():
+            try:
+                prepare.parse_self(prepare.read_self(path))
+            except (OSError, ValueError) as error:
+                raise KnackDumpNotFoundError(f'Executável inválido ou incompatível ({name}): {error}') from error
+        executable_layout = UNVERIFIED_LAYOUT
+    modules_map = active_profile['modules'] if active_profile else {
+        'eboot.bin': ['libc.prx', 'libSceFios2.prx'],
+        'game.elf': ['libc.prx', 'libSceFios2.prx', 'libSceJobManager.prx'],
+    }
     required_modules = {m for mods in modules_map.values() for m in mods}
 
     for mod_name in sorted(required_modules):
@@ -368,19 +371,20 @@ def validate_knack2_dump(game_dir: Path | str,
 
     return {
         'valid': True,
-        'verification_status': 'unverified' if unverified else 'reference',
-        'unverified_executables': unverified,
-        'executable_hashes': executable_hashes,
-        'executable_layout_verified': layout_verified,
+        'verified': verified,
         'title_id': title_id,
         'version': app_ver,
         'executable_layout': executable_layout,
-        'game_elf_sha256': game_elf_sha256,
+        'game_elf_sha256': actual_hashes['game.elf'],
         'app_title': sfo_values.get('TITLE', 'Knack™ II'),
         'game_dir': str(game),
         'executables': list(executables.keys()),
         'modules': sorted(required_modules),
         'sfo_values': sfo_values,
-        'languages': list(dict.fromkeys(discover_languages(game, title_id=title_id) +
+        'languages': list(dict.fromkeys(discover_languages(game, title_id=title_id if verified else None) +
                           (discover_languages(overlay, title_id=title_id) if overlay else []))),
+        **({'launch_profile': {
+            'title_id': title_id, 'version': app_ver, 'entry': 'eboot.bin',
+            'executables': actual_hashes, 'modules': modules_map,
+        }} if not verified else {}),
     }
