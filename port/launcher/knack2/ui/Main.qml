@@ -35,6 +35,10 @@ ApplicationWindow {
     component Hint: Label { color: "#afb4c1"; wrapMode: Text.WordWrap; textFormat: Text.PlainText; lineHeight: 1.2; Layout.fillWidth: true; font.pixelSize: 12 }
     component Section: Rectangle { color: "#282a2f"; border.color: "#424650"; radius: 6 }
     component SettingLabel: Label { font.pixelSize: 13; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+    component ConfirmButtons: DialogButtonBox {
+        Button { text: qsTr("Confirmar"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+        Button { text: qsTr("Cancelar"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+    }
     component SectionTitle: RowLayout {
         property alias text: sectionTitle.text
         property string glyph: "relic"
@@ -57,18 +61,24 @@ ApplicationWindow {
     }
     FolderDialog {
         id: folderDialog; objectName: "folderDialog"
-        title: qsTr("Selecione a pasta do Knack II (CUSA08014 ou CUSA07670)")
+        title: qsTr("Selecione a pasta do Knack II")
+        acceptLabel: qsTr("Escolher pasta")
+        rejectLabel: qsTr("Cancelar")
         onAccepted: backend.selectFolder(selectedFolder.toString())
     }
     Dialog {
         id: errorsDialog; objectName: "errorsDialog"; title: qsTr("Erros registrados")
         modal: true; anchors.centerIn: parent; width: Math.min(window.width - 80, 720); height: 350
-        standardButtons: Dialog.Close
+        footer: DialogButtonBox {
+            Button { text: qsTr("Fechar"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+        }
         contentItem: ScrollView { TextArea { text: backend.errorText; textFormat: TextEdit.PlainText; readOnly: true; wrapMode: TextEdit.WrapAnywhere; selectByMouse: true } }
     }
     FileDialog {
         id: baseFileDialog; objectName: "baseFileDialog"
         title: qsTr("Selecione o PKG do jogo-base")
+        acceptLabel: qsTr("Abrir")
+        rejectLabel: qsTr("Cancelar")
         nameFilters: ["PlayStation 4 (*.pkg)"]
         onAccepted: if (backend.updateManager) backend.updateManager.inspectBase(selectedFile.toString())
     }
@@ -76,13 +86,15 @@ ApplicationWindow {
         id: baseConfirm; objectName: "baseConfirm"
         title: qsTr("Extrair jogo na pasta do PKG?")
         modal: true; anchors.centerIn: parent; width: Math.min(window.width - 80, 640)
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        footer: ConfirmButtons {}
         contentItem: Label { text: backend.updateManager ? backend.updateManager.preview : ""; wrapMode: Text.WrapAnywhere; textFormat: Text.PlainText }
         onAccepted: if (backend.updateManager) backend.updateManager.extractBase()
     }
     FileDialog {
         id: updateFileDialog; objectName: "updateFileDialog"
         title: qsTr("Selecione o PKG de atualização")
+        acceptLabel: qsTr("Abrir")
+        rejectLabel: qsTr("Cancelar")
         nameFilters: ["PlayStation 4 (*.pkg)"]
         onAccepted: if (backend.updateManager) backend.updateManager.inspect(selectedFile.toString())
     }
@@ -90,7 +102,7 @@ ApplicationWindow {
         id: updateConfirm; objectName: "updateConfirm"
         title: qsTr("Instalar atualização do jogo?")
         modal: true; anchors.centerIn: parent; width: Math.min(window.width - 80, 640)
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        footer: ConfirmButtons {}
         contentItem: Label { text: backend.updateManager ? backend.updateManager.preview : ""; wrapMode: Text.WordWrap; textFormat: Text.PlainText }
         onAccepted: if (backend.updateManager) backend.updateManager.install()
     }
@@ -98,7 +110,7 @@ ApplicationWindow {
         id: restoreConfirm; objectName: "restoreConfirm"
         title: qsTr("Restaurar arquivos anteriores?")
         modal: true; anchors.centerIn: parent; width: Math.min(window.width - 80, 640)
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        footer: ConfirmButtons {}
         contentItem: Label { text: qsTr("A atualização será desfeita usando o backup. Arquivos alterados depois da atualização bloqueiam a restauração para preservar suas mudanças."); wrapMode: Text.WordWrap; textFormat: Text.PlainText }
         onAccepted: if (backend.updateManager) backend.updateManager.restore()
     }
@@ -135,12 +147,14 @@ ApplicationWindow {
                     Repeater {
                         model: [{label: "PT", code: "pt-BR", name: "Português"},
                                 {label: "EN", code: "en-US", name: "English"},
-                                {label: "RU", code: "ru-RU", name: "Русский"}]
+                                {label: "RU", code: "ru-RU", name: "Русский"},
+                                {label: "简中", code: "zh-CN", name: "简体中文"}]
                         delegate: Button {
                             id: languageButton
                             required property var modelData
                             objectName: "uiLanguage" + modelData.label
-                            implicitWidth: 36; implicitHeight: 34; padding: 5
+                            implicitWidth: modelData.code === "zh-CN" ? 46 : 36
+                            implicitHeight: 34; padding: 5
                             text: modelData.label; checkable: true; autoExclusive: true
                             checked: backend.uiLanguage === modelData.code
                             Accessible.name: modelData.name
@@ -192,7 +206,7 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 28; spacing: 28
                     ColumnLayout {
                         Layout.preferredWidth: 245; Layout.maximumWidth: 245; Layout.minimumWidth: 210; Layout.alignment: Qt.AlignTop; spacing: 12
-                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : backend.unverifiedVersion ? qsTr("Jogar mesmo assim") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
+                        ActionButton { objectName: "playButton"; Layout.fillWidth: true; implicitHeight: 54; text: backend.isDemo ? qsTr("Jogar · simulação") : qsTr("Jogar"); glyph: "play"; primary: true; enabled: backend.canPlay; onClicked: backend.play() }
                         ActionButton { objectName: "stopButton"; Layout.fillWidth: true; visible: backend.canStop; text: backend.isDemo ? qsTr("Encerrar simulação") : qsTr("Encerrar sessão"); glyph: "stop"; danger: true; enabled: backend.canStop; onClicked: backend.stop() }
                         RowLayout {
                             Layout.fillWidth: true; visible: !backend.isDemo
@@ -215,16 +229,27 @@ ApplicationWindow {
                         Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: 10
                         RowLayout {
                             Layout.fillWidth: true
-                            Label { text: backend.validationState === "valid" && !backend.canStop ? (backend.unverifiedVersion ? qsTr("Versão não verificada") : qsTr("Instalação válida")) : backend.stateLabel; font.pixelSize: 17; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                            Label {
+                                text: !backend.canStop && backend.validationState === "unverified" ? qsTr("Compatibilidade não verificada")
+                                    : !backend.canStop && backend.validationState === "valid" ? qsTr("Instalação válida")
+                                    : backend.stateLabel
+                                font.pixelSize: 17; font.weight: Font.DemiBold; Layout.fillWidth: true
+                            }
                             ActionButton { text: qsTr("Escolher pasta"); glyph: "folder"; enabled: backend.editable; onClicked: { window.page = 3; folderDialog.open(); } }
                         }
                         RowLayout {
                             Layout.fillWidth: true
                             SummaryItem { caption: qsTr("Idioma"); text: backend.languageIndex >= 0 ? backend.languageOptions[backend.languageIndex].label : "—"; detail: qsTr("Idioma do jogo"); onClicked: { window.settingsTab = 0; window.page = 1; } }
-                            SummaryItem { caption: qsTr("Modo de janela"); text: backend.settings.display_mode === "windowed" ? backend.settings.window_resolution : qsTr("Resolução do desktop"); detail: [qsTr("Janela"), qsTr("Sem bordas"), qsTr("Tela cheia")][["windowed","borderless","fullscreen"].indexOf(backend.settings.display_mode)]; onClicked: { window.settingsTab = 1; window.page = 1; } }
+                            SummaryItem {
+                                caption: qsTr("Modo de janela")
+                                text: backend.settings.display_mode !== "windowed" ? qsTr("Resolução do desktop")
+                                    : backend.settings.window_resolution === "auto" ? qsTr("Automática (ajustar à tela)")
+                                    : backend.settings.window_resolution
+                                detail: [qsTr("Janela"), qsTr("Sem bordas"), qsTr("Tela cheia")][["windowed","borderless","fullscreen"].indexOf(backend.settings.display_mode)]
+                                onClicked: { window.settingsTab = 1; window.page = 1; }
+                            }
                             SummaryItem { caption: qsTr("Instalação"); text: backend.installationId || "—"; detail: backend.installationVersion; onClicked: window.page = 3 }
                         }
-                        Label { objectName: "unverifiedVersionNotice"; visible: backend.unverifiedVersion; Layout.fillWidth: true; text: qsTr("Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis."); color: "#e5c28a"; wrapMode: Text.WordWrap; font.pixelSize: 12 }
                         Rectangle { Layout.fillWidth: true; height: 1; color: "#424650" }
                         RowLayout {
                             Layout.fillWidth: true
@@ -287,7 +312,7 @@ ApplicationWindow {
                                     }
                                 }
                                 Hint { text: qsTr("Idioma do jogo aplicado na próxima sessão. Valide a pasta para conferir os idiomas instalados."); font.pixelSize: 12 }
-                                Hint { text: qsTr("Use PT / EN / RU no topo para trocar o idioma do launcher."); font.pixelSize: 12 }
+                                Hint { text: qsTr("Use o seletor no topo para trocar o idioma do launcher."); font.pixelSize: 12 }
                             }
                         }
                             Section {
@@ -445,7 +470,7 @@ ApplicationWindow {
                                 }
                                 Hint { text: qsTr("Aplica na próxima sessão e ajusta à área útil da tela. Tela cheia e sem borda usam a resolução do desktop."); font.pixelSize: 12 }
                                 RowLayout {
-                                    SettingLabel { text: "VSync" }
+                                    SettingLabel { text: qsTr("VSync") }
                                     OptionSwitch { objectName: "vsync"; checked: backend.settings.vsync === "1"; Accessible.name: "VSync"; onToggled: backend.setSetting("vsync", checked) }
                                 }
                                 RowLayout {
@@ -756,7 +781,7 @@ ApplicationWindow {
             ColumnLayout {
                 Layout.margins: 32; spacing: 18
                 Heading { text: qsTr("Instalação") }
-                Hint { text: qsTr("América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados e módulos devem ser válidos. Versões desconhecidas são identificadas como não verificadas.") }
+                Hint { text: qsTr("América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. China: CUSA08096 01.01 (experimental).") }
                 RowLayout {
                     Layout.fillWidth: true
                     TextField {
@@ -774,7 +799,11 @@ ApplicationWindow {
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 20; spacing: 12
                         Label { text: backend.installation; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Hint { objectName: "validationMessage"; text: backend.validationText; color: backend.validationState === "invalid" ? "#e3aba6" : backend.unverifiedVersion ? "#e5c28a" : "#b4c5ae" }
+                        Hint {
+                            objectName: "validationMessage"; text: backend.validationText
+                            color: backend.validationState === "invalid" ? "#e3aba6"
+                                : backend.validationState === "unverified" ? "#e3c78d" : "#b4c5ae"
+                        }
                     }
                 }
                 RowLayout {

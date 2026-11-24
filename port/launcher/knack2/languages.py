@@ -2,9 +2,11 @@
 """Dump locales and the existing SystemService language contract. No Qt dependency.
 
 IDs: OpenOrbis include/orbis/_types/sys_service.h, OrbisSystemParamLanguage.
-Asset codes come from the inspected American and European dumps.
+Asset codes come from the dumps and the CUSA08096 inventory in issue #32.
 """
 from pathlib import Path
+
+UI_LANGUAGES = ('pt-BR', 'en-US', 'ru-RU', 'zh-CN')
 
 LANGUAGES = (
     {'code': 'pt-BR', 'label': 'Português (Brasil)', 'asset': 'pta', 'id': 17},
@@ -24,12 +26,14 @@ LANGUAGES = (
     {'code': 'nb-NO', 'label': 'Norsk', 'asset': 'nor', 'id': 15},
     {'code': 'pl-PL', 'label': 'Polski', 'asset': 'pol', 'id': 16},
     {'code': 'ar-SA', 'label': 'العربية', 'asset': 'ara', 'id': 21},
+    {'code': 'zh-CN', 'label': '简体中文', 'asset': 'zhs', 'id': 11},
 )
 BY_CODE = {entry['code']: entry for entry in LANGUAGES}
 REGION_LANGUAGES = {
     'CUSA08014': ('pt-BR', 'en-US', 'es-419', 'fr-FR'),
     'CUSA07670': ('fr-FR', 'pt-PT', 'en-GB', 'es-ES', 'de-DE', 'it-IT', 'nl-NL',
                   'ru-RU', 'fi-FI', 'sv-SE', 'da-DK', 'nb-NO', 'pl-PL', 'ar-SA'),
+    'CUSA08096': ('zh-CN',),
 }
 
 

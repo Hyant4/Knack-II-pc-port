@@ -1,4 +1,4 @@
-"""Error localization across PT/EN/RU, preserving technical evidence and UI state."""
+"""Error localization, preserving technical evidence and UI state."""
 import ast
 import os
 from pathlib import Path
@@ -19,6 +19,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
 from port.launcher.knack2 import validator
+from port.launcher.knack2.languages import UI_LANGUAGES
 from port.launcher.knack2.ui.i18n import translate, translate_failure, _translate_catalog, MESSAGES
 from port.launcher.knack2.ui.i18n_errors import ENTRIES, translate_error
 from port.launcher.knack2.ui.real import RealBackend
@@ -40,7 +41,8 @@ class ErrorCatalogTests(unittest.TestCase):
             for locale, unavailable, invalid in (
                     ('pt-BR', 'Qt/PySide6 indisponível.', '--quit-after-ms deve ser >= 0'),
                     ('en-US', 'Qt/PySide6 unavailable.', '--quit-after-ms must be >= 0'),
-                    ('ru-RU', 'Qt/PySide6 недоступен.', '--quit-after-ms должен быть >= 0')):
+                    ('ru-RU', 'Qt/PySide6 недоступен.', '--quit-after-ms должен быть >= 0'),
+                    ('zh-CN', 'Qt/PySide6 不可用。', '--quit-after-ms 必须大于或等于 0')):
                 (root / 'launcher_settings.json').write_text(json.dumps({'ui_language': locale}), encoding='utf-8')
                 error = io.StringIO()
                 with contextlib.redirect_stderr(error), patch.object(builtins, '__import__', side_effect=without_qt):
@@ -60,7 +62,8 @@ class ErrorCatalogTests(unittest.TestCase):
         for locale, heading, reason in (
                 ('pt-BR', 'Falha de validação:', 'Um executável não corresponde'),
                 ('en-US', 'Validation failed:', 'An executable does not match'),
-                ('ru-RU', 'Ошибка проверки:', 'Исполняемый файл не соответствует')):
+                ('ru-RU', 'Ошибка проверки:', 'Исполняемый файл не соответствует'),
+                ('zh-CN', '验证失败：', '可执行文件与此配置验证过的游戏转储不符')):
             with self.subTest(locale=locale):
                 rendered = translate(locale, source)
                 self.assertTrue(rendered.startswith(heading))
@@ -92,7 +95,7 @@ class ErrorCatalogTests(unittest.TestCase):
     def test_unknown_system_diagnostic_has_localized_heading_and_exact_detail(self):
         detail = "[WinError 5] Acesso negado: 'C:\\Jogos\\a{b}.elf'"
         for locale, heading in (('pt-BR', 'Detalhes técnicos:'), ('en-US', 'Technical details:'),
-                                ('ru-RU', 'Технические подробности:')):
+                                ('ru-RU', 'Технические подробности:'), ('zh-CN', '技术详情：')):
             rendered = translate_failure(locale, detail)
             self.assertIn(heading, rendered)
             self.assertTrue(rendered.endswith(detail))
@@ -104,15 +107,17 @@ class ErrorCatalogTests(unittest.TestCase):
                          'Could not extract PKG: PKG extraction failed: Truncated PKG\r\n')
         self.assertEqual(translate('ru-RU', source),
                          'Не удалось извлечь PKG: Ошибка извлечения PKG: PKG обрезан\r\n')
+        self.assertEqual(translate('zh-CN', source), '无法解包 PKG：PKG 解包失败：PKG 文件被截断\r\n')
 
     def test_template_translations_preserve_every_argument(self):
         fields = lambda text: {name for _, name, _, _ in Formatter().parse(text) if name is not None}
         for source, translations in ENTRIES:
+            self.assertEqual(set(translations), set(UI_LANGUAGES))
             for locale, target in translations.items():
                 with self.subTest(source=source, locale=locale):
                     self.assertEqual(fields(source), fields(target))
 
-    def test_current_application_exceptions_all_have_pt_en_ru_templates(self):
+    def test_current_application_exceptions_all_have_localized_templates(self):
         def sample(node):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 return node.value
@@ -134,7 +139,7 @@ class ErrorCatalogTests(unittest.TestCase):
                 text = sample(node.exc.args[0])
                 if text is None:
                     continue  # Rethrown arbitrary external errors use the localized diagnostic heading.
-                for locale in ('pt-BR', 'en-US', 'ru-RU'):
+                for locale in UI_LANGUAGES:
                     with self.subTest(file=name, line=node.lineno, locale=locale):
                         translated = _translate_catalog(locale, text)
                         if locale == 'pt-BR' and text in MESSAGES:
@@ -187,6 +192,7 @@ class ErrorUiTests(unittest.TestCase):
         for locale, heading, reason in (
                 ('en-US', 'Validation failed:', 'An executable does not match'),
                 ('ru-RU', 'Ошибка проверки:', 'Исполняемый файл не соответствует'),
+                ('zh-CN', '验证失败：', '可执行文件与此配置验证过的游戏转储不符'),
                 ('pt-BR', 'Falha de validação:', 'Um executável não corresponde')):
             self.backend.setUiLanguage(locale)
             self.app.processEvents()
@@ -199,12 +205,26 @@ class ErrorUiTests(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(self.backend._language, 'pt-BR')
 
+    def test_chinese_language_persists_independently_of_game_language(self):
+        self.backend.setUiLanguage('zh-CN')
+        self.assertEqual(self.backend.uiLanguage, 'zh-CN')
+        self.assertEqual(self.backend._language, 'pt-BR')
+        settings = self.root / 'data' / 'launcher_settings.json'
+        self.assertEqual(json.loads(settings.read_text(encoding='utf-8'))['ui_language'], 'zh-CN')
+        self.assertEqual(self.window.findChild(QObject, 'folderDialog').property('rejectLabel'), '取消')
+        reopened = RealBackend(data_dir=self.root / 'data')
+        try:
+            self.assertEqual(reopened.uiLanguage, 'zh-CN')
+        finally:
+            reopened.shutdown()
+
     def test_pkg_error_and_progress_retranslate_after_display(self):
         manager = self.backend.updateManager
         manager._events.put(('inspect', None,
             'Update incompatível: jogo CUSA08014; PKG CUSA07670. Use atualização do mesmo CUSA.'))
         manager._drain()
         for locale, expected in (('en-US', 'Incompatible update:'), ('ru-RU', 'Несовместимое обновление:'),
+                                  ('zh-CN', '更新不兼容：'),
                                   ('pt-BR', 'Update incompatível:')):
             self.backend.setUiLanguage(locale)
             self.app.processEvents()

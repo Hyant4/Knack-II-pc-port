@@ -56,7 +56,7 @@ class BasePkgTests(unittest.TestCase):
 
     def test_default_validator_rejects_invalid_unknown_executable_before_publication(self):
         self.installer.validate = validator.validate_knack2_dump
-        with self.assertRaises(validator.KnackExecutableError):
+        with self.assertRaises(validator.KnackHashMismatchError):
             self.installer.install(self.preview())
         self.assertFalse((self.parent / 'eboot.bin').exists())
         self.assertFalse((self.parent / base.AREA).exists())

@@ -3,19 +3,18 @@
 from PySide6.QtCore import QTranslator
 from functools import lru_cache
 from .i18n_ru import RUSSIAN
+from .i18n_zh import CHINESE
 from .i18n_update import CATALOG as UPDATE_MESSAGES
 from .i18n_errors import translate_error
 
 # Source Portuguese, followed by English, Latin American Spanish and French.
 MESSAGES = {
-    'Junta barreiras de imagem equivalentes e confere formatos de vértices. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': [
-        'Merges equivalent image barriers and checks vertex formats. Other settings are preserved. Save and restart the game to compare.',
-        'Combina barreras de imagen equivalentes y comprueba formatos de vértices. Conserva los demás ajustes. Guarda y reinicia el juego para comparar.',
-        'Regroupe les barrières d’image équivalentes et vérifie les formats de sommets. Les autres réglages sont conservés. Enregistrez et relancez le jeu pour comparer.'],
-    'Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão.': [
-        'Select the RX 580 preset to use its specific fixes. Switching presets disables them next session.',
-        'Selecciona el perfil RX 580 para usar sus correcciones. Cambiar de perfil las desactiva en la próxima sesión.',
-        'Sélectionnez le profil RX 580 pour ses corrections spécifiques. Changer de profil les désactive à la prochaine session.'],
+    'Compatibilidade não verificada': ['Compatibility unverified', 'Compatibilidad sin verificar', 'Compatibilité non vérifiée'],
+    'Confirmar': ['Confirm', 'Confirmar', 'Confirmer'],
+    'Cancelar': ['Cancel', 'Cancelar', 'Annuler'],
+    'Fechar': ['Close', 'Cerrar', 'Fermer'],
+    'Abrir': ['Open', 'Abrir', 'Ouvrir'],
+    'VSync': ['VSync', 'VSync', 'VSync'],
     'RX 580: compatibilidade experimental': ['RX 580: experimental compatibility', 'RX 580: compatibilidad experimental', 'RX 580 : compatibilité expérimentale'],
     'Teste para o crash no carregamento relatado na issue #20. Correção no Knack ainda não confirmada.': [
         'Test for the loading crash reported in issue #20. A Knack fix has not been confirmed yet.',
@@ -626,10 +625,10 @@ MESSAGES.update({
     ]
 })
 MESSAGES.update({
-    'Selecione a pasta do Knack II (CUSA08014 ou CUSA07670)': [
-        'Select the Knack II folder (CUSA08014 or CUSA07670)',
-        'Selecciona la carpeta de Knack II (CUSA08014 o CUSA07670)',
-        'Sélectionnez le dossier de Knack II (CUSA08014 ou CUSA07670)'],
+    'Selecione a pasta do Knack II': [
+        'Select the Knack II folder',
+        'Selecciona la carpeta de Knack II',
+        'Sélectionnez le dossier de Knack II'],
     'Selecione seu dump CUSA08014 ou CUSA07670, versão 01.01. Metadados, hashes e módulos devem ser válidos para jogar.': [
         'Select your CUSA08014 or CUSA07670 version 01.01 dump. Files must pass validation before playing.',
         'Selecciona tu dump CUSA08014 o CUSA07670 versión 01.01. Los archivos deben superar la validación para jugar.',
@@ -642,48 +641,31 @@ MESSAGES.update({
         'Game language applies next session. Validate the folder to check installed languages.',
         'El idioma del juego se aplica en la próxima sesión. Valida la carpeta para comprobar los idiomas instalados.',
         'La langue du jeu sera appliquée à la prochaine session. Validez le dossier pour vérifier les langues installées.'],
-    'Use PT / EN / RU no topo para trocar o idioma do launcher.': [
-        'Use PT / EN / RU at the top to change the launcher language.',
-        'Usa PT / EN / RU arriba para cambiar el idioma del launcher.',
-        'Utilisez PT / EN / RU en haut pour changer la langue du lanceur.'],
+    'Use o seletor no topo para trocar o idioma do launcher.': [
+        'Use the selector at the top to change the launcher language.',
+        'Usa el selector de arriba para cambiar el idioma del launcher.',
+        'Utilisez le sélecteur en haut pour changer la langue du lanceur.'],
 })
 
 
 MESSAGES.update({source: list(values[:3]) for source, values in UPDATE_MESSAGES.items()})
-_VERSION_MESSAGES = {
-    'Versão não verificada': ('Unverified version', 'Versión sin verificar', 'Version non vérifiée', 'Непроверенная версия'),
-    'Jogar mesmo assim': ('Play anyway', 'Jugar de todos modos', 'Jouer quand même', 'Запустить всё равно'),
-    'Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis.': (
-        'Unverified version: quality, compatibility and stability have not been assessed for these executables.',
-        'Versión sin verificar: no se han evaluado la calidad, compatibilidad ni estabilidad de estos ejecutables.',
-        'Version non vérifiée : la qualité, la compatibilité et la stabilité de ces exécutables n’ont pas été évaluées.',
-        'Непроверенная версия: качество, совместимость и стабильность этих исполняемых файлов не оценивались.'),
-    'Versão não verificada. Revise o aviso e clique em Jogar para continuar.': (
-        'Unverified version. Review the notice and click Play to continue.',
-        'Versión sin verificar. Revisa el aviso y pulsa Jugar para continuar.',
-        'Version non vérifiée. Consultez l’avertissement puis cliquez sur Jouer pour continuer.',
-        'Непроверенная версия. Прочитайте уведомление и нажмите «Играть», чтобы продолжить.'),
-    'América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados e módulos devem ser válidos. Versões desconhecidas são identificadas como não verificadas.': (
-        'America: CUSA08014 01.00 or 01.01. Europe: CUSA07670 01.01. Metadata and modules must be valid. Unknown versions are marked as unverified.',
-        'América: CUSA08014 01.00 o 01.01. Europa: CUSA07670 01.01. Los metadatos y módulos deben ser válidos. Las versiones desconocidas se indican como no verificadas.',
-        'Amérique : CUSA08014 01.00 ou 01.01. Europe : CUSA07670 01.01. Les métadonnées et modules doivent être valides. Les versions inconnues sont signalées comme non vérifiées.',
-        'Америка: CUSA08014 01.00 или 01.01. Европа: CUSA07670 01.01. Метаданные и модули должны быть корректны. Неизвестные версии отмечаются как непроверенные.'),
-}
-MESSAGES.update({source: list(values[:3]) for source, values in _VERSION_MESSAGES.items()})
-RUSSIAN.update({source: values[3] for source, values in _VERSION_MESSAGES.items()})
-MESSAGES['América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. Metadados, hashes e módulos devem ser válidos para jogar.'] = [
-    'America: CUSA08014 01.00 or 01.01. Europe: CUSA07670 01.01. Metadata, hashes and modules must pass validation before playing.',
-    'América: CUSA08014 01.00 o 01.01. Europa: CUSA07670 01.01. Los metadatos, hashes y módulos deben superar la validación para jugar.',
-    'Amérique : CUSA08014 01.00 ou 01.01. Europe : CUSA07670 01.01. Les métadonnées, hachages et modules doivent être validés avant de jouer.']
+MESSAGES['América: CUSA08014 01.00 ou 01.01. Europa: CUSA07670 01.01. China: CUSA08096 01.01 (experimental).'] = [
+    'America: CUSA08014 01.00 or 01.01. Europe: CUSA07670 01.01. China: CUSA08096 01.01 (experimental).',
+    'América: CUSA08014 01.00 o 01.01. Europa: CUSA07670 01.01. China: CUSA08096 01.01 (experimental).',
+    'Amérique : CUSA08014 01.00 ou 01.01. Europe : CUSA07670 01.01. Chine : CUSA08096 01.01 (expérimental).']
 RUSSIAN.update({source: values[3] for source, values in UPDATE_MESSAGES.items()})
 
 
+LOCAL_CATALOGS = {'ru-RU': RUSSIAN, 'zh-CN': CHINESE}
+
+
 def _translate_catalog(locale, source):
-    if locale == 'ru-RU':
-        if source in RUSSIAN:
-            return RUSSIAN[source]
-        if source.endswith('.') and source[:-1] in RUSSIAN:
-            return RUSSIAN[source[:-1]] + '.'
+    catalog = LOCAL_CATALOGS.get(locale)
+    if catalog is not None:
+        if source in catalog:
+            return catalog[source]
+        if source.endswith('.') and source[:-1] in catalog:
+            return catalog[source[:-1]] + ('。' if locale == 'zh-CN' else '.')
         return None
     # Game locales do not imply a translated launcher catalog.
     if locale not in ('pt-BR', 'pt-PT') and locale not in INDEX:
@@ -725,3 +707,5 @@ class Translator(QTranslator):
 
     def translate(self, context, source, disambiguation=None, n=-1):
         return translate(self.locale, source)
+
+MESSAGES.update({'Junta barreiras de imagem equivalentes e confere formatos de vértices. Demais ajustes são preservados. Salve e reinicie o jogo para comparar.': ['Merges equivalent image barriers and checks vertex formats. Other settings are preserved. Save and restart the game to compare.', 'Combina barreras de imagen equivalentes y comprueba formatos de vértices. Conserva los demás ajustes. Guarda y reinicia el juego para comparar.', 'Regroupe les barrières d’image équivalentes et vérifie les formats de sommets. Les autres réglages sont conservés. Enregistrez et relancez le jeu pour comparer.'], 'Selecione o preset RX 580 para usar as correções específicas. Trocar de preset as desativa na próxima sessão.': ['Select the RX 580 preset to use its specific fixes. Switching presets disables them next session.', 'Selecciona el perfil RX 580 para usar sus correcciones. Cambiar de perfil las desactiva en la próxima sesión.', 'Sélectionnez le profil RX 580 pour ses corrections spécifiques. Changer de profil les désactive à la prochaine session.']})

@@ -18,7 +18,7 @@ from ..gpu_presets import GPU_PRESETS, gpu_preset_targets, matching_gpu_preset, 
 from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import RunnerState
 from .demo import DemoRunnerPort, SimulatedRunner
-from ..languages import LANGUAGES, BY_CODE
+from ..languages import LANGUAGES, BY_CODE, UI_LANGUAGES
 from .i18n import translate, translate_failure
 
 MAX_ROWS = 500
@@ -147,7 +147,7 @@ class Backend(QObject):
     stateLabel = Property(str, lambda self: self._state_label(), notify=changed)
     sessionId = Property(str, lambda self: self._session or self._translate('Nenhuma sessão'), notify=changed)
     gameDir = Property(str, lambda self: self._game_dir, notify=changed)
-    validationText = Property(str, lambda self: (self._translate_error if self._validation_state == 'invalid'
+    validationText = Property(str, lambda self: (self._translate_error if self._validation_state in ('invalid', 'unverified')
                                                else self._translate)(self._validation), notify=changed)
     validationState = Property(str, lambda self: self._validation_state, notify=changed)
     unverifiedVersion = Property(bool, lambda self: self._unverified_version, notify=changed)
@@ -182,7 +182,7 @@ class Backend(QObject):
 
     @Slot(str)
     def setUiLanguage(self, code):
-        if self._closed or code not in ('pt-BR', 'en-US', 'ru-RU'):
+        if self._closed or code not in UI_LANGUAGES:
             return
         self._ui_language = code
         self.uiLanguageChanged.emit()
@@ -272,11 +272,12 @@ class Backend(QObject):
         else:
             self._validating = False
             self._validation_state = 'invalid' if error else 'valid'
-            self._unverified_version = bool(not error and result.get('verification_status') == 'unverified')
+            self._unverified_version = bool(not error and result.get('verified') is False)
             error_text = validator.describe_validation_failure(error) if error else ''
             self._validation = error_text or 'Instalação válida: metadados, executáveis e módulos conferidos.'
             if self._unverified_version:
-                self._validation = 'Versão não verificada: qualidade, compatibilidade e estabilidade não foram avaliadas para estes executáveis.'
+                self._validation_state = 'unverified'
+                self._validation = validator.UNVERIFIED_WARNING
             if not error:
                 self._installation = f"{result['app_title']} · {result['title_id']} · {result['version']}"
                 self._installation_id = result['title_id']

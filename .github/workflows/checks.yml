@@ -38,8 +38,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+      - name: Install EGL for Qt tests on Ubuntu
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1
       - name: Install existing Python test dependencies
         run: python -m pip install iced-x86==1.21.0 PySide6-Essentials==6.12.0
+      - name: Set up CLANG64 for Windows tests
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@3c51bf698df1e37b2261f53cb67797b97761185c # v2.34.0
+        id: msys2
+        with:
+          msystem: CLANG64
+          release: false
+          install: mingw-w64-clang-x86_64-clang
+      - name: Configure Windows test paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLANG64_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          "MSYS2_ROOT=$env:CLANG64_ROOT" >> $env:GITHUB_ENV
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - name: Knack II launcher and supervisor
         run: python -B -m unittest discover -s tests -p 'test_knack2*.py' -v
       - name: Preparation and linker
@@ -70,8 +92,24 @@ jobs:
         run: |
           dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
           dnf install -y libavcodec-freeworld
-      - name: Build Linux runtime and run native tests
-        run: bash port/build.sh --test
+      - name: Build Linux runtime and native test targets
+        shell: bash
+        run: |
+          export TLG_BUILD_COMMIT="${GITHUB_SHA:0:12}"
+          cmake -S port/gpu -B port/out-linux -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTLG_PGO=off -DTLG_LTO="$TLG_LTO"
+          cmake --build port/out-linux --parallel "$TLG_BUILD_JOBS" --target \
+            tlg-probe runtime-test sema-test freeze-test videodec-test isa-sse4a-test isa-f16c-test
+      - name: Run Linux native contracts
+        shell: bash
+        run: |
+          export KNACK2_TEST_BUILD_DIR="$PWD/port/out-linux"
+          python3 -B -m unittest discover -s port/tests -p test_runtime.py -v
+          python3 -B -m unittest discover -s port/tests -p test_sema.py -v
+          timeout 15 "$KNACK2_TEST_BUILD_DIR/freeze-test"
+          timeout 60 "$KNACK2_TEST_BUILD_DIR/videodec-test" port/tests/data/tiny.h264
+          timeout 60 "$KNACK2_TEST_BUILD_DIR/isa-sse4a-test"
+          timeout 60 "$KNACK2_TEST_BUILD_DIR/isa-f16c-test"
       - name: Check Knack II LoadExec handoff
         run: |
           mkdir -p out

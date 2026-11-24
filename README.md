@@ -1,13 +1,13 @@
 <h1 align="center">Knack II — Native PC Port</h1>
 <p align="center"><strong>An independent, experimental native port of Knack II for Windows and Linux (x86-64).</strong></p>
 <p align="center">
-  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18.4-0969da?style=flat-square" alt="Release v0.18.4" /></a>
+  <a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest"><img src="https://img.shields.io/badge/release-v0.18.7-0969da?style=flat-square" alt="Release v0.18.7" /></a>
   <img src="https://img.shields.io/badge/Windows-x64-555?style=flat-square" alt="Windows x64" />
   <img src="https://img.shields.io/badge/Linux-AppImage%20experimental-555?style=flat-square" alt="Linux experimental" />
   <img src="https://img.shields.io/badge/Vulkan-1.3%2B-555?style=flat-square" alt="Vulkan 1.3+" />
   <a href="https://buymeacoffee.com/hyant4"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000000" alt="Support on Buy Me a Coffee" /></a>
 </p>
-<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">Release notes for 0.18.4</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
+<p align="center"><strong><a href="https://github.com/Hyant4/Knack-II-pc-port/releases/latest">Download the latest release</a></strong> · <a href="RELEASE-NOTES.md">Release notes for 0.18.7</a> · <a href="https://github.com/Hyant4/Knack-II-pc-port/issues">Report an issue</a></p>
 <p align="center"><strong>English</strong> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
 
 <p align="center">
@@ -15,10 +15,19 @@
   <img src="docs/screenshots/knack-ii-combat.png" alt="Knack II gameplay on the PC port" width="48%" />
 </p>
 
-> [!IMPORTANT]
-> This is an **unofficial, experimental community project**, not a game download. You must provide your own complete, legally obtained Knack II dump. No game, firmware or save files are included. Hardware and campaign-wide compatibility have **not** been fully certified.
+[简体中文使用指南](docs/GUIA_ZH_CN.md)
 
-## What's new in v0.18
+**[Downloads publicados](https://github.com/Hyant4/Knack-II-pc-port/releases/latest)** ·
+[Notas da V0.18](RELEASE-NOTES.md) · [Créditos e licenças](docs/CREDITS.md)
+
+O jogo não acompanha o pacote. Use seu próprio dump completo de **CUSA08014
+01.00 ou 01.01**, ou **CUSA07670 01.01**, e driver com **Vulkan 1.3+**.
+A base americana 01.00 não exige update. O código também inclui um perfil
+experimental para **CUSA08096 01.01** (edição chinesa), pendente de teste com
+o dump real. A validação confere região, versão, executáveis e módulos.
+Outros dumps reconhecidos de Knack II podem abrir em modo experimental, com
+aviso de compatibilidade ainda não verificada.
+[Compatibilidade e evidências](docs/COMPATIBILIDADE_REGIONAL.md).
 
 - **Linux support:** native launcher and runtime, plus an experimental x86-64 AppImage.
 - **Windows installation tools:** extract a base-game `.pkg` and install an update `.pkg` from the launcher's **Installation** tab, with validation, update backup and restore.
@@ -36,7 +45,7 @@ See the [v0.18 release](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/
 
 ### Windows (x64)
 
-1. Download `Knack-II-Windows-x64-V0.18.4.zip` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest) and extract the **entire ZIP into a new folder**.
+1. Download `Knack-II-Windows-x64-V0.18.7.zip` from [Releases](https://github.com/Hyant4/Knack-II-pc-port/releases/latest) and extract the **entire ZIP into a new folder**.
 2. Launch **`Knack II.exe`** (do not run it from inside the ZIP). Python, Qt and the required runtime are bundled; you do not need to install Python or MSYS2.
 3. Select the folder of your extracted game containing `eboot.bin`, `game.elf`, `sce_sys` and `sce_module`.
 4. Click **Validate**, configure your preferences and click **Play**.
@@ -47,14 +56,14 @@ After the first setup, **`Play Knack II.exe`** can launch using saved preference
 
 ### Linux (experimental, x86-64)
 
-Download `Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage` from [Linux RC1](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.18.3-vulkan-loader-rc1), then run:
+Download `Knack-II-x86_64-0.18.7.AppImage` from [Linux AppImage](https://github.com/Hyant4/Knack-II-pc-port/releases/tag/knack2-Version-0.18.7), then run:
 
 ```bash
-chmod +x Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage
-./Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage
+chmod +x Knack-II-x86_64-0.18.7.AppImage
+./Knack-II-x86_64-0.18.7.AppImage
 ```
 
-Without FUSE, use `./Knack-II-x86_64-0.18.3-vulkan-loader-rc1.AppImage --appimage-extract-and-run`.
+Without FUSE, use `./Knack-II-x86_64-0.18.7.AppImage --appimage-extract-and-run`.
 
 **Linux requirements:** Vulkan 1.3+ and **glibc 2.43+**. This AppImage is built on Ubuntu 26.04; it does **not** bundle glibc or graphics drivers and does not support older-glibc systems. Linux Mint compatibility has not been certified. The Linux package opens the launcher but **does not include the Windows PKG extractor**: select your own already-extracted game dump.
 

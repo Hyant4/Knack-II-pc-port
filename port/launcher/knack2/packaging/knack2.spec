@@ -14,6 +14,11 @@ hidden = ['prepare', 'link_modules', 'link_libc', 'content_profile', 'isa_rewrit
 ui = root / 'port/launcher/knack2/ui'
 datas = [(str(p), 'port/launcher/knack2/ui') for p in ui.iterdir() if p.suffix in ('.qml', '.js')]
 art = ui / 'art'
+required_art = ('knack-keyart.jpg', 'knack-gameplay.png', 'controller-ps-photo.png',
+                'controller-xbox-one-frontal.png', 'controller-nintendo-front-clean.png')
+missing_art = [name for name in required_art if not (art / name).is_file()]
+if missing_art:
+    raise ValueError('Required launcher artwork missing: ' + ', '.join(missing_art))
 if art.is_dir():
     datas += [(str(p), 'port/launcher/knack2/ui/art') for p in art.iterdir()
               if p.suffix.lower() in ('.png', '.jpg', '.webp')]

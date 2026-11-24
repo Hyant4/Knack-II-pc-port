@@ -49,7 +49,7 @@ class ExperimentalBuildTests(unittest.TestCase):
                 with self.assertRaises(validator.KnackModuleError):
                     validator.validate_knack2_dump(game, profile=profile)
             with patch.object(validator.prepare, 'load_sfo', return_value={'TITLE_ID': 'CUSA08014', 'APP_VER': '01.01'}), patch.object(validator, 'digest_file', return_value='0' * 64):
-                with self.assertRaises(validator.KnackExecutableError):
+                with self.assertRaises(validator.KnackHashMismatchError):
                     validator.validate_knack2_dump(game, profile=profile)
 
     def test_runner_option_selects_supervisor_profile(self):

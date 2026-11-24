@@ -848,12 +848,25 @@ class F3BTests(unittest.TestCase):
         self.assertFalse(self.backend.canPlay)
         self.assertEqual(self.sessions[-1].contract.language, 'de-DE')
 
+    def test_unverified_dump_warns_and_can_play(self):
+        self.backend._validate_dump = lambda path: {
+            'app_title': 'Synthetic Knack II', 'title_id': 'CUSA07670', 'version': '01.02',
+            'languages': ['en-GB'], 'verified': False}
+        self.validate()
+        self.assertEqual(self.backend.validationState, 'unverified')
+        self.assertTrue(self.backend.canPlay)
+        self.assertIn('The developer has not validated this dump', self.backend.validationText)
+        self.assertEqual(self.window.findChild(QObject, 'validationMessage').property('text'),
+                         self.backend.validationText)
+        self.assertEqual(self.launch().contract.language, 'en-GB')
+        self.finish()
+
     def test_region_switch_replaces_language_choices_and_clears_validation(self):
         from port.launcher.knack2.languages import REGION_LANGUAGES
         self.assertEqual(self.backend.languageOptions,[])
         combo=self.window.findChild(QObject,'languageSelect')
         self.assertFalse(combo.property('enabled'))
-        for title in ('CUSA07670','CUSA08014','CUSA07670'):
+        for title in ('CUSA07670','CUSA08014','CUSA08096','CUSA07670'):
             codes=list(REGION_LANGUAGES[title])
             self.backend._validate_dump=lambda path,t=title,c=codes: {
                 'app_title':'Synthetic Knack II','title_id':t,'version':'01.01','languages':c}

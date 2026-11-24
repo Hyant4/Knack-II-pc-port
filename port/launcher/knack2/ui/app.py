@@ -6,7 +6,7 @@ import argparse
 import os
 from pathlib import Path
 import sys
-from ..languages import BY_CODE
+from ..languages import BY_CODE, UI_LANGUAGES
 
 
 def _configure_cli_streams():
@@ -32,7 +32,10 @@ def create_window(backend=None):
     # installed files explicitly; no font is copied or downloaded.
     if os.name == 'nt':
         fonts = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts'
-        for filename in ('segoeui.ttf', 'seguisb.ttf', 'seguisym.ttf', 'consola.ttf'):
+        filenames = ('segoeui.ttf', 'seguisb.ttf', 'seguisym.ttf', 'consola.ttf')
+        if os.environ.get('QT_QPA_PLATFORM') == 'offscreen':
+            filenames += ('msyh.ttc', 'msyhbd.ttc', 'simsun.ttc')
+        for filename in filenames:
             path = fonts / filename
             if path.is_file():
                 QFontDatabase.addApplicationFont(str(path))
@@ -83,6 +86,8 @@ def main(argv=None):
                       help='Supervisor oficial (padrão); sem --play, requer clicar em Jogar.')
     parser.add_argument('--language', choices=tuple(BY_CODE),
                         help='Launcher and game language (use en-US for English).')
+    parser.add_argument('--ui-language', choices=UI_LANGUAGES,
+                        help='Launcher language for this run, independent of the game language.')
     parser.add_argument('--experimental-build', action='store_true',
                         help='Testar o executável 01.01 experimental com perfil e saves separados.')
     parser.add_argument('--play', action='store_true',
@@ -97,7 +102,7 @@ def main(argv=None):
     from ..storage import application_data_root
     from .i18n_errors import translate_error
     saved = load_launcher_settings((args.data_dir or application_data_root()) / 'launcher_settings.json')
-    locale = saved.get('ui_language') or args.language or saved.get('language') or 'pt-BR'
+    locale = args.ui_language or saved.get('ui_language') or args.language or saved.get('language') or 'pt-BR'
     def startup_message(text):
         return translate_error(locale, text) or text
     if args.quit_after_ms < 0:
@@ -129,9 +134,12 @@ def main(argv=None):
         from .real import RealBackend
         backend = Backend() if args.demo else RealBackend(data_dir=args.data_dir, auto_play=args.play,
                                                                        experimental_build=args.experimental_build,
-                                                                       initial_language=args.language)
+                                                                       initial_language=args.language,
+                                                                       initial_ui_language=args.ui_language)
         if args.demo and args.language is not None:
             backend.setLanguage(args.language)
+        if args.demo and args.ui_language is not None:
+            backend.setUiLanguage(args.ui_language)
         engine, window, backend = create_window(backend)
     except RuntimeError as error:
         print(startup_message(str(error)), file=sys.stderr)

@@ -88,6 +88,7 @@ class NativeAaTests(unittest.TestCase):
             config.update_knack2_ini(ini,{'antialiasing':'native'})
             self.assertEqual(supervisor.runtime_environment(Path(d))['TLG_UPSCALER'],'fsr3')
 
+    @unittest.skipUnless(os.name == 'nt', 'MSYS2 Windows toolchain required')
     def test_shader_copy_and_guest_context_guards(self):
         prefix=Path(os.environ.get('MSYS2_ROOT') or Path(os.environ['LOCALAPPDATA'])/'knack2-toolchain/msys64')/'clang64'
         if not (prefix/'bin/clang.exe').is_file():self.skipTest('Existing clang toolchain unavailable')

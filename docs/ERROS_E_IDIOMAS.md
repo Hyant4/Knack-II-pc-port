@@ -1,9 +1,11 @@
 # Mensagens de erro e idioma do launcher
 
-As mensagens de erro da interface seguem a seleção **PT / EN / RU**, independente
+As mensagens de erro da interface seguem a seleção **PT / EN / RU / 简中**, independente
 do idioma escolhido para o jogo. Isso inclui validação de dump, instalação de
 PKG, configurações, saves, inicialização e encerramento de sessões. Erros de
 inicialização anteriores ao carregamento do Qt usam o idioma salvo do launcher.
+`--ui-language zh-CN` seleciona chinês simplificado para uma execução,
+inclusive no modo demonstração. A opção não seleciona idioma no jogo.
 
 O catálogo `port/launcher/knack2/ui/i18n_errors.py` contém mensagens completas e
 modelos com parâmetros. A camada de apresentação identifica o modelo completo,
@@ -22,7 +24,9 @@ mantêm o texto-fonte. Trocar o idioma atualiza o que já está na tela, sem pre
 validar o dump ou instalar o PKG novamente. A mudança de idioma não altera o
 resultado da validação, seus critérios, o backup, arquivos do jogo ou saves.
 
-Ao acrescentar um erro interno novo, inclua seu modelo e as traduções no catálogo.
+Ao acrescentar um erro interno novo, inclua seu modelo e as traduções nos
+catálogos `i18n_errors.py` e `i18n_errors_zh.py`. A interface em chinês
+simplificado usa `i18n_zh.py`.
 Os testes `tests/test_knack2_error_i18n.py` conferem cobertura das exceções atuais
 dos módulos do launcher, preservação dos parâmetros, mensagens aninhadas, troca
 de idioma na interface e erros de inicialização sem Qt. As mensagens produzidas

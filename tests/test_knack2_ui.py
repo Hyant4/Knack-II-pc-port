@@ -169,6 +169,7 @@ class QtUiTests(unittest.TestCase):
         for button, locale, title, settings in (
                 ('uiLanguageEN', 'en-US', 'Knack II PC — Demo', 'Settings'),
                 ('uiLanguageRU', 'ru-RU', 'Knack II PC — Демонстрация', 'Настройки'),
+                ('uiLanguage简中', 'zh-CN', 'Knack II PC 版 — 演示', '设置'),
                 ('uiLanguagePT', 'pt-BR', 'Knack II PC — Demonstração', 'Configurações')):
             self.click(button)
             self.assertEqual(self.backend.uiLanguage, locale)

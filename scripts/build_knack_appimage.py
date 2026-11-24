@@ -33,7 +33,7 @@ def external_library(name):
     # Keep glibc/loader and vendor graphics implementations matched to the host.
     return bool(re.match(
         r'^(ld-linux|lib(?:c|m|dl|pthread|rt|resolv|util|anl)\.so|libnss_|'
-        r'lib(?:GL|EGL|GLES|OpenGL|cuda|nvidia)|libvulkan_(?:radeon|intel|lvp))', name))
+        r'lib(?:GL|EGL|GLES|OpenGL|cuda|nvidia)|libvulkan\.so(?:\.|$)|libvulkan_(?:radeon|intel|lvp))', name))
 
 
 def main(argv=None):

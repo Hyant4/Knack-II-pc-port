@@ -21,6 +21,11 @@ int main(int argc,char **argv) {
     assert(!knack_code_profile("CUSA08014","01.01","unknown",&serial,&version));
     assert(!knack_code_profile("CUSA08014","01.01","",&serial,&version));
     assert(!knack_code_profile("CUSA99999","01.01",NULL,&serial,&version));
+    assert(!knack_code_profile("CUSA08096","01.00","elf-0b7843d3",&serial,&version));
+    assert(!knack_code_profile("CUSA08096","01.01","elf-80ccc228",&serial,&version));
+    assert(!knack_code_profile("CUSA08096","01.01",NULL,&serial,&version));
+    assert(knack_code_profile("CUSA08096","01.01","elf-0b7843d3",&serial,&version));
+    assert(!strcmp(serial,"CUSA07670") && !strcmp(version,"01.01"));
     assert(knack_code_profile("CUSA08014","01.01","elf-0b7843d3",&serial,&version));
     assert(!strcmp(serial,"CUSA07670") && !strcmp(version,"01.01"));
     assert(knack_native_profile(serial,version)==&knack_native_eu);

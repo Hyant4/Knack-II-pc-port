@@ -6,14 +6,35 @@ are rendered; filenames, hashes and other data are never translated as prose.
 """
 import re
 from string import Formatter
+from .i18n_errors_zh import CHINESE_ERRORS
 
 # Source Portuguese, English, Russian. Named fields are opaque except for the
 # explicitly nested diagnostic fields listed in NESTED_FIELDS below.
 ERROR_MESSAGES = [
-    ('Um executável está incompleto ou possui estrutura não suportada pelo carregador.', 'An executable is incomplete or has a structure unsupported by the loader.', 'Исполняемый файл неполон или его структура не поддерживается загрузчиком.'),
-    ('{file}: estrutura ELF/SELF inválida ou não suportada: {detail}', '{file}: invalid or unsupported ELF/SELF structure: {detail}', '{file}: недопустимая или неподдерживаемая структура ELF/SELF: {detail}'),
-    ('Executável excede o limite de 512 MiB.', 'Executable exceeds the 512 MiB limit.', 'Исполняемый файл превышает ограничение в 512 МиБ.'),
-    ('Ponto de entrada fora dos segmentos executáveis.', 'Entry point is outside executable segments.', 'Точка входа находится вне исполняемых сегментов.'),
+    ('Dump ainda não validado pelo desenvolvedor. A execução é experimental e pode apresentar falhas.',
+     'The developer has not validated this dump. It will run in experimental mode and may have issues.',
+     'Разработчик ещё не проверил этот дамп. Игра запустится в экспериментальном режиме и может работать с ошибками.'),
+    ('Atualize o runtime para executar dumps ainda não validados.',
+     'Update the runtime to start unverified dumps.',
+     'Обновите среду выполнения для запуска непроверенных дампов.'),
+    ('Os metadados não identificam um dump de Knack II.',
+     'The metadata does not identify a Knack II dump.',
+     'Метаданные не идентифицируют дамп Knack II.'),
+    ('Executável excede o limite de 512 MiB.',
+     'The executable exceeds the 512 MiB limit.',
+     'Исполняемый файл превышает ограничение в 512 МиБ.'),
+    ('Ponto de entrada fora dos segmentos executáveis.',
+     'The entry point is outside the executable segments.',
+     'Точка входа находится за пределами исполняемых сегментов.'),
+    ('Executável inválido ou incompatível ({file}): {detail}',
+     'Invalid or incompatible executable ({file}): {detail}',
+     'Недействительный или несовместимый исполняемый файл ({file}): {detail}'),
+    ('Runtime instalado não oferece suporte ao perfil {profile}. Use um runtime correspondente ao launcher atualizado.',
+     'The installed runtime does not support profile {profile}. Use the runtime that matches the updated launcher.',
+     'Установленная среда выполнения не поддерживает профиль {profile}. Используйте среду выполнения из обновлённой версии лаунчера.'),
+    ('CUSA08096 01.00: a edição chinesa ainda não tem perfil validado nesta versão do port.',
+     'CUSA08096 01.00: this port version has no validated profile for the Chinese edition.',
+     'CUSA08096 01.00: в этой версии порта нет проверенного профиля для китайского издания.'),
     ('Idioma inicial inválido', 'Invalid initial language', 'Недопустимый начальный язык'),
     ('Extraindo itens do jogo: {done}/{total}.', 'Extracting game items: {done}/{total}.', 'Извлечение элементов игры: {done}/{total}.'),
     ('Selecione um PKG do jogo-base; updates e DLC não são aceitos.', 'Select a base-game PKG; updates and DLC are not accepted.', 'Выберите PKG основной игры; обновления и DLC не принимаются.'),
@@ -201,6 +222,7 @@ ERROR_MESSAGES = [
     ('--quit-after-ms deve ser >= 0', '--quit-after-ms must be >= 0', '--quit-after-ms должен быть >= 0'),
     ('--screenshot requer --quit-after-ms', '--screenshot requires --quit-after-ms', '--screenshot требует --quit-after-ms'),
     ('--play não está disponível na demonstração', '--play is unavailable in demo mode', '--play недоступен в демонстрации'),
+    ('--experimental-build requer o launcher real', '--experimental-build requires the real launcher', '--experimental-build требует обычного режима лаунчера'),
     ('Falha ao salvar screenshot.', 'Could not save screenshot.', 'Не удалось сохранить снимок экрана.'),
 ]
 
@@ -286,6 +308,8 @@ ENTRIES = [(source, {'pt-BR': source, 'en-US': english, 'ru-RU': russian})
            for source, english, russian in ERROR_MESSAGES]
 ENTRIES += [(source, {'pt-BR': portuguese, 'en-US': source, 'ru-RU': russian})
             for source, portuguese, russian in ENGLISH_MESSAGES]
+for source, translations in ENTRIES:
+    translations['zh-CN'] = CHINESE_ERRORS[source]
 PATTERNS = [(_compile(source), translations) for source, translations in ENTRIES]
 
 
@@ -293,7 +317,9 @@ def translate_error(locale, source, exact=lambda locale, text: None, *, depth=0)
     """Render a complete known template; never substitute words inside data."""
     if depth > 8:
         return None
-    language = 'ru-RU' if locale == 'ru-RU' else 'pt-BR' if locale in ('pt-BR', 'pt-PT') else 'en-US'
+    language = locale if isinstance(locale, str) else 'en-US'
+    if language == 'pt-PT':
+        language = 'pt-BR'
     for pattern, translations in PATTERNS:
         match = pattern.fullmatch(source)
         if match is None:
@@ -308,5 +334,5 @@ def translate_error(locale, source, exact=lambda locale, text: None, *, depth=0)
             if translated is not None:
                 start = len(raw) - len(raw.lstrip())
                 values[field] = raw[:start] + translated + raw[start + len(core):]
-        return translations[language].format_map(values)
+        return translations.get(language, translations['en-US']).format_map(values)
     return None

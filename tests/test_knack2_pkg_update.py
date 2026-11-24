@@ -125,7 +125,7 @@ class UpdateTests(unittest.TestCase):
 
     def test_invalid_unknown_executable_preserves_installation(self):
         self.payload['game.elf'] = b'unknown bytes'
-        with self.assertRaises(validator.KnackExecutableError):
+        with self.assertRaises(validator.KnackHashMismatchError):
             self.install()
         self.assertEqual(self.snapshot(), self.initial)
         self.assertEqual(update.read_journal(self.game)['state'], 'rolled_back')

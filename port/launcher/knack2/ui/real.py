@@ -7,7 +7,7 @@ import queue
 import threading
 import uuid
 from functools import partial
-from ..validator import default_profile_path, validate_knack2_dump
+from ..validator import default_profile_path, validate_knack2_dump, UNVERIFIED_WARNING
 
 from PySide6.QtCore import Property, QTimer, Signal, Slot, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
@@ -16,7 +16,7 @@ from .. import config, pkg_update
 from ..gpu_presets import matching_gpu_preset, gpu_settings_for_preset, RX580_PRESET
 from ..gtx1060_diagnostics import PRESET as GTX1060_PRESET, validate_mode as validate_gtx1060_mode
 from ..runner import KnackRunner, RunnerState
-from ..languages import BY_CODE, REGION_LANGUAGES
+from ..languages import BY_CODE, REGION_LANGUAGES, UI_LANGUAGES
 from ..identity import runtime_path
 from ..storage import application_data_root, profile_user
 from ..paths import project_root
@@ -39,13 +39,16 @@ class RealBackend(Backend):
     closeReady = Signal()
     _stateTokenArrived = Signal(str, object, str, str)
 
-    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False, experimental_build=False, initial_language=None, **kwargs):
+    def __init__(self, *, data_dir=None, session_factory=KnackRunner, auto_play=False,
+                 experimental_build=False, initial_language=None, initial_ui_language=None, **kwargs):
         if initial_language is not None and initial_language not in BY_CODE:
             raise ValueError('Idioma inicial inválido')
         self._experimental_build = bool(experimental_build)
         if self._experimental_build:
             kwargs['validate_dump'] = partial(validate_knack2_dump,
                 profile_path=default_profile_path(experimental_build=True))
+        else:
+            kwargs.setdefault('validate_dump', partial(validate_knack2_dump, allow_unverified=True))
         super().__init__(**kwargs)
         self._real_mode = True
         self._workspace.cleanup()
@@ -81,8 +84,8 @@ class RealBackend(Backend):
         self._language = initial_language if initial_language is not None else saved.get('language', 'pt-BR')
         if not isinstance(self._language, str) or self._language not in BY_CODE:
             self._language = 'pt-BR'
-        ui_language = saved.get('ui_language')
-        if isinstance(ui_language, str) and ui_language in ('pt-BR', 'en-US', 'ru-RU'):
+        ui_language = initial_ui_language or saved.get('ui_language')
+        if ui_language in UI_LANGUAGES:
             self._ui_language = ui_language
         # Restore only an explicitly saved launcher preference, never a guest user ID.
         players = saved.get('players')
@@ -121,7 +124,7 @@ class RealBackend(Backend):
             return None
         required = ('schema', 'status', 'game_dir', 'title_id', 'version')
         if (value.get('schema') != VALIDATION_RECORD_SCHEMA or
-                value.get('status') not in ('valid', 'invalid') or
+                value.get('status') not in ('valid', 'unverified', 'invalid') or
                 not all(isinstance(value.get(key), str) and value[key] for key in required[2:])):
             return None
         return {key: value[key] for key in required}
@@ -129,7 +132,7 @@ class RealBackend(Backend):
     def _validation_record(self, result, error):
         record = {
             'schema': VALIDATION_RECORD_SCHEMA,
-            'status': 'invalid' if error else 'valid',
+            'status': 'invalid' if error else self._validation_state,
             'game_dir': self._canonical_game_dir(self._game_dir),
             'title_id': str((result or {}).get('title_id') or 'unknown'),
             'version': str((result or {}).get('version') or 'unknown'),
@@ -152,7 +155,7 @@ class RealBackend(Backend):
             self._notice(f'Validação concluída, mas não foi possível registrar o resultado: {exc}', True)
 
     def _matches_saved_validation(self, record, result):
-        return bool(record and record.get('status') == 'valid' and
+        return bool(record and record.get('status') == self._validation_state and
                     record.get('game_dir') == self._canonical_game_dir(self._game_dir) and
                     record.get('title_id') == str(result.get('title_id')) and
                     record.get('version') == str(result.get('version')))
@@ -175,7 +178,7 @@ class RealBackend(Backend):
                 self._state in ('IDLE', 'FINISHED', 'FAILED'))
 
     def _can_play(self):
-        return (self.editable and not self._closing and self._validation_state == 'valid' and
+        return (self.editable and not self._closing and self._validation_state in ('valid', 'unverified') and
                 (self._runner is None or not self._runner.is_running))
 
     def _language_codes(self):
@@ -183,7 +186,7 @@ class RealBackend(Backend):
 
     @Slot(str)
     def setUiLanguage(self, code):
-        if self._closed or code not in ('pt-BR', 'en-US', 'ru-RU'):
+        if self._closed or code not in UI_LANGUAGES:
             return
         super().setUiLanguage(code)
         try:
@@ -206,13 +209,14 @@ class RealBackend(Backend):
         if self._experimental_build and not self._unverified_version:
             self._installation += ' · Experimental'
             self._validation = 'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'
-        regional = REGION_LANGUAGES.get(result.get('title_id'), ())
+        regional = (result.get('languages', ()) if self._validation_state == 'unverified'
+                    else REGION_LANGUAGES.get(result.get('title_id'), ()))
         self._available_languages = tuple(code for code in regional
                                           if code in result.get('languages', regional))
-        if not self._available_languages:
+        if not self._available_languages and self._validation_state != 'unverified':
             self._validation_state = 'invalid'
             self._validation = 'Nenhum idioma compatível encontrado no dump.'
-        elif self._language not in self._available_languages:
+        elif self._available_languages and self._language not in self._available_languages:
             regional = {'pt-BR': 'pt-PT', 'pt-PT': 'pt-BR', 'en-US': 'en-GB',
                         'en-GB': 'en-US', 'es-419': 'es-ES', 'es-ES': 'es-419'}
             fallback = next((code for code in (regional.get(self._language), 'en-US', 'en-GB')
@@ -415,7 +419,8 @@ class RealBackend(Backend):
                                   if self.gtx1060Diagnostic != 'off' else {})
             runner = self._session_factory(self._game_dir, timeout=0, out_dir=out,
                                           **diagnostic_options, **build_options,
-                                          config_file=settings_file, local_users=self._players, language=self._language,
+                                          config_file=settings_file, local_users=self._players,
+                                          language=self._language if self._available_languages else None,
                                           second_user=second_user,
                                           user_data=user,
                                           on_state_change=lambda state: self._stateTokenArrived.emit(
@@ -431,7 +436,10 @@ class RealBackend(Backend):
         self._generation = token
         self._state, self._session = 'STARTING', ''
         self._out, self._log_path = out, log
-        self._notice('Preparando sessão pelo supervisor oficial. Aguarde os registros de execução.')
+        if self._validation_state == 'unverified':
+            self._notice(UNVERIFIED_WARNING)
+        else:
+            self._notice('Preparando sessão pelo supervisor oficial. Aguarde os registros de execução.')
 
         def launch():
             if previous is not None:

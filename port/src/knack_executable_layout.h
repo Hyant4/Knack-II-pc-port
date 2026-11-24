@@ -11,14 +11,18 @@ static inline int knack_code_profile(const char *serial, const char *version, co
     const int us100 = us && !strcmp(version,"01.00");
     const int us101 = us && !strcmp(version,"01.01");
     const int eu101 = !strcmp(serial,"CUSA07670") && !strcmp(version,"01.01");
-    if (!us100 && !us101 && !eu101) return 0;
-    if (!layout) layout = eu101 ? "elf-0b7843d3" : "elf-80ccc228";
+    const int cn101 = !strcmp(serial,"CUSA08096") && !strcmp(version,"01.01");
+    if (!us100 && !us101 && !eu101 && !cn101) return 0;
+    if (!layout) {
+        if (cn101) return 0;
+        layout = eu101 ? "elf-0b7843d3" : "elf-80ccc228";
+    }
     if (!strcmp(layout,"elf-80ccc228") && (us100 || us101)) {
         *code_serial="CUSA08014";
         *code_version=us100 ? "01.00" : "01.01";
         return 1;
     }
-    if (!strcmp(layout,"elf-0b7843d3") && (us101 || eu101)) {
+    if (!strcmp(layout,"elf-0b7843d3") && (us101 || eu101 || cn101)) {
         *code_serial="CUSA07670";
         *code_version="01.01";
         return 1;

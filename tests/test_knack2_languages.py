@@ -112,6 +112,15 @@ class LanguageTests(unittest.TestCase):
             self.assertEqual(translate('ru-RU', source), translated)
         self.assertEqual(translate('ru-RU', 'external error 75 at 0x1234'), 'external error 75 at 0x1234')
 
+    def test_simplified_chinese_catalog_covers_launcher_messages(self):
+        from port.launcher.knack2.ui.i18n import CHINESE, MESSAGES, translate
+        self.assertEqual(set(MESSAGES), set(CHINESE))
+        for source, translated in CHINESE.items():
+            with self.subTest(source=source):
+                self.assertTrue(any('\u4e00' <= char <= '\u9fff' for char in translated))
+                self.assertEqual(source.count('\n'), translated.count('\n'))
+                self.assertEqual(translate('zh-CN', source), translated)
+
 
 if __name__ == '__main__':
     unittest.main()
