@@ -17,6 +17,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 from typing import Any, Mapping
 
@@ -66,6 +67,10 @@ class KnackHashMismatchError(KnackDumpError, ValueError):
     """Executable SHA-256 digest differs from the official dump."""
 
 
+class KnackExecutableError(KnackDumpNotFoundError):
+    """An unverified executable is malformed, incomplete, or unsupported."""
+
+
 class KnackModuleError(KnackDumpError, ValueError):
     """Required sce_module file missing or invalid ELF structure."""
 
@@ -92,6 +97,25 @@ def digest_file(path: Path | str) -> str:
     """Compute the SHA-256 digest of a file."""
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def validate_unverified_executable(path: Path, name: str) -> None:
+    """Use the existing loader parser before allowing an unknown fingerprint."""
+    try:
+        limit = 512 * 1024 * 1024
+        with path.open('rb') as stream:
+            source = stream.read(limit + 1)
+        if len(source) > limit:
+            raise ValueError('Executável excede o limite de 512 MiB.')
+        _, header, segments, _, _ = prepare.parse_self(source)
+        if header[1] not in (0xfe00, 0xfe10) or not any(
+                segment['type'] == 1 and segment['flags'] & 1 and
+                segment['vaddr'] <= header[4] < segment['vaddr'] + segment['memsz']
+                for segment in segments):
+            raise ValueError('Ponto de entrada fora dos segmentos executáveis.')
+    except (OSError, ValueError, OverflowError, struct.error) as error:
+        raise KnackExecutableError(
+            f'Executável inválido ou incompatível ({name}): {error}') from error
 
 
 def default_profile_path(repo_root: Path | None = None, *, experimental_build: bool = False) -> Path:
@@ -312,6 +336,7 @@ def validate_knack2_dump(game_dir: Path | str,
     executables = active_profile['executables'] if active_profile else {'eboot.bin': None, 'game.elf': None}
     actual_hashes = {}
     executable_paths = {}
+    unverified_executables = []
     for name, expected_hash in executables.items():
         try:
             exe_path = effective(name)
@@ -324,6 +349,7 @@ def validate_knack2_dump(game_dir: Path | str,
         actual_hash = actual_hashes[name] = digest_file(exe_path)
         executable_paths[name] = exe_path
         if active_profile is None:
+            unverified_executables.append(name)
             continue
         if name == 'game.elf':
             try:
@@ -332,12 +358,14 @@ def validate_knack2_dump(game_dir: Path | str,
                 if not allow_unverified:
                     raise
                 verified = False
+                unverified_executables.append(name)
         elif actual_hash.lower() != expected_hash.lower():
             if not allow_unverified:
                 raise KnackHashMismatchError(
                     f'{name}: SHA-256 difere do dump suportado. '
                     f'Encontrado: {actual_hash}. Esperado: {expected_hash}.')
             verified = False
+            unverified_executables.append(name)
 
     # 3. Modules Validation (libc.prx, libSceFios2.prx, libSceJobManager.prx, etc.)
     if not verified:
@@ -348,10 +376,7 @@ def validate_knack2_dump(game_dir: Path | str,
                 not re.fullmatch(rf'[A-Z]{{2}}[0-9]{{4}}-{title_id}_00-KNACK20000000000', content_id)):
             raise KnackVersionMismatchError('Os metadados não identificam um dump de Knack II.')
         for name, path in executable_paths.items():
-            try:
-                prepare.parse_self(prepare.read_self(path))
-            except (OSError, ValueError) as error:
-                raise KnackDumpNotFoundError(f'Executável inválido ou incompatível ({name}): {error}') from error
+            validate_unverified_executable(path, name)
         executable_layout = UNVERIFIED_LAYOUT
     modules_map = active_profile['modules'] if active_profile else {
         'eboot.bin': ['libc.prx', 'libSceFios2.prx'],
@@ -372,6 +397,8 @@ def validate_knack2_dump(game_dir: Path | str,
     return {
         'valid': True,
         'verified': verified,
+        'unverified_executables': unverified_executables,
+        'executable_hashes': actual_hashes,
         'title_id': title_id,
         'version': app_ver,
         'executable_layout': executable_layout,

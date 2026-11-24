@@ -209,9 +209,6 @@ class RealBackend(Backend):
         if self._experimental_build and not self._unverified_version:
             self._installation += ' · Experimental'
             self._validation = 'Build experimental: arquivos conferidos; compatibilidade de jogo não verificada.'
-        if result.get('verified') is False:
-            self._validation_state = 'unverified'
-            self._validation = UNVERIFIED_WARNING
         regional = (result.get('languages', ()) if self._validation_state == 'unverified'
                     else REGION_LANGUAGES.get(result.get('title_id'), ()))
         self._available_languages = tuple(code for code in regional

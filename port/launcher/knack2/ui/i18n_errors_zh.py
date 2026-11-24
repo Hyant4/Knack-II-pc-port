@@ -5,6 +5,8 @@ CHINESE_ERRORS = {
     'Dump ainda não validado pelo desenvolvedor. A execução é experimental e pode apresentar falhas.': '开发者尚未验证此游戏转储。游戏将以实验模式运行，可能出现问题。',
     'Atualize o runtime para executar dumps ainda não validados.': '请更新运行时，以启动未经验证的游戏转储。',
     'Os metadados não identificam um dump de Knack II.': '元数据无法确认这是 Knack II 的游戏转储。',
+    'Executável excede o limite de 512 MiB.': '可执行文件超过 512 MiB 的限制。',
+    'Ponto de entrada fora dos segmentos executáveis.': '入口点位于可执行段之外。',
     'Executável inválido ou incompatível ({file}): {detail}': '可执行文件无效或不兼容（{file}）：{detail}',
     'Runtime instalado não oferece suporte ao perfil {profile}. Use um runtime correspondente ao launcher atualizado.': '已安装的运行时不支持配置 {profile}。请使用与新版启动器配套的运行时。',
     'CUSA08096 01.00: a edição chinesa ainda não tem perfil validado nesta versão do port.': 'CUSA08096 01.00：当前移植版本尚无经过验证的中国版配置。',

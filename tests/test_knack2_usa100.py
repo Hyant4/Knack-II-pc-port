@@ -80,9 +80,9 @@ class Usa100Tests(unittest.TestCase):
                 path = self.game / name
                 original = path.read_bytes()
                 path.write_bytes(original + b'changed')
-                with self.subTest(executable=name), self.assertRaises(validator.KnackExecutableError):
+                with self.subTest(executable=name), self.assertRaises(validator.KnackHashMismatchError):
                     validator.validate_knack2_dump(self.game, repo_root=self.repo)
-                with self.assertRaises(validator.KnackExecutableError):
+                with self.assertRaises(validator.KnackHashMismatchError):
                     run.validate_game(self.game, self.profile)
                 path.write_bytes(original)
             (self.game / 'sce_module/libSceJobManager.prx').unlink()

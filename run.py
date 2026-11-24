@@ -44,8 +44,10 @@ def validate_game(game, profile):
     values = prepare.load_sfo(game / 'sce_sys/param.sfo')
     if (values.get('TITLE_ID'), values.get('APP_VER')) != (profile['title_id'], profile['version']):
         raise ValueError(f"This profile requires {profile['title_id']} version {profile['version']}")
+    executable_hashes = {}
     for name, expected in profile['executables'].items():
         actual = digest(prepare.executable_path(game, name))
+        executable_hashes[name] = actual
         if name == 'game.elf':
             values = {**values, 'executable_layout': executable_layout_for_hash(profile, actual),
                       'game_elf_sha256': actual}
@@ -53,7 +55,7 @@ def validate_game(game, profile):
             raise KnackHashMismatchError(f'{name}: SHA-256 differs from the supported dump')
     for name in {m for modules in profile['modules'].values() for m in modules}:
         link_modules.module(game / 'sce_module' / name)
-    return values
+    return {**values, 'executable_hashes': executable_hashes}
 
 
 NGS2_MODULE = 'libSceNgs2.sprx'
@@ -481,10 +483,10 @@ def _main(argv, lifetime):
               'visual_verified': False, 'stages': []}
     diagnostic_choices = {key: env[variable] for key, variable in GPU_DIAGNOSTIC_ENV.items()
                           if variable in env}
-    report['verification_status'] = validated.get('verification_status', 'reference')
+    report['verification_status'] = 'unverified' if unverified else 'reference'
     report['unverified_executables'] = validated.get('unverified_executables', [])
     report['executable_hashes'] = validated.get('executable_hashes', {})
-    report['executable_layout_verified'] = validated.get('executable_layout_verified', True)
+    report['executable_layout_verified'] = not unverified
     report['gpu_diagnostics'] = diagnostic_choices
     if diagnostic_choices:
         print('GPU diagnostic overrides: ' + ', '.join(

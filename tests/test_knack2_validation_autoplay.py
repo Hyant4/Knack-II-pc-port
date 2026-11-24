@@ -137,8 +137,7 @@ class ValidationAutoplayTests(unittest.TestCase):
                 'validation': {'schema': 1, 'status': 'valid', 'game_dir': str(game_dir.resolve()),
                                'title_id': 'CUSA08014', 'version': '01.01'},
             }, path=data_dir / 'launcher_settings.json')
-            result = {**self.result(), 'verification_status': 'unverified',
-                      'unverified_executables': ['eboot.bin']}
+            result = {**self.result(), 'verified': False}
             backend = self.make_backend(data_dir, result=result, auto_play=True)
             launched = []
             backend.play = lambda: launched.append(True)
@@ -147,9 +146,10 @@ class ValidationAutoplayTests(unittest.TestCase):
                 self.assertEqual(launched, [])
                 self.assertTrue(backend.canPlay)
                 self.assertTrue(backend.unverifiedVersion)
-                for locale, phrase in (('pt-BR', 'qualidade, compatibilidade'),
-                                       ('en-US', 'quality, compatibility'),
-                                       ('ru-RU', 'качество, совместимость')):
+                for locale, phrase in (('pt-BR', 'A execução é experimental'),
+                                       ('en-US', 'experimental mode'),
+                                       ('ru-RU', 'в экспериментальном режиме'),
+                                       ('zh-CN', '以实验模式运行')):
                     backend.setUiLanguage(locale)
                     self.assertIn(phrase, backend.validationText)
                 backend.selectFolder(str(root / 'other'))
